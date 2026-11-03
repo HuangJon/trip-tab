@@ -159,7 +159,8 @@ addEventListener('hashchange', () => { readHash(); render(); });
 
 /* ---------- Start ---------- */
 async function chooseBackend() {
-  if (firebaseConfig && !PREVIEW) return createFirebaseBackend(firebaseConfig, await loadFirebaseSdk(FIREBASE_VERSION, { appCheck: Boolean(appCheckSiteKey) }), { appCheckSiteKey });
+  const onTestServer = ['localhost', '127.0.0.1'].includes(location.hostname) || location.protocol === 'file:';
+  if (firebaseConfig && !PREVIEW && !onTestServer) return createFirebaseBackend(firebaseConfig, await loadFirebaseSdk(FIREBASE_VERSION, { appCheck: Boolean(appCheckSiteKey) }), { appCheckSiteKey });
   return createLocalBackend({ hangWrites: () => storage.get('test-hang-writes', false) });
 }
 
