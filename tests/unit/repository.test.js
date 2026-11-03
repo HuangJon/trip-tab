@@ -12,7 +12,7 @@ const setup = async () => {
   const { trip, written } = repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
   await written;
   const [a, b] = Object.keys(trip.members);
-  const entry = { id: 'entry00000000001', tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [a]: 10 }, owed: { [b]: 10 }, comments: {}, createdAt: 5, deleted: false };
+  const entry = { id: 'entry00000000001', tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [a]: 10 }, owed: { [b]: 10 }, comments: {}, createdAt: 5, updatedAt: 5, deleted: false };
   return { backend, repo, trip, a, b, entry };
 };
 const entriesOf = async (backend, id) => backend.list(`trips/${id}/entries`);
@@ -113,4 +113,80 @@ test('device remembers trips, who you are and drafts', () => {
   d.setMe('b', 'm'); assert.equal(d.me('b'), 'm');
   d.saveDraft('b', { desc: 'x' }); assert.equal(d.draft('b').desc, 'x');
   d.clearDraft('b'); assert.equal(d.draft('b'), null);
+});
+
+test('editing files the old version, and it can be listed', async () => {
+  const { repo, trip, entry } = await setup();
+  await repo.saveEntry(trip, entry, { isNew: true, actor: 'A', label: 'added' });
+  await repo.saveEntry(trip, { ...entry, desc: 'Second' }, { isNew: false, previous: entry, actor: 'A', label: 'edited' });
+  const [rev] = await repo.listRevisions(trip.id, entry.id);
+  assert.equal(rev.entry.desc, 'D'); assert.equal(rev.by, 'A'); assert.equal(rev.entry.comments, undefined);
+});
+test('a save that does not add up is refused before writing', async () => {
+  const { backend, repo, trip, entry } = await setup();
+  await assert.rejects(repo.saveEntry(trip, { ...entry, total: 99 }, { isNew: true, actor: 'A', label: 'added' }));
+  assert.equal((await entriesOf(backend, trip.id)).length, 0);
+});
+test('offline: every write starts even though none can finish', async () => {
+  let hang = false;
+  const backend = createLocalBackend({ area: area(), hangWrites: () => hang }), repo = createRepository(backend);
+  const { trip, written } = repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+  await written;
+  const [a, b] = Object.keys(trip.members);
+  const entry = { id: 'entry00000000001', tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [a]: 10 }, owed: { [b]: 10 }, comments: {}, createdAt: 5, updatedAt: 5, deleted: false };
+  await repo.saveEntry(trip, entry, { isNew: true, actor: 'A', label: 'added' });
+  hang = true;
+  const activityBefore = (await backend.list(`trips/${trip.id}/activity`)).length;
+  repo.saveEntry(trip, { ...entry, desc: 'New' }, { isNew: false, previous: entry, actor: 'A', label: 'edited' });
+  repo.addComment(trip, entry, 'B', 'Hi');
+  repo.setEntryDeleted(trip, entry.id, true, 'A', 'x');
+  repo.addMember(trip, 'C', 'A');
+  const [saved] = await entriesOf(backend, trip.id);
+  assert.equal(saved.desc, 'New'); assert.equal(saved.deleted, true); assert.equal(Object.keys(saved.comments).length, 1);
+  assert.equal((await repo.listRevisions(trip.id, entry.id)).length, 1);
+  assert.equal((await backend.list(`trips/${trip.id}/activity`)).length, activityBefore + 4);
+  assert.equal(Object.keys((await backend.get(`trips/${trip.id}`)).members).length, 3);
+});
+test('damaged entries are counted, not silently dropped', async () => {
+  const { backend, repo, trip } = await setup();
+  await backend.set(`trips/${trip.id}/entries/bad`, { id: 'bad', kind: 'expense', total: -5 });
+  const skipped = await new Promise(r => repo.watchEntries(trip.id, (_e, n) => r(n)));
+  assert.equal(skipped, 1);
+});
+test('import keeps new comments, files what it replaces and skips what is unchanged', async () => {
+  const { backend, repo, trip, entry } = await setup();
+  await repo.saveEntry(trip, entry, { isNew: true, actor: 'A', label: 'added' });
+  await repo.addComment(trip, entry, 'B', 'Keep me');
+  const [saved] = await entriesOf(backend, trip.id);
+  assert.equal(await repo.importBackup(trip, { trip, entries: [saved] }, 'A'), 0);
+  assert.equal((await repo.listRevisions(trip.id, entry.id)).length, 0);
+  assert.equal(await repo.importBackup(trip, { trip, entries: [{ ...entry, desc: 'Old', comments: {} }] }, 'A'), 1);
+  const [after] = await entriesOf(backend, trip.id);
+  assert.equal(after.desc, 'Old');
+  assert.deepEqual(Object.values(after.comments).map(c => c.text), ['Keep me']);
+  assert.equal((await repo.listRevisions(trip.id, entry.id))[0].entry.desc, 'D');
+});
+test('replacing a link copies everything and the old trip keeps no pointer to the new one', async () => {
+  const { backend, repo, trip, entry } = await setup();
+  const r = repo.saveReceipt(trip.id, 'data:image/jpeg;base64,AA'); await r.written;
+  const withPhoto = { ...entry, receipt: r.id };
+  await repo.saveEntry(trip, withPhoto, { isNew: true, actor: 'A', label: 'added' });
+  const moved = await repo.replaceLink(trip, { [entry.id]: withPhoto }, 'A');
+  assert.notEqual(moved.id, trip.id);
+  const [copied] = await entriesOf(backend, moved.id);
+  assert.equal(copied.tripId, moved.id);
+  assert.ok(await repo.getReceipt(moved.id, r.id));
+  const old = await backend.get(`trips/${trip.id}`);
+  assert.ok(old.retiredAt);
+  assert.ok(!JSON.stringify(old).includes(moved.id));
+  await repo.keepOldLink(trip.id);
+  assert.equal((await backend.get(`trips/${trip.id}`)).retiredAt, null);
+});
+test('a failed move leaves the old trip working', async () => {
+  const inner = createLocalBackend({ area: area() }), repo0 = createRepository(inner);
+  const { trip, written } = repo0.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A'] });
+  await written;
+  const failing = { ...inner, set: p => (p.includes('/activity/') ? Promise.reject(new Error('down')) : inner.set(p, {})) };
+  await assert.rejects(createRepository(failing).replaceLink(trip, {}, 'A'));
+  assert.equal((await inner.get(`trips/${trip.id}`)).retiredAt, undefined);
 });

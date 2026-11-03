@@ -22,8 +22,8 @@ test('rules never let anyone list trips or remove expenses', () => {
 });
 test('the Firebase SDK provides everything the backend calls', async () => {
   const src = readFileSync('js/data/backend-firebase.js', 'utf8');
-  const sdk = { ...(await import('firebase/app')), ...(await import('firebase/firestore')) };
-  const used = new Set([...src.matchAll(/sdk\.([a-zA-Z]+)/g)].map(m => m[1]));
+  const sdk = { ...(await import('firebase/app')), ...(await import('firebase/firestore')), ...(await import('firebase/auth')), ...(await import('firebase/app-check')) };
+  const used = new Set([...src.matchAll(/sdk\.([a-zA-Z0-9]+)/g)].map(m => m[1]));
   assert.ok(used.size >= 10);
   for (const name of used) assert.equal(typeof sdk[name], 'function', `firebase has no ${name}`);
 });

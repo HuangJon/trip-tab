@@ -16,7 +16,7 @@ export function modeNotice() {
 
 export function homeView() {
   const ids = A.device.trips();
-  const trips = ids.map(id => A.trips[id]).filter(t => t && !t.deletedAt);
+  const trips = ids.map(id => A.trips[id]).filter(t => t && !t.deletedAt && !t.retiredAt);
   const waiting = ids.filter(id => !A.loaded[id]).length;
   const totals = {};
   const rows = trips.map(t => {
@@ -73,6 +73,7 @@ submits['new-trip'] = () => {
   A.device.addTrip(trip.id);
   const firstId = Object.keys(trip.members)[0];
   A.device.setMe(trip.id, firstId);
+  A.device.setLinkUnsaved(trip.id, true);
   A.trips[trip.id] = trip;
   A.loaded[trip.id] = true;
   A.watchTrip(trip.id);

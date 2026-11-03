@@ -18,6 +18,10 @@ export function createDevice(storage, now = () => Date.now()) {
     saveDraft: (tripId, form) => storage.trySet(`draft:${tripId}`, form),
     clearDraft: tripId => storage.remove(`draft:${tripId}`),
 
+    /** Trips whose creator hasn't copied or shared the link yet. */
+    linkUnsaved: tripId => storage.get(`link-unsaved:${tripId}`, false),
+    setLinkUnsaved: (tripId, value) => (value ? storage.trySet(`link-unsaved:${tripId}`, true) : storage.remove(`link-unsaved:${tripId}`)),
+
     lastBackup: tripId => storage.get(`backup-at:${tripId}`),
     markBackup: tripId => storage.trySet(`backup-at:${tripId}`, now()),
 

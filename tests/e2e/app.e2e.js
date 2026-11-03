@@ -103,6 +103,25 @@ await tab(page, 'expenses');
 await page.waitForSelector('.tap:has-text("Hotel")');
 check('edit keeps comments; delete, undo, restore');
 
+/* Edit history */
+await page.click('.tap:has-text("Hotel")');
+await page.click('[data-action=edit-entry]');
+await page.fill('#fDesc', 'Hotel wrong');
+await page.click('#fSave');
+await page.waitForSelector('.tap:has-text("Hotel wrong")');
+await page.click('.tap:has-text("Hotel wrong")');
+await page.click('[data-action=history-show]');
+await page.waitForSelector('[data-action=history-restore]');
+const versions = await page.textContent('#historySlot');
+assert.match(versions, /Hotel/);
+assert.match(versions, /Replaced by Jonathan/);
+await page.click('[data-action=history-restore] >> nth=0');
+await page.waitForFunction(() => !/Hotel wrong/.test(document.getElementById('entryList').textContent));
+await page.click('.tap:has-text("Hotel")');
+await page.waitForSelector('.comment:has-text("Nice view")');
+await page.click('[data-action=close-sheet]');
+check('edit history restores an earlier version and keeps comments');
+
 /* Settling */
 await tab(page, 'balances');
 const before = await text(page);
@@ -178,6 +197,46 @@ await context2Page.waitForSelector('.tap:has-text("Live from phone one")', { tim
 check('invite link opens the trip; new expenses appear live on the other screen');
 await context2Page.close();
 
+/* Two people editing the same expense */
+{
+  const other = await context.newPage();
+  await other.route(/fonts\./, r => r.abort());
+  await other.goto(invite);
+  await other.waitForSelector('.tap:has-text("Rental car")');
+  await tab(page, 'expenses');
+  await page.click('.tap:has-text("Rental car")');
+  await page.click('[data-action=edit-entry]');
+  await page.fill('#fDesc', 'Rental car (mine)');
+  await other.click('.tap:has-text("Rental car")');
+  await other.click('[data-action=edit-entry]');
+  await other.fill('#fDesc', 'Rental car (theirs)');
+  await other.click('#fSave');
+  await page.waitForFunction(() => /theirs/.test(document.getElementById('entryList').textContent));
+  assert.equal(await page.inputValue('#fDesc'), 'Rental car (mine)', 'a live update leaves the open form alone');
+  await page.click('#fSave');
+  await page.waitForSelector('[data-action=conflict-mine]');
+  const screen = await page.textContent('#dlg');
+  assert.match(screen, /changed this expense while you were editing/);
+  assert.match(screen, /theirs/); assert.match(screen, /mine/);
+  await page.click('[data-action=conflict-back]');
+  assert.equal(await page.inputValue('#fDesc'), 'Rental car (mine)', 'Back returns to your edit');
+  await page.click('#fSave');
+  await page.click('[data-action=conflict-theirs]');
+  await page.waitForFunction(() => !document.getElementById('dlg').open);
+  assert.match(await text(page), /theirs/);
+  await page.click('.tap:has-text("theirs")');
+  await page.click('[data-action=history-show]');
+  await page.waitForFunction(() => /\(mine\)/.test(document.getElementById('historySlot').textContent), null, { timeout: 5000 });
+  await page.click('[data-action=close-sheet]');
+  await page.click('.tap:has-text("theirs")');
+  await page.click('[data-action=edit-entry]');
+  await page.fill('#fDesc', 'Rental car');
+  await page.click('#fSave');
+  await page.waitForFunction(() => !document.getElementById('dlg').open);
+  await other.close();
+  check('a conflicting edit asks which to keep; the other version stays in history');
+}
+
 /* A friend on a fresh device who is not listed can add themselves */
 await tab(page, 'people');
 const lsDump = await page.evaluate(() => localStorage.getItem('triptab:localdb'));
@@ -237,13 +296,46 @@ await addExpense(page, '<img src=x onerror=alert(1)>', '5');
 assert.equal(await page.locator('#app img').count(), 0);
 check('names and descriptions cannot inject markup');
 
+/* Link reminder and replacing a link */
+await tab(page, 'expenses');
+await page.waitForSelector('[data-action=copy-link]');
+await page.click('[data-action=copy-link]');
+await page.waitForFunction(() => !document.querySelector('[data-action=copy-link]'));
+assert.match(await page.evaluate(() => navigator.clipboard.readText()), /#join-/);
+await tab(page, 'people');
+await page.click('[data-action=confirm-replace]');
+await page.click('[data-action=confirm-clear]');
+await page.click('[data-action=confirm-replace]');
+const entriesBefore = await page.evaluate(id => Object.keys(JSON.parse(localStorage.getItem('triptab:localdb'))).filter(k => k.startsWith(`trips/${id}/entries/`) && k.split('/').length === 4).length, new URL(invite).hash.slice(6));
+await page.click('[data-action=replace-yes]');
+await page.waitForFunction(old => { const l = document.getElementById('inviteLink'); return l && !l.textContent.includes(old); }, new URL(invite).hash);
+const newInvite = await page.textContent('#inviteLink');
+await tab(page, 'expenses');
+await page.waitForSelector('.tap:has-text("Rental car")');
+assert.equal(await page.locator('.tap').count() >= 1, true);
+const entriesAfter = await page.evaluate(id => Object.keys(JSON.parse(localStorage.getItem('triptab:localdb'))).filter(k => k.startsWith(`trips/${id}/entries/`) && k.split('/').length === 4).length, new URL(newInvite).hash.slice(6));
+assert.equal(entriesAfter, entriesBefore);
+const oldTab = await context.newPage();
+await oldTab.route(/fonts\./, r => r.abort());
+await oldTab.goto(invite);
+await oldTab.waitForSelector('[data-action=keep-old-link]');
+const oldScreen = await text(oldTab);
+assert.match(oldScreen, /has a new link/);
+assert.ok(!oldScreen.includes(new URL(newInvite).hash.slice(6)), 'the old link never reveals the new one');
+await oldTab.close();
+check('replacing a link copies the trip and retires the old link');
+await page.click('[data-action=home]');
+await page.waitForSelector('.home-head');
+await page.evaluate(h => { location.hash = h; }, new URL(newInvite).hash);
+await page.waitForSelector('#entryList');
+
 /* Delete for everyone, then restore */
 await tab(page, 'people');
 await page.click('[data-action=confirm-delete]');
 await page.click('[data-action=delete-yes]');
 await page.waitForSelector('.home-head');
 assert.ok(!(await text(page)).includes('Okinawa'));
-await page.evaluate(i => { location.hash = i; }, new URL(invite).hash);
+await page.evaluate(i => { location.hash = i; }, new URL(newInvite).hash);
 await page.waitForSelector('[data-action=restore-trip]');
 await page.click('[data-action=restore-trip]');
 await page.waitForSelector('#entryList');
@@ -254,7 +346,7 @@ await page.click('[data-action=home]');
 await page.fill('#joinLink', 'not a link');
 await page.click('form[data-form=join-link] button');
 await toastSays(/isn't a trip link/);
-await page.fill('#joinLink', invite);
+await page.fill('#joinLink', newInvite);
 await page.click('form[data-form=join-link] button');
 await page.waitForSelector('#entryList');
 check('joining by pasting a link');

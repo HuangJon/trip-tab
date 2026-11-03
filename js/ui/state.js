@@ -5,6 +5,7 @@ export const A = {
   trips: {},                // id -> trip, or null when the link doesn't lead to a trip
   loaded: {},               // id -> true once the first answer has arrived
   entries: {},              // tripId -> {entryId: entry}
+  skipped: {},              // tripId -> entries too damaged to show
   activity: {},             // tripId -> [items]
   route: { name: 'home' },
   search: '', filterCat: '', confirm: null,

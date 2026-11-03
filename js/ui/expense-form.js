@@ -4,7 +4,7 @@ import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
 import { actor, avatar, closeSheet, esc, getMe, openSheet, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
-import { activeMembers } from '../core/model.js';
+import { activeMembers, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { shrinkPhoto } from './receipt.js';
 
@@ -18,7 +18,7 @@ export function openExpenseForm(trip, entry) {
   if (entry) {
     const c = entry.currency;
     A.form = {
-      tripId: trip.id, id: entry.id, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : String(entry.rate),
+      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : String(entry.rate),
       amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(entry.paid).map(([k, v]) => [k, fromMinor(v, c)])),
       multi: Object.keys(entry.paid).length > 1, payer: Object.keys(entry.paid)[0],
       split: { inputs: {}, items: [], selected: Object.keys(entry.owed), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
@@ -208,15 +208,50 @@ submits.expense = () => {
     const s = Object.values(paid).reduce((a, b) => a + b, 0);
     if (s !== total) return toast(`Payments add up to ${money(s, F.currency)}. They need to reach ${money(total, F.currency)}.`);
   } else paid = { [F.payer]: total };
-  const isNew = !F.id, id = F.id || randomId(), at = Date.now();
-  const entry = { id, tripId: t.id, kind: 'expense', desc: F.desc.trim(), category: F.category, date: F.date || today(), currency: F.currency, rate, total, paid, owed: nonZero(res.owed), split: clone(F.split), note: F.note.trim(), receipt: F.receipt || '', updatedAt: at, deleted: false };
+  const isNew = !F.id, id = F.id || randomId(), at = Date.now(), name = actor(t);
+  const entry = { id, tripId: t.id, kind: 'expense', desc: F.desc.trim(), category: F.category, date: F.date || today(), currency: F.currency, rate, total, paid, owed: nonZero(res.owed), split: clone(F.split), note: F.note.trim(), receipt: F.receipt || '', updatedAt: at, updatedBy: name, deleted: false };
   if (isNew) { entry.comments = {}; entry.createdAt = at; }
-  const tripId = t.id, name = actor(t);
-  A.device.setLastCurrency(tripId, F.currency);
-  if (isNew) A.device.clearDraft(tripId);
-  if (F.currency !== t.currency && t.rates?.[F.currency] !== rate) send(A.repo.updateTrip(tripId, { [`rates.${F.currency}`]: rate }));
-  closeSheet();
-  send(A.repo.saveEntry(t, entry, { isNew, actor: name, label: `${isNew ? 'added' : 'edited'} "${entry.desc}" (${money(total, entry.currency)})` }));
-  toast(isNew ? 'Expense added' : 'Expense saved');
+  const current = isNew ? null : A.entries[t.id]?.[id];
+  if (current && current.updatedAt !== F.baseUpdatedAt) return showConflict(t, entry, current);
+  commit(t, entry, current);
   return undefined;
+};
+
+/** Saves and closes. The version being replaced goes into the expense's history. */
+function commit(t, entry, current) {
+  const isNew = !current;
+  A.device.setLastCurrency(t.id, entry.currency);
+  if (isNew) A.device.clearDraft(t.id);
+  if (entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }));
+  closeSheet();
+  send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, label: `${isNew ? 'added' : 'edited'} "${entry.desc}" (${money(entry.total, entry.currency)})` }));
+  toast(isNew ? 'Expense added' : 'Expense saved');
+}
+
+const versionCard = (t, title, e) => {
+  const payers = Object.keys(e.paid).map(i => memberName(t, i)).join(', ');
+  const shares = Object.entries(e.owed).map(([i, v]) => `${memberName(t, i)} ${money(v, e.currency)}`).join(', ');
+  return `<section class="panel pad stack tight"><h3>${esc(title)}</h3><strong class="wrap-any">${esc(e.deleted ? `${e.desc} (deleted)` : e.desc)}</strong><span class="amt">${money(e.total, e.currency)}</span><span class="small muted wrap-any">Paid by ${esc(payers)}</span><span class="small muted wrap-any">${esc(shares)}</span></section>`;
+};
+function showConflict(t, mine, theirs) {
+  A.form.conflict = { mine, theirs };
+  openSheet(`<div class="sheet"><div class="sheet-head"><button type="button" class="btn small" data-action="conflict-back">Back</button><h2>Choose a version</h2><div class="sheet-right"></div></div><div class="sheet-body">
+    <p>${esc(theirs.updatedBy || 'Someone')} changed this expense while you were editing it. Which version do you want to keep?</p>
+    ${versionCard(t, `${theirs.updatedBy || 'Their'} version`.replace(/^(.+) version$/, (m, n) => (n === 'Their' ? 'Their version' : `${n}'s version`)), theirs)}
+    ${versionCard(t, 'Your version', mine)}
+    <button type="button" class="btn primary" data-action="conflict-mine">Keep my version</button>
+    <button type="button" class="btn" data-action="conflict-theirs">Keep their version</button>
+    <p class="small muted">The version you don't keep can still be found in the expense's edit history.</p></div></div>`);
+}
+actions['conflict-back'] = () => { A.form.conflict = null; drawForm(); };
+actions['conflict-mine'] = () => {
+  const { mine, theirs } = A.form.conflict, t = tripOf();
+  commit(t, mine, theirs);
+};
+actions['conflict-theirs'] = () => {
+  const { mine, theirs } = A.form.conflict, t = tripOf();
+  closeSheet();
+  // Their version stays live. Filing yours lets you find it again if you change your mind.
+  send(A.repo.fileVersion(t.id, { ...mine, createdAt: theirs.createdAt }, mine.updatedBy));
+  toast('Kept their version. Yours is in the edit history.');
 };

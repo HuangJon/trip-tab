@@ -1,48 +1,85 @@
 rules_version = '2';
-// Whoever knows a trip's long random id can use that trip. Nobody can list trips to find one.
-// Anything not matched below is refused.
+// Only signed-in phones get in (the app signs in invisibly, with no account for people to create).
+// Beyond that, whoever knows a trip's long random id can use that trip. Nobody can list trips.
+// Nothing can be deleted. Anything not matched below is refused.
+// Rules can't add up a map, so the app also checks that each expense's shares reach its total.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
     function okId(id) { return id.matches('^[a-z0-9]{10,40}$'); }
-    function okTripId(id) { return id.matches('^[a-z0-9]{20,40}$'); }
+    function okTripId(id) { return signedIn() && id.matches('^[a-z0-9]{20,40}$'); }
+    function short(value, limit) { return value is string && value.size() <= limit; }
+
+    function validTrip(d, tripId) {
+      return d.id == tripId
+        && short(d.name, 60) && d.name.size() > 0
+        && d.currency.matches('^[A-Z]{3}$')
+        && d.members is map && d.members.size() >= 1 && d.members.size() <= 200
+        && d.rates is map && d.rates.size() <= 40
+        && d.simplify is bool;
+    }
+
+    function validEntry(d, id, tripId) {
+      return d.id == id && d.tripId == tripId
+        && d.kind in ['expense', 'payment']
+        && d.total is int && d.total > 0 && d.total <= 1000000000000
+        && d.currency.matches('^[A-Z]{3}$')
+        && d.rate is number && d.rate > 0
+        && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && short(d.desc, 80) && d.desc.size() > 0
+        && short(d.note, 500)
+        && short(d.category, 30)
+        && d.deleted is bool
+        && d.updatedAt is number
+        && d.paid is map && d.paid.size() >= 1 && d.paid.size() <= 200
+        && d.owed is map && d.owed.size() >= 1 && d.owed.size() <= 200
+        && d.comments is map && d.comments.size() <= 500
+        && (d.kind == 'expense' || (d.paid.size() == 1 && d.owed.size() == 1));
+    }
 
     match /trips/{tripId} {
       allow get: if okTripId(tripId);
       allow list: if false;
-      allow create: if okTripId(tripId)
-        && request.resource.data.id == tripId
-        && request.resource.data.name is string && request.resource.data.name.size() <= 60
-        && request.resource.data.currency is string
-        && request.resource.data.members is map && request.resource.data.members.size() <= 50;
-      allow update: if okTripId(tripId)
-        && request.resource.data.id == tripId
+      allow create: if okTripId(tripId) && validTrip(request.resource.data, tripId);
+      allow update: if okTripId(tripId) && validTrip(request.resource.data, tripId)
         && request.resource.data.currency == resource.data.currency
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.members.size() <= 50;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.members.size() >= resource.data.members.size();
       allow delete: if false;
 
       match /entries/{id} {
         allow read: if okTripId(tripId);
-        allow create, update: if okTripId(tripId) && okId(id)
-          && request.resource.data.id == id
-          && request.resource.data.tripId == tripId
-          && request.resource.data.total is int && request.resource.data.total > 0
-          && request.resource.data.paid is map && request.resource.data.owed is map;
-        allow delete: if false; // deleting an expense only marks it, so it can be restored
+        allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId);
+        allow update: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
+          && request.resource.data.kind == resource.data.kind
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.comments.size() >= resource.data.comments.size();
+        allow delete: if false;
+
+        match /revisions/{revId} {
+          allow read: if okTripId(tripId);
+          allow create: if okTripId(tripId) && okId(revId)
+            && request.resource.data.tripId == tripId
+            && request.resource.data.entryId == id
+            && short(request.resource.data.by, 60)
+            && request.resource.data.at is number
+            && request.resource.data.entry is map;
+          allow update, delete: if false; // history can't be rewritten
+        }
       }
       match /activity/{id} {
         allow read: if okTripId(tripId);
         allow create: if okTripId(tripId) && okId(id)
           && request.resource.data.tripId == tripId
-          && request.resource.data.text is string && request.resource.data.text.size() <= 400;
+          && short(request.resource.data.text, 400)
+          && request.resource.data.at is number;
         allow update, delete: if false;
       }
       match /receipts/{id} {
         allow get: if okTripId(tripId);
         allow list: if false; // receipts load one at a time, only when someone opens one
         allow create: if okTripId(tripId) && okId(id)
-          && request.resource.data.dataUrl is string
-          && request.resource.data.dataUrl.size() <= 800000
+          && short(request.resource.data.dataUrl, 800000)
           && request.resource.data.dataUrl.matches('^data:image/jpeg;base64,.*');
         allow update, delete: if false;
       }

@@ -17,11 +17,23 @@ export function createRepository(backend, now = () => Date.now()) {
     return backend.set(`${col(trip.id, 'activity')}/${id}`, { id, tripId: trip.id, text, entryId, at: now() });
   };
 
+  const fileRevision = (tripId, entry, by) => {
+    const id = randomId();
+    const { comments, ...kept } = entry;
+    return backend.set(`${col(tripId, 'entries')}/${entry.id}/revisions/${id}`, { id, tripId, entryId: entry.id, by, at: now(), entry: kept });
+  };
+  const sameEntry = (a, b) => {
+    const clean = ({ updatedAt, updatedBy, ...rest }) => JSON.stringify(Object.keys(rest).sort().map(k => [k, rest[k]]));
+    return clean(a) === clean(b);
+  };
+
   return {
     kind: backend.kind,
     watchTrip: (id, cb, err) => backend.watchDoc(tripPath(id), t => cb(isValidTrip(t) ? migrateTrip(t) : null), err),
+    /** Calls back with the readable entries and how many were too damaged to use. */
     watchEntries: (id, cb, err) => backend.watchCollection(col(id, 'entries'), list => {
-      cb(Object.fromEntries(list.filter(isValidEntry).map(e => [e.id, e])));
+      const good = list.filter(isValidEntry);
+      cb(Object.fromEntries(good.map(e => [e.id, e])), list.length - good.length);
     }, err),
     watchActivity: (id, cb, err) => backend.watchCollection(col(id, 'activity'), cb, err, { orderBy: 'at', limit: LIMITS.activityShown }),
 
@@ -30,15 +42,17 @@ export function createRepository(backend, now = () => Date.now()) {
       const members = {};
       memberNames.forEach((n, i) => { members[randomId(10)] = { name: n, color: (i % 8) + 1, order: i }; });
       const trip = { id, schemaVersion: SCHEMA_VERSION, name, currency, members, simplify: true, rates: {}, createdAt: now() };
-      const written = backend.set(tripPath(id), trip).then(() => logActivity(trip, `${creatorName || memberNames[0]} created the trip`));
+      const written = Promise.all([backend.set(tripPath(id), trip), logActivity(trip, `${creatorName || memberNames[0]} created the trip`)]);
       return { trip, written };
     },
     updateTrip: (id, fields) => backend.update(tripPath(id), fields),
     addMember(trip, name, actor) {
       const id = randomId(10);
       const order = Object.keys(trip.members).length;
-      const written = backend.update(tripPath(trip.id), { [`members.${id}`]: { name, color: (order % 8) + 1, order } })
-        .then(() => logActivity(trip, `${actor} added ${name} to the trip`));
+      const written = Promise.all([
+        backend.update(tripPath(trip.id), { [`members.${id}`]: { name, color: (order % 8) + 1, order } }),
+        logActivity(trip, `${actor} added ${name} to the trip`),
+      ]);
       return { id, written };
     },
     renameMember: (tripId, id, name) => backend.update(tripPath(tripId), { [`members.${id}.name`]: name }),
@@ -46,21 +60,42 @@ export function createRepository(backend, now = () => Date.now()) {
     deleteTrip: (id, at = now()) => backend.update(tripPath(id), { deletedAt: at }),
     restoreTrip: id => backend.update(tripPath(id), { deletedAt: null }),
 
-    /** Writes the whole entry. Comments are excluded from edits so one can't erase a new comment. */
-    async saveEntry(trip, entry, { isNew, actor, label }) {
+    /**
+     * Writes an entry. An edit first files the version it replaces, so any change can be undone.
+     * Comments are excluded from edits so one can't erase a new comment.
+     * All writes start together: offline, a write doesn't finish until reconnecting, so waiting
+     * for one before starting the next would leave the rest unsent if the app was closed.
+     */
+    saveEntry(trip, entry, { isNew, previous, actor, label }) {
+      if (!isValidEntry(entry)) return Promise.reject(new Error('That expense does not add up.'));
       const path = `${col(trip.id, 'entries')}/${entry.id}`;
-      if (isNew) await backend.set(path, entry);
-      else { const { comments, createdAt, ...fields } = entry; await backend.update(path, fields); }
-      await logActivity(trip, `${actor} ${label}`, entry.id);
+      const writes = [logActivity(trip, `${actor} ${label}`, entry.id)];
+      if (isNew) writes.unshift(backend.set(path, entry));
+      else {
+        const { comments, createdAt, ...fields } = entry;
+        if (previous) writes.unshift(fileRevision(trip.id, previous, actor));
+        writes.push(backend.update(path, fields));
+      }
+      return Promise.all(writes);
     },
-    async setEntryDeleted(trip, id, deleted, actor, name) {
-      await backend.update(`${col(trip.id, 'entries')}/${id}`, { deleted, updatedAt: now() });
-      await logActivity(trip, `${actor} ${deleted ? 'deleted' : 'restored'} ${name}`, id);
+    fileVersion: (tripId, entry, by) => fileRevision(tripId, entry, by),
+    /** Earlier versions of an entry, newest first. */
+    async listRevisions(tripId, entryId) {
+      const list = await backend.list(`${col(tripId, 'entries')}/${entryId}/revisions`);
+      return list.filter(r => isValidEntry(r.entry)).sort((a, b) => b.at - a.at);
     },
-    async addComment(trip, entry, by, text) {
+    setEntryDeleted(trip, id, deleted, actor, name) {
+      return Promise.all([
+        backend.update(`${col(trip.id, 'entries')}/${id}`, { deleted, updatedAt: now(), updatedBy: actor }),
+        logActivity(trip, `${actor} ${deleted ? 'deleted' : 'restored'} ${name}`, id),
+      ]);
+    },
+    addComment(trip, entry, by, text) {
       const id = randomId();
-      await backend.update(`${col(trip.id, 'entries')}/${entry.id}`, { [`comments.${id}`]: { by, text, at: now() } });
-      await logActivity(trip, `${by} commented on "${entry.desc}"`, entry.id);
+      return Promise.all([
+        backend.update(`${col(trip.id, 'entries')}/${entry.id}`, { [`comments.${id}`]: { by, text, at: now() } }),
+        logActivity(trip, `${by} commented on "${entry.desc}"`, entry.id),
+      ]);
     },
 
     saveReceipt(tripId, dataUrl) {
@@ -71,21 +106,59 @@ export function createRepository(backend, now = () => Date.now()) {
 
     logActivity,
 
-    /** Merges a backup by id: the same id is replaced, new ids are added, nothing is removed. */
-    async importBackup(trip, backup) {
+    /**
+     * Merges a backup by id: new ids are added and nothing is removed. A changed entry is replaced,
+     * with its current version filed in its history and its comments kept.
+     */
+    async importBackup(trip, backup, actor = 'Someone') {
       const members = {};
       for (const [id, m] of Object.entries(backup.trip.members)) if (!trip.members[id]) members[`members.${id}`] = m;
-      if (Object.keys(members).length) await backend.update(tripPath(trip.id), members);
-      for (const e of backup.entries) await backend.set(`${col(trip.id, 'entries')}/${e.id}`, { ...e, tripId: trip.id });
-      return backup.entries.length;
+      const writes = Object.keys(members).length ? [backend.update(tripPath(trip.id), members)] : [];
+      let changed = 0;
+      for (const e of backup.entries) {
+        const path = `${col(trip.id, 'entries')}/${e.id}`;
+        const current = await backend.get(path);
+        const next = { ...e, tripId: trip.id };
+        if (current) {
+          next.comments = { ...(e.comments || {}), ...(current.comments || {}) };
+          next.createdAt = current.createdAt;
+          if (sameEntry(current, next)) continue;
+          writes.push(fileRevision(trip.id, current, actor));
+        }
+        writes.push(backend.set(path, next));
+        changed += 1;
+      }
+      await Promise.all(writes);
+      return changed;
     },
     /** Rebuilds a trip that no longer exists in the database from its backup, under its own id. */
     async createFromBackup(backup) {
       const trip = { ...backup.trip, deletedAt: null };
-      await backend.set(tripPath(trip.id), trip);
-      for (const e of backup.entries) await backend.set(`${col(trip.id, 'entries')}/${e.id}`, e);
+      await Promise.all([backend.set(tripPath(trip.id), trip), ...backup.entries.map(e => backend.set(`${col(trip.id, 'entries')}/${e.id}`, e))]);
       return trip;
     },
+    /**
+     * Moves a trip to a new link. Everything is copied first, so a failure leaves the old trip as it
+     * was. The old trip then shows as moved, and it deliberately does not record the new address.
+     * Needs a connection, because each step has to reach the server before the next.
+     */
+    async replaceLink(trip, entries, actor) {
+      const id = newTripId();
+      const { fromNewerApp, ...fields } = trip;
+      const copy = { ...fields, id, deletedAt: null, retiredAt: null };
+      await backend.set(tripPath(id), copy);
+      const list = Object.values(entries);
+      const receipts = [...new Set(list.map(e => e.receipt).filter(Boolean))];
+      await Promise.all(receipts.map(async r => {
+        const doc = await backend.get(`${col(trip.id, 'receipts')}/${r}`);
+        if (doc) await backend.set(`${col(id, 'receipts')}/${r}`, doc);
+      }));
+      await Promise.all(list.map(e => backend.set(`${col(id, 'entries')}/${e.id}`, { ...e, tripId: id })));
+      await logActivity(copy, `${actor} replaced the invite link`);
+      await backend.update(tripPath(trip.id), { retiredAt: now() });
+      return copy;
+    },
+    keepOldLink: id => backend.update(tripPath(id), { retiredAt: null }),
     activeMembers,
   };
 }

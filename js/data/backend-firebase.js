@@ -5,14 +5,44 @@
  * Offline: the SDK keeps a copy on the device and queues writes. A write's promise does not
  * finish until the server has it, so the app never waits on one before moving on.
  */
-export function createFirebaseBackend(config, sdk) {
+export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = null, signInWaitMs = 5000 } = {}) {
   const app = sdk.initializeApp(config);
+  // App Check has to start before anything talks to the database, or those first requests have no proof.
+  if (appCheckSiteKey) {
+    sdk.initializeAppCheck(app, { provider: new sdk.ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+  }
   let db;
   try {
     db = sdk.initializeFirestore(app, { localCache: sdk.persistentLocalCache({ tabManager: sdk.persistentMultipleTabManager() }) });
   } catch {
     db = sdk.getFirestore(app); // private browsing and some older phones can't keep the offline copy
   }
+
+  // Invisible sign-in: nobody sees it, and it gives the rules a signed-in phone to check for.
+  // A phone that is offline on first launch carries on, and signs in when the connection returns.
+  const auth = sdk.getAuth(app);
+  const signIn = () => sdk.signInAnonymously(auth).catch(() => {});
+  const signedIn = new Promise(resolve => {
+    const stop = sdk.onAuthStateChanged(auth, user => {
+      if (user) { stop?.(); resolve(user); } else signIn();
+    });
+  });
+  globalThis.addEventListener?.('online', () => { if (!auth.currentUser) signIn(); });
+  await Promise.race([signedIn, new Promise(r => setTimeout(r, signInWaitMs))]);
+
+  /** A listener refused before sign-in finished starts again afterwards. Any other error is passed on. */
+  function resilient(subscribe, err) {
+    let off = () => {}, stopped = false;
+    const start = () => {
+      off = subscribe(e => {
+        if (e?.code === 'permission-denied' && !auth.currentUser) signedIn.then(() => { if (!stopped) start(); });
+        else err?.(e);
+      });
+    };
+    start();
+    return () => { stopped = true; off(); };
+  }
+
   const data = snap => snap.data();
   return {
     kind: 'firebase',
@@ -24,23 +54,24 @@ export function createFirebaseBackend(config, sdk) {
       return snap.exists() ? data(snap) : null;
     },
     list: async col => (await sdk.getDocs(sdk.collection(db, col))).docs.map(data),
-    watchDoc: (path, cb, err) => sdk.onSnapshot(sdk.doc(db, path), snap => {
+    watchDoc: (path, cb, err) => resilient(fail => sdk.onSnapshot(sdk.doc(db, path), snap => {
       // A cached "missing" is not proof, because the invite may be brand new on this phone.
       if (!snap.exists() && snap.metadata.fromCache) return;
       cb(snap.exists() ? data(snap) : null);
-    }, err),
-    watchCollection: (col, cb, err, { orderBy, limit } = {}) => {
+    }, fail), err),
+    watchCollection: (col, cb, err, { orderBy, limit } = {}) => resilient(fail => {
       const parts = [];
       if (orderBy) parts.push(sdk.orderBy(orderBy, 'desc'));
       if (limit) parts.push(sdk.limit(limit));
-      return sdk.onSnapshot(sdk.query(sdk.collection(db, col), ...parts), snap => cb(snap.docs.map(data)), err);
-    },
+      return sdk.onSnapshot(sdk.query(sdk.collection(db, col), ...parts), snap => cb(snap.docs.map(data)), fail);
+    }, err),
   };
 }
 
 /** Loads the SDK from Google's CDN. The address is built at run time so preview builds never bundle it. */
-export async function loadFirebaseSdk(version) {
+export async function loadFirebaseSdk(version, { appCheck = false } = {}) {
   const url = name => `https://www.gstatic.com/firebasejs/${version}/firebase-${name}.js`;
-  const [app, store] = await Promise.all([import(/* @vite-ignore */ url('app')), import(/* @vite-ignore */ url('firestore'))]);
-  return { ...app, ...store };
+  const names = ['app', 'firestore', 'auth', ...(appCheck ? ['app-check'] : [])];
+  const parts = await Promise.all(names.map(n => import(/* @vite-ignore */ url(n))));
+  return Object.assign({}, ...parts);
 }

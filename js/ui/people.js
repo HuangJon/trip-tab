@@ -4,7 +4,7 @@ import { LIMITS } from '../config/app.js';
 import { actor, ago, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
 import { activeMembers, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
-import { goHome } from './routes.js';
+import { goHome, goTrip } from './routes.js';
 
 const inviteUrl = id => `${location.origin}${location.pathname}#join-${id}`;
 
@@ -23,9 +23,11 @@ export function peopleView(trip) {
   const me = getMe(trip), write = canWrite(trip), rates = Object.entries(trip.rates || {}), entries = A.entries[trip.id];
   const members = activeMembers(trip);
   return `<section class="panel pad stack"><h2>Invite friends</h2>
-      <p class="small muted">Anyone with this link can see and edit this trip, with no account needed. Share it only with the group.</p>
+      <p class="small muted">Anyone with this link can see and edit this trip, with no account needed. Share it only with the group, and keep it somewhere safe. It's how you get back in if your phone clears this app's storage.</p>
       <div class="linkbox" id="inviteLink">${esc(inviteUrl(trip.id))}</div>
       <button class="btn primary" data-action="invite">Share invite link</button>
+      ${A.confirm === 'replace' ? `<p class="small">This copies the trip to a new link. The old link will stop opening the trip, so you'll need to send the new one to everyone. Edit history isn't copied, and the old copy stays stored, so someone with technical skills and the old link could still read it.</p><div class="row wrap"><button class="btn danger" data-action="replace-yes">Replace the link</button><button class="btn" data-action="confirm-clear">Keep this link</button></div>`
+      : write ? '<button class="link small" data-action="confirm-replace">Link shared too widely? Replace it</button>' : ''}
       ${A.preview ? '<p class="tiny muted">In this preview the link only shows what friends will get. It starts working once the app is live.</p>' : ''}</section>
   <section class="panel pad stack"><h2>People on this trip</h2>
     ${members.map(m => `<div class="row">${avatar(trip, m.id)}<input id="mem-${m.id}" aria-label="Name" value="${esc(m.name)}" maxlength="${LIMITS.personName}" data-change="rename" data-id="${m.id}" ${write ? '' : 'disabled'}>
@@ -48,6 +50,9 @@ export function peopleView(trip) {
 /** Shown in place of the trip when it can't be opened. */
 export function unavailableView(id) {
   const t = A.trips[id];
+  if (t && t.retiredAt) {
+    return `<section class="panel empty"><h2>${esc(t.name)} has a new link</h2><p class="muted">This link was replaced. Ask the group for the new one. If nobody in the group did this, you can keep using this link.</p><button class="btn" data-action="keep-old-link">Keep using this link</button><button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
+  }
   if (t && t.deletedAt) {
     return `<section class="panel empty"><h2>${esc(t.name)} was deleted</h2><p class="muted">Its expenses are still saved. Anyone with the link can bring it back.</p><button class="btn primary" data-action="restore-trip">Restore trip</button><button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
   }
@@ -58,12 +63,47 @@ export function unavailableView(id) {
     <button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
 }
 
+function linkHandled() {
+  A.device.setLinkUnsaved(A.route.tripId, false);
+  render();
+}
 actions.invite = async () => {
   const t = A.trips[A.route.tripId], url = inviteUrl(t.id);
   try {
-    if (navigator.share) { await navigator.share({ title: t.name, text: `Add your expenses for ${t.name}`, url }); return; }
+    if (navigator.share) { await navigator.share({ title: t.name, text: `Add your expenses for ${t.name}`, url }); linkHandled(); return; }
   } catch (e) { if (e?.name === 'AbortError') return; }
   copyText(url, 'inviteLink');
+  linkHandled();
+};
+actions['copy-link'] = () => {
+  copyText(inviteUrl(A.route.tripId));
+  linkHandled();
+};
+actions['confirm-replace'] = () => { A.confirm = 'replace'; render(); };
+actions['keep-old-link'] = () => { send(A.repo.keepOldLink(A.route.tripId)); toast('This link works again'); };
+actions['replace-yes'] = async () => {
+  const t = A.trips[A.route.tripId];
+  if (navigator.onLine === false) { toast('Replacing the link needs a connection.'); return; }
+  const me = A.device.me(t.id), name = actor(t);
+  A.confirm = null;
+  toast('Moving the trip to a new link…');
+  let copy;
+  try {
+    copy = await A.repo.replaceLink(t, A.entries[t.id] || {}, name);
+  } catch {
+    render();
+    toast("The link wasn't replaced. Nothing changed, so try again.");
+    return;
+  }
+  A.device.addTrip(copy.id);
+  if (me) A.device.setMe(copy.id, me);
+  A.device.setLinkUnsaved(copy.id, true);
+  A.device.removeTrip(t.id);
+  A.trips[copy.id] = copy;
+  A.loaded[copy.id] = true;
+  A.watchTrip(copy.id);
+  goTrip(copy.id, 'people');
+  toast('New link ready. Send it to the group.');
 };
 actions['remove-member'] = el => { send(A.repo.removeMember(A.route.tripId, el.dataset.id)); };
 submits['add-member'] = () => {
@@ -111,7 +151,7 @@ function applyBackup(text) {
   if (parsed.error) return toast(parsed.error);
   if (parsed.trip.currency !== t.currency) return toast(`This backup is in ${parsed.trip.currency}, but this trip is in ${t.currency}.`);
   closeSheet();
-  send(A.repo.importBackup(t, parsed));
+  send(A.repo.importBackup(t, parsed, actor(t)));
   toast(`Added ${parsed.entries.length} entries${parsed.skipped ? `. Skipped ${parsed.skipped} damaged ones` : ''}.`);
   return undefined;
 }

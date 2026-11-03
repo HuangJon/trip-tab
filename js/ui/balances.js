@@ -64,7 +64,7 @@ submits.settle = () => {
   const date = val('sDate') || today();
   if (date > today()) return toast("Payments can't be dated in the future.");
   const id = randomId(), at = Date.now();
-  const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: trip.currency, rate: 1, total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), comments: {}, createdAt: at, updatedAt: at, deleted: false };
+  const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: trip.currency, rate: 1, total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), comments: {}, createdAt: at, updatedAt: at, updatedBy: memberName(trip, from), deleted: false };
   closeSheet();
   send(A.repo.saveEntry(trip, entry, { isNew: true, actor: memberName(trip, from), label: `paid ${memberName(trip, to)} ${money(total, trip.currency)}` }));
   toast('Payment recorded');

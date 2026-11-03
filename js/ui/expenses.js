@@ -55,7 +55,10 @@ function listHtml(trip) {
 export function expensesView(trip) {
   const all = liveEntries(A.entries[trip.id]);
   const cats = [...new Set(all.filter(e => e.kind === 'expense').map(e => e.category))];
-  return `${summaryCard(trip)}
+  const damaged = A.skipped[trip.id] || 0;
+  return `${A.device.linkUnsaved(trip.id) ? `<section class="notice stack"><span>Keep this trip's link somewhere safe, such as your group chat. If your phone clears this app's storage, the link is how you get back in.</span><button class="btn small" data-action="copy-link">Copy link</button></section>` : ''}
+    ${damaged ? `<div class="notice">${damaged} ${damaged > 1 ? 'entries' : 'entry'} couldn't be read and ${damaged > 1 ? 'are' : 'is'} left out of the balances. Update the app, or ask whoever added ${damaged > 1 ? 'them' : 'it'} to add ${damaged > 1 ? 'them' : 'it'} again.</div>` : ''}
+    ${summaryCard(trip)}
     ${all.length ? `<div class="stack"><input id="search" type="search" placeholder="Search expenses or people" aria-label="Search expenses" value="${esc(A.search)}" data-input="search">
     ${cats.length > 1 ? `<div class="chips"><button class="chip" data-action="filter-cat" data-id="" aria-pressed="${!A.filterCat}">All</button>${cats.map(c => `<button class="chip" data-action="filter-cat" data-id="${esc(c)}" aria-pressed="${A.filterCat === c}">${esc(CATEGORIES[c] || 'Other')}</button>`).join('')}</div>` : ''}</div>` : ''}
     <div class="stack entries" id="entryList">${listHtml(trip)}</div>`;

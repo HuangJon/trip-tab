@@ -1,5 +1,5 @@
 /** App entry point: picks the database, connects the screens and keeps them live. */
-import { firebaseConfig, FIREBASE_VERSION } from './config/firebase.js';
+import { appCheckSiteKey, firebaseConfig, FIREBASE_VERSION } from './config/firebase.js';
 import { createLocalStorage, requestPersistentStorage } from './data/storage.js';
 import { createLocalBackend } from './data/backend-local.js';
 import { createFirebaseBackend, loadFirebaseSdk } from './data/backend-firebase.js';
@@ -43,7 +43,7 @@ function draw() {
     tabs.hidden = true;
     fab.innerHTML = '';
     app.innerHTML = homeView();
-  } else if (!trip || trip.deletedAt) {
+  } else if (!trip || trip.deletedAt || trip.retiredAt) {
     tabs.hidden = true;
     fab.innerHTML = '';
     app.innerHTML = unavailableView(A.route.tripId);
@@ -81,8 +81,9 @@ A.watchTrip = id => {
     A.trips[id] = t ? { ...t, fromNewerApp: isFromNewerApp(t) } : null;
     off();
   }, off);
-  A.repo.watchEntries(id, entries => {
+  A.repo.watchEntries(id, (entries, skipped) => {
     A.entries[id] = entries;
+    A.skipped[id] = skipped;
     render();
     if (A.detail && !A.form && A.route.tripId === id && document.getElementById('dlg').open) openDetail(A.detail, { keepTyped: true });
     saveSnapshot(id);
@@ -118,7 +119,7 @@ addEventListener('hashchange', () => { readHash(); render(); });
 
 /* ---------- Start ---------- */
 async function chooseBackend() {
-  if (firebaseConfig && !PREVIEW) return createFirebaseBackend(firebaseConfig, await loadFirebaseSdk(FIREBASE_VERSION));
+  if (firebaseConfig && !PREVIEW) return createFirebaseBackend(firebaseConfig, await loadFirebaseSdk(FIREBASE_VERSION, { appCheck: Boolean(appCheckSiteKey) }), { appCheckSiteKey });
   return createLocalBackend({ hangWrites: () => storage.get('test-hang-writes', false) });
 }
 

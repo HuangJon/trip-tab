@@ -15,7 +15,8 @@ const sum = m => Object.values(m).reduce((a, b) => a + b, 0);
 export function isValidEntry(e) {
   return isMap(e) && typeof e.id === 'string' && (e.kind === 'expense' || e.kind === 'payment')
     && Number.isInteger(e.total) && e.total > 0 && typeof e.currency === 'string'
-    && isAmounts(e.paid) && isAmounts(e.owed) && sum(e.paid) === e.total && sum(e.owed) === e.total;
+    && isAmounts(e.paid) && isAmounts(e.owed) && sum(e.paid) === e.total && sum(e.owed) === e.total
+    && (e.rate === undefined || (typeof e.rate === 'number' && e.rate > 0));
 }
 
 export function isValidTrip(t) {
