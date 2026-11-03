@@ -12,6 +12,17 @@ export async function openPage(context, url) {
   await page.goto(url);
   return page;
 }
+/** Creates an account in the simulated sign-in and verifies it. */
+export async function signUp(page, name = 'Jonathan', email = `${name.toLowerCase().replace(/\s/g, '')}@example.com`) {
+  await page.waitForSelector('[data-action=auth-google]');
+  await page.click('[data-action=auth-mode][data-id=up]');
+  await page.fill('#authName', name);
+  await page.fill('#authEmail', email);
+  await page.fill('#authPassword', 'password1');
+  await page.click('form[data-form=auth-up] button');
+  await page.waitForSelector('[data-action=auth-simulate]');
+  await page.click('[data-action=auth-simulate]');
+}
 export async function createTrip(page, name = 'Okinawa', people = 'Jonathan\nMia\n小偉') {
   await page.click('[data-action=new-trip] >> nth=0');
   await page.fill('#ntName', name);

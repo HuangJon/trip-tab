@@ -228,7 +228,7 @@ test('the creator claims the first name and becomes admin', async () => {
   assert.deepEqual(t.admins, { [a]: true });
   assert.equal(t.members[a].claimed, true); assert.equal(t.members[b].claimed, undefined);
   const claim = await backend.get(`trips/${trip.id}/claims/${a}`);
-  assert.equal(claim.uid, backend.uid()); assert.ok(claim.key.length >= 20);
+  assert.equal(claim.uid, backend.uid());
 });
 function twoPhones() {
   const shared = area();
@@ -244,36 +244,81 @@ test('a name can only be claimed once', async () => {
   await written;
   const [a, b] = Object.keys(trip.members);
   await assert.rejects(two.repo.claimMember(trip.id, a), e => e.code === 'taken');
-  const claim = await two.repo.claimMember(trip.id, b);
-  assert.ok(claim.key);
+  await two.repo.recordJoin(trip.id, {});
+  await two.repo.claimMember(trip.id, b);
   assert.equal((await phone('two').backend.get(`trips/${trip.id}`)).members[b].claimed, true);
-  assert.equal((await two.repo.claimMember(trip.id, b)).key, claim.key, 'claiming your own again keeps your key');
 });
-test('a transfer needs the right key; a freed name can be claimed fresh', async () => {
-  const phone = twoPhones(), one = phone('one'), two = phone('two');
-  const { trip, written, claim } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+test('a freed name can be claimed fresh, and whoever held it loses it', async () => {
+  const phone = twoPhones(), one = phone('one'), three = phone('three');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
   await written;
   const [a, b] = Object.keys(trip.members);
-  await assert.rejects(two.repo.transferClaim(trip.id, a, 'wrong'));
-  await two.repo.transferClaim(trip.id, a, claim.key);
-  assert.equal((await two.backend.get(`trips/${trip.id}/claims/${a}`)).uid, 'two');
-  const three = phone('three');
+  await three.repo.recordJoin(trip.id, { displayName: 'Three', email: '3@x.co' });
   await three.repo.claimMember(trip.id, b);
-  await two.repo.releaseClaim(trip.id, b, a);
-  const t = await two.backend.get(`trips/${trip.id}`);
-  assert.equal(t.members[b].claimed, false);
-  const fresh = await phone('four').repo.claimMember(trip.id, b);
-  assert.equal(fresh.uid, 'four');
-  assert.equal((await phone('four').backend.get(`trips/${trip.id}`)).members[b].claimed, true);
+  assert.equal((await three.backend.get(`trips/${trip.id}/joined/three`)).memberId, b);
+  await one.repo.releaseClaim(trip.id, b, a);
+  assert.equal((await one.backend.get(`trips/${trip.id}`)).members[b].claimed, false);
+  assert.equal((await one.backend.get(`trips/${trip.id}/joined/three`)).memberId, null);
+  const four = phone('four');
+  await four.repo.recordJoin(trip.id, {});
+  assert.equal((await four.repo.claimMember(trip.id, b)).uid, 'four');
+});
+test('opening a trip records who joined, even before they pick a name', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A'], profile: { displayName: 'A', email: 'a@x.co' } });
+  await written;
+  await two.repo.recordJoin(trip.id, { displayName: 'Rui', email: 'rui@x.co' });
+  const list = await new Promise(r => one.repo.watchJoined(trip.id, r));
+  assert.deepEqual(list.map(p => [p.email, Boolean(p.memberId)]).sort(), [['a@x.co', true], ['rui@x.co', false]]);
+  assert.deepEqual(await new Promise(r => two.repo.watchMyTrips(r)), [trip.id]);
+});
+test('joining again keeps your name', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+  await written;
+  const b = Object.keys(trip.members)[1];
+  await two.repo.recordJoin(trip.id, {});
+  await two.repo.claimMember(trip.id, b);
+  await phone('two').repo.recordJoin(trip.id, {});
+  assert.equal((await two.backend.get(`trips/${trip.id}/joined/two`)).memberId, b);
+});
+test('removing someone frees their name and can be undone', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+  await written;
+  const [a, b] = Object.keys(trip.members);
+  await two.repo.recordJoin(trip.id, {});
+  await two.repo.claimMember(trip.id, b);
+  const person = await one.backend.get(`trips/${trip.id}/joined/two`);
+  await one.repo.removePerson(trip.id, person, a);
+  const after = await one.backend.get(`trips/${trip.id}/joined/two`);
+  assert.equal(after.removed, true); assert.equal(after.memberId, null);
+  assert.equal((await one.backend.get(`trips/${trip.id}`)).members[b].claimed, false);
+  assert.equal((await one.backend.get(`trips/${trip.id}/claims/${b}`)).released, true);
+  await one.repo.letBackIn(trip.id, 'two');
+  assert.equal((await one.backend.get(`trips/${trip.id}/joined/two`)).removed, false);
+});
+test('a removed person joining again stays removed', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A'] });
+  await written;
+  await two.repo.recordJoin(trip.id, {});
+  await one.repo.removePerson(trip.id, await one.backend.get(`trips/${trip.id}/joined/two`), Object.keys(trip.members)[0]);
+  await two.repo.leaveMyList(trip.id);
+  await two.repo.recordJoin(trip.id, {});
+  assert.equal((await two.backend.get(`trips/${trip.id}/joined/two`)).removed, true);
+  assert.deepEqual(await new Promise(r => two.repo.watchMyTrips(r)), []);
 });
 test('joining adds the person and locks their name', async () => {
   const phone = twoPhones(), one = phone('one'), two = phone('two');
   const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A'] });
   await written;
-  const { memberId, claim } = await two.repo.joinAs(trip, 'Rui');
+  await two.repo.recordJoin(trip.id, {});
+  const { memberId } = await two.repo.joinAs(trip, 'Rui');
   const t = await two.backend.get(`trips/${trip.id}`);
   assert.equal(t.members[memberId].name, 'Rui'); assert.equal(t.members[memberId].claimed, true);
-  assert.equal(claim.uid, 'two');
+  assert.equal((await two.backend.get(`trips/${trip.id}/claims/${memberId}`)).uid, 'two');
+  assert.equal((await two.backend.get(`trips/${trip.id}/joined/two`)).memberId, memberId);
 });
 test('writes name the person making them', async () => {
   const { backend, repo, trip, entry, a } = await setup();

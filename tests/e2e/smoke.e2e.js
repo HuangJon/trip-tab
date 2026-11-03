@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { serve } from './serve.js';
-import { addExpense, createTrip, launch, noSideScroll, openPage, tab, text, check } from './helpers.js';
+import { addExpense, createTrip, launch, noSideScroll, openPage, signUp, tab, text, check } from './helpers.js';
 
 const VIEWPORTS = [{ width: 320, height: 640, colorScheme: 'light' }, { width: 390, height: 844, colorScheme: 'dark' }, { width: 768, height: 1024, colorScheme: 'light' }];
 let root = '.', file = '';
@@ -19,6 +19,15 @@ for (const v of VIEWPORTS) {
   const label = `${v.width}px ${v.colorScheme}`;
   const context = await browser.newContext({ viewport: { width: v.width, height: v.height }, colorScheme: v.colorScheme });
   const page = await openPage(context, server.url);
+  if (file) {
+    // The preview opens signed in, so sign out to reach the same starting point.
+    await page.waitForSelector('[data-action=auth-signout]');
+    await noSideScroll(page, `${label} preview home`);
+    await page.click('[data-action=auth-signout]');
+  }
+  await page.waitForSelector('[data-action=auth-google]');
+  await noSideScroll(page, `${label} sign-in`);
+  await signUp(page);
   await page.waitForSelector('[data-action=new-trip]');
   await noSideScroll(page, `${label} home`);
   await createTrip(page);

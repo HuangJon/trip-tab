@@ -5,6 +5,9 @@ export const A = {
   trips: {},                // id -> trip, or null when the link doesn't lead to a trip
   loaded: {},               // id -> true once the first answer has arrived
   entries: {},              // tripId -> {entryId: entry}
+  joined: {},               // tripId -> everyone who has opened the trip (admins only)
+  denied: {},               // tripId -> true when an admin removed this account
+  user: null,
   pending: {},              // tripId -> entry ids still waiting to sync
   skipped: {},              // tripId -> entries too damaged to show
   activity: {},             // tripId -> [items]

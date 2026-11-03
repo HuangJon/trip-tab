@@ -52,6 +52,31 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
     paths.forEach(emit);
   });
 
+  // Simulated accounts for the preview and tests. Real sign-in only happens through Firebase.
+  const listeners = new Set();
+  const session = () => { try { return area?.getItem(UID_KEY) || null; } catch { return null; } };
+  const uidFor = email => `u${[...email].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7).toString(36)}${email.length}`;
+  function current() {
+    const id = session();
+    if (!id) return null;
+    refresh();
+    const user = docs[`localusers/${id}`];
+    if (!user) return { uid: id, email: `${id}@example.com`, displayName: id, verified: true };
+    return { uid: user.uid, email: user.email, displayName: user.displayName, verified: user.verified };
+  }
+  const notify = () => listeners.forEach(fn => fn(current()));
+  async function account(email, displayName, password, verified) {
+    const uid = uidFor(email);
+    refresh();
+    if (!docs[`localusers/${uid}`]) { docs[`localusers/${uid}`] = { uid, email, displayName, password, verified }; persist(); }
+    return docs[`localusers/${uid}`];
+  }
+  function startSession(user) {
+    try { area?.setItem(UID_KEY, user.uid); } catch { /* blocked storage */ }
+    notify();
+    return current();
+  }
+
   globalThis.addEventListener?.('storage', ev => {
     if (ev.key !== KEY) return;
     const before = docs;
@@ -63,14 +88,35 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
 
   return {
     kind: 'local',
-    uid() {
-      let id = null;
-      try { id = area?.getItem(UID_KEY); } catch { /* blocked storage */ }
-      if (!id) {
-        id = `local${Math.random().toString(36).slice(2, 14)}`;
-        try { area?.setItem(UID_KEY, id); } catch { /* blocked storage */ }
-      }
-      return id;
+    uid: () => session() || '',
+    auth: {
+      simulated: true,
+      current,
+      onChange(fn) { listeners.add(fn); queueMicrotask(() => fn(current())); return () => listeners.delete(fn); },
+      async google() { return startSession(await account('you@gmail.example', 'Google User', '', true)); },
+      async signUp(name, email, password) {
+        const clean = email.trim().toLowerCase();
+        refresh();
+        if (docs[`localusers/${uidFor(clean)}`]) throw Object.assign(new Error('taken'), { code: 'auth/email-already-in-use' });
+        return startSession(await account(clean, name, password, false));
+      },
+      async signIn(email, password) {
+        const clean = email.trim().toLowerCase();
+        refresh();
+        const user = docs[`localusers/${uidFor(clean)}`];
+        if (!user || user.password !== password) throw Object.assign(new Error('bad'), { code: 'auth/invalid-credential' });
+        return startSession(user);
+      },
+      async sendVerification() {},
+      async refresh() { refresh(); return current(); },
+      async resetPassword() {},
+      async signOut() { try { area?.removeItem(UID_KEY); } catch { /* blocked storage */ } notify(); },
+      /** Stands in for tapping the link in the verification email. */
+      async simulateVerify() {
+        const user = current();
+        if (user) await this.markVerified(user.uid);
+      },
+      async markVerified(uid) { docs[`localusers/${uid}`].verified = true; persist(); },
     },
     set(path, data) {
       refresh();
@@ -82,10 +128,6 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
     update(path, fields) {
       refresh();
       if (!docs[path]) return Promise.reject(new Error(`No document at ${path}`));
-      // Mirrors the rule that taking over a name needs its secret key.
-      if (path.includes('/claims/') && 'key' in fields && !docs[path].released && !fields.released && docs[path].key !== fields.key) {
-        return Promise.reject(Object.assign(new Error('Wrong key'), { code: 'permission-denied' }));
-      }
       const before = docs[path];
       const next = clone(before);
       for (const [f, v] of Object.entries(fields)) setDotted(next, f, clone(v));
@@ -94,15 +136,23 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
       emit(path);
       return done(path);
     },
+    remove(path) {
+      refresh();
+      delete docs[path];
+      persist();
+      emit(path);
+      return Promise.resolve();
+    },
     get(path) { refresh(); return Promise.resolve(clone(docs[path]) ?? null); },
     list(col) { refresh(); return Promise.resolve(clone(docsIn(col))); },
     watchDoc(path, cb) {
       const off = add(docWatchers, path, cb);
-      queueMicrotask(() => cb(clone(docs[path]) ?? null));
+      queueMicrotask(() => { refresh(); cb(clone(docs[path]) ?? null); });
       return off;
     },
     watchCollection(col, cb, _err, { orderBy, limit } = {}) {
       const send = () => {
+        refresh();
         let list = docsIn(col);
         if (orderBy) list = list.sort((a, b) => (b[orderBy] || 0) - (a[orderBy] || 0));
         if (limit) list = list.slice(0, limit);

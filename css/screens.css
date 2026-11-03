@@ -20,6 +20,12 @@
 .pay-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
 .credit { display:block; overflow-wrap:anywhere }
 .person-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding-left:42px }
+.or { text-align:center }
+.joined-row { padding-top:8px; border-top:1px solid var(--line) }
+.person-actions.flat { padding-left:0 }
+.danger-link { color:var(--owe) }
+.signed-in { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center }
+.signed-in>span { min-width:0; overflow-wrap:anywhere }
 .linkbox { font:400 .8rem/1.4 var(--mono); padding:10px; background:var(--sunken); border-radius:8px; overflow-wrap:anywhere; user-select:all }
 /* Trip frame */
 .topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--ground); padding-block:8px; margin-top:-8px; display:flex; gap:12px; align-items:center }

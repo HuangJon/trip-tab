@@ -7,7 +7,7 @@ import { createRepository } from './data/repository.js';
 import { createDevice } from './data/device.js';
 import { seedExample } from './data/example.js';
 import { createBackup } from './core/backup.js';
-import { isFromNewerApp, liveEntries } from './core/model.js';
+import { isAdminId, isFromNewerApp, liveEntries } from './core/model.js';
 import { A, actions, changes, inputs, render, setRender, submits } from './ui/state.js';
 import { ICON, canWrite, closeSheet, svg, today } from './ui/dom.js';
 import { TABS, readHash } from './ui/routes.js';
@@ -19,6 +19,7 @@ import { insightsView } from './ui/insights.js';
 import { activityView } from './ui/activity.js';
 import { importFile, peopleView, unavailableView } from './ui/people.js';
 import { attachReceipt } from './ui/expense-form.js';
+import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
@@ -38,12 +39,18 @@ function draw() {
   // Keep the cursor and typed text in any box on the screen across a live update.
   const active = document.activeElement;
   const typing = active && app.contains(active) && active.tagName === 'INPUT' && active.type !== 'checkbox' ? { id: active.id, value: active.value, at: active.selectionStart } : null;
+  if (!A.user || !A.user.verified) {
+    tabs.hidden = true;
+    fab.innerHTML = '';
+    app.innerHTML = A.user ? verifyView(A.user) : signInView();
+    return;
+  }
   const trip = A.route.name === 'trip' ? A.trips[A.route.tripId] : null;
   if (A.route.name !== 'trip') {
     tabs.hidden = true;
     fab.innerHTML = '';
     app.innerHTML = homeView();
-  } else if (!trip || trip.deletedAt || trip.retiredAt) {
+  } else if (!trip || trip.deletedAt || trip.retiredAt || A.denied[A.route.tripId]) {
     tabs.hidden = true;
     fab.innerHTML = '';
     app.innerHTML = unavailableView(A.route.tripId);
@@ -76,11 +83,19 @@ function saveSnapshot(id) {
 A.watchTrip = id => {
   if (watching.has(id)) return;
   watching.add(id);
-  const off = () => { A.loaded[id] = true; render(); };
+  const answered = () => { A.loaded[id] = true; render(); };
+  const refused = e => { if (e?.code === 'permission-denied') A.denied[id] = true; answered(); };
+  A.repo.watchMyJoin(id, joined => {
+    A.denied[id] = Boolean(joined?.removed);
+    if (joined) A.device.setMe(id, joined.memberId || null);
+    A.watchJoined(id);
+    render();
+  }, () => {});
   A.repo.watchTrip(id, t => {
     A.trips[id] = t ? { ...t, fromNewerApp: isFromNewerApp(t) } : null;
-    off();
-  }, off);
+    if (t && isAdminId(t, A.device.me(id))) A.watchJoined(id);
+    answered();
+  }, refused);
   A.repo.watchEntries(id, (entries, skipped, pending) => {
     A.entries[id] = entries;
     A.skipped[id] = skipped;
@@ -94,6 +109,28 @@ A.watchActivity = id => {
   if (watchingActivity.has(id)) return;
   watchingActivity.add(id);
   A.repo.watchActivity(id, list => { A.activity[id] = list; if (A.route.tab === 'activity') render(); }, () => {});
+};
+const watchingJoined = new Set();
+A.watchJoined = id => {
+  if (watchingJoined.has(id)) return;
+  const t = A.trips[id];
+  if (!t || !isAdminId(t, A.device.me(id))) return; // the rules only let admins read this list
+  watchingJoined.add(id);
+  A.repo.watchJoined(id, list => { A.joined[id] = list; if (A.route.tab === 'people') render(); }, () => {});
+};
+/** Opens a trip from a link. A new account is recorded first, because the rules require that before reading. */
+const entered = new Set();
+A.enterTrip = async id => {
+  A.device.addTrip(id);
+  if (entered.has(id)) return;
+  entered.add(id);
+  try {
+    // Offline, a write never finishes, so don't let it hold back a trip that's already on this phone.
+    if (!A.myTrips?.includes(id)) await Promise.race([A.repo.recordJoin(id, A.user), new Promise(r => setTimeout(r, 4000))]);
+  } catch { /* offline: the cached copy can still open */ }
+  A.watchTrip(id);
+  A.watchActivity(id);
+  render();
 };
 
 /* ---------- Events ---------- */
@@ -126,27 +163,58 @@ async function chooseBackend() {
   return createLocalBackend({ hangWrites: () => storage.get('test-hang-writes', false) });
 }
 
+/** Starts live data once, the first time a verified account is present. */
+let started = false;
+async function startApp() {
+  if (started) return;
+  started = true;
+  // Trips follow the account: this list is what makes them appear on a new device.
+  A.repo.watchMyTrips(ids => {
+    A.myTrips = ids;
+    ids.forEach(id => { A.device.addTrip(id); entered.add(id); A.watchTrip(id); });
+    render();
+  }, () => {});
+  A.device.trips().forEach(id => A.watchTrip(id));
+  readHash();
+  render();
+  setTimeout(render, 50);
+}
+
 async function boot() {
   requestPersistentStorage();
   A.preview = PREVIEW;
   A.device = createDevice(storage);
+  let backend;
   try {
-    A.repo = createRepository(await chooseBackend());
+    backend = await chooseBackend();
+    A.repo = createRepository(backend);
   } catch {
     A.status = 'failed';
     render();
     return;
   }
+  A.repo.auth = backend.auth;
   if (PREVIEW && !storage.get('seeded')) {
-    await seedExample(A.repo, A.device, today());
+    // The preview opens signed in as the example's first person. Sign out to see the sign-in screens.
+    const user = await backend.auth.signUp('Ana', 'ana@example.com', 'preview-only');
+    await backend.auth.simulateVerify();
+    await seedExample(A.repo, A.device, today(), user);
     storage.trySet('seeded', true);
   }
-  A.device.trips().forEach(id => A.watchTrip(id));
-  readHash();
-  A.status = 'ready';
-  render();
-  // Let the first answers arrive, then draw again. Anything slower updates the screen when it lands.
-  setTimeout(render, 50);
+  // Firebase doesn't announce a newly verified email, so the sign-in screens report it through here too.
+  A.onUser = user => {
+    const wasVerified = A.user?.verified;
+    A.user = user;
+    A.status = 'ready';
+    if (user?.verified) startApp();
+    if (!wasVerified || !user?.verified) render();
+  };
+  backend.auth.onChange(A.onUser);
+  // Coming back from the email app counts as checking the link.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !A.user || A.user.verified) return;
+    try { A.onUser(await backend.auth.refresh()); } catch { /* they can still tap the button */ }
+  });
   registerUpdates();
 }
 

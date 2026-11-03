@@ -19,6 +19,7 @@ export function goTrip(id, tab = 'expenses') {
   A.search = ''; A.filterCat = ''; A.confirm = null;
   setHash(`#t-${id}-${tab}`);
   A.watchActivity?.(id);
+  A.watchJoined?.(id);
   render();
   scrollTo(0, 0);
 }
@@ -27,16 +28,14 @@ export function readHash() {
   const h = location.hash || '';
   const join = /^#join-([a-z0-9]+)$/.exec(h);
   if (join && TRIP_ID_PATTERN.test(join[1])) {
-    A.device.addTrip(join[1]);
-    A.watchTrip?.(join[1]);
+    A.enterTrip?.(join[1]);
     goTrip(join[1]);
     return;
   }
   const m = /^#t-([a-z0-9]+)-([a-z]+)$/.exec(h);
   if (m && TRIP_ID_PATTERN.test(m[1]) && TABS.includes(m[2])) {
     A.route = { name: 'trip', tripId: m[1], tab: m[2] };
-    A.device.addTrip(m[1]);
-    A.watchTrip?.(m[1]);
+    A.enterTrip?.(m[1]);
     A.watchActivity?.(m[1]);
   } else A.route = { name: 'home' };
 }

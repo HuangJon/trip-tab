@@ -5,7 +5,7 @@
  * react to a rejection. Exceptions are claiming a name and moving a trip, which need a connection.
  *
  * Each write names the person making it (actorId). firestore.rules checks that name is claimed by
- * this phone, so nobody can act as someone else.
+ * the signed-in account, so nobody can act as someone else.
  */
 import { SCHEMA_VERSION, LIMITS } from '../config/app.js';
 import { randomId, tripId as newTripId } from '../core/ids.js';
@@ -29,8 +29,14 @@ export function createRepository(backend, now = () => Date.now()) {
     const clean = ({ updatedAt, updatedBy, updatedById, ...rest }) => JSON.stringify(Object.keys(rest).sort().map(k => [k, rest[k]]));
     return clean(a) === clean(b);
   };
-  const claimDoc = (tripId, memberId) => ({ tripId, memberId, uid: backend.uid?.() || '', key: randomId(24), at: now(), released: false });
+  const claimDoc = (tripId, memberId) => ({ tripId, memberId, uid: backend.uid?.() || '', at: now(), released: false });
   const claimPath = (tripId, memberId) => `${col(tripId, 'claims')}/${memberId}`;
+  const joinedPath = (tripId, uid) => `${col(tripId, 'joined')}/${uid}`;
+  const mine = tripId => `users/${backend.uid?.() || 'none'}/trips/${tripId}`;
+  const joinedDoc = (tripId, profile, memberId = null) => ({
+    uid: backend.uid?.() || '', tripId, displayName: profile?.displayName || '', email: profile?.email || '', memberId, removed: false, at: now(),
+  });
+  const setMyName = (tripId, memberId) => backend.update(joinedPath(tripId, backend.uid?.() || ''), { memberId });
 
   return {
     kind: backend.kind,
@@ -43,15 +49,17 @@ export function createRepository(backend, now = () => Date.now()) {
     watchActivity: (id, cb, err) => backend.watchCollection(col(id, 'activity'), cb, err, { orderBy: 'at', limit: LIMITS.activityShown }),
 
     /** The first name listed is the creator, who claims it and becomes the trip's admin. */
-    createTrip({ name, currency, memberNames, creatorName }) {
+    createTrip({ name, currency, memberNames, creatorName, profile }) {
       const id = newTripId();
       const members = {};
       const ids = memberNames.map(() => randomId(10));
       memberNames.forEach((n, i) => { members[ids[i]] = { name: n, color: (i % 8) + 1, order: i, ...(i === 0 ? { claimed: true } : {}) }; });
-      const trip = { id, schemaVersion: SCHEMA_VERSION, name, currency, members, admins: { [ids[0]]: true }, changedBy: ids[0], simplify: true, rates: {}, createdAt: now() };
+      const trip = { id, schemaVersion: SCHEMA_VERSION, name, currency, members, admins: { [ids[0]]: true }, adminUids: { [backend.uid?.() || 'none']: true }, changedBy: ids[0], simplify: true, rates: {}, createdAt: now() };
       const claim = claimDoc(id, ids[0]);
       const written = Promise.all([
         backend.set(tripPath(id), trip),
+        backend.set(joinedPath(id, backend.uid?.() || 'none'), joinedDoc(id, profile, ids[0])),
+        backend.set(mine(id), { tripId: id, at: now() }),
         backend.set(claimPath(id, ids[0]), claim),
         logActivity(trip, `${creatorName || memberNames[0]} created the trip`, '', ids[0]),
       ]);
@@ -59,40 +67,63 @@ export function createRepository(backend, now = () => Date.now()) {
     },
     updateTrip: (id, fields, actorId) => backend.update(tripPath(id), { ...fields, ...stamp(actorId, 'changedBy') }),
 
-    /** Locks a name to this phone. Needs a connection. Rejects with code "taken" if someone else has it. */
+    /** Your own account's list of trips, which follows you to any device. */
+    watchMyTrips: (cb, err) => backend.watchCollection(`users/${backend.uid?.() || 'none'}/trips`, list => cb(list.map(t => t.tripId)), err),
+    leaveMyList: tripId => backend.remove(mine(tripId)),
+    /** Your own place on a trip: which name you hold, and whether an admin removed you. */
+    watchMyJoin: (tripId, cb, err) => backend.watchDoc(joinedPath(tripId, backend.uid?.() || 'none'), cb, err),
+    /** Admins see everyone who has opened the trip, including people who haven't picked a name. */
+    watchJoined: (tripId, cb, err) => backend.watchCollection(col(tripId, 'joined'), cb, err),
+    /** Records that this account opened the trip. It must finish before the rules allow reading it. */
+    async recordJoin(tripId, profile) {
+      const current = await backend.get(joinedPath(tripId, backend.uid?.() || 'none'));
+      if (!current) await backend.set(joinedPath(tripId, backend.uid?.() || 'none'), joinedDoc(tripId, profile));
+      if (!current?.removed) await backend.set(mine(tripId), { tripId, at: now() });
+      return current;
+    },
+    /** Ties a name to this account. Needs a connection. Rejects with code "taken" if someone else has it. */
     async claimMember(tripId, memberId) {
-      let current;
-      try { current = await backend.get(claimPath(tripId, memberId)); } catch (e) {
-        if (e?.code === 'permission-denied') throw Object.assign(new Error('Taken'), { code: 'taken' });
-        throw e;
-      }
+      const current = await backend.get(claimPath(tripId, memberId));
       if (current && !current.released && current.uid !== backend.uid?.()) throw Object.assign(new Error('Taken'), { code: 'taken' });
-      const claim = current && !current.released ? current : claimDoc(tripId, memberId);
+      const claim = claimDoc(tripId, memberId);
       if (current?.released) await backend.update(claimPath(tripId, memberId), claim);
       else if (!current) await backend.set(claimPath(tripId, memberId), claim);
       await backend.update(tripPath(tripId), { [`members.${memberId}.claimed`]: true, changedBy: memberId });
+      await setMyName(tripId, memberId);
       return claim;
     },
-    /** Adds a new person and locks the name to this phone. */
+    /** Adds a new person and ties the name to this account. */
     async joinAs(trip, name) {
       const memberId = randomId(10);
-      const claim = claimDoc(trip.id, memberId);
       const order = Object.keys(trip.members).length;
-      await backend.set(claimPath(trip.id, memberId), claim);
+      await backend.set(claimPath(trip.id, memberId), claimDoc(trip.id, memberId));
       await backend.update(tripPath(trip.id), { [`members.${memberId}`]: { name, color: (order % 8) + 1, order, claimed: true }, changedBy: memberId });
+      await setMyName(trip.id, memberId);
       await logActivity(trip, `${name} joined the trip`, '', memberId);
-      return { memberId, claim };
+      return { memberId };
     },
-    /** Moves a claimed name to this phone. The old phone stops being able to act as that person. */
-    transferClaim: (tripId, memberId, key) => backend.update(claimPath(tripId, memberId), { uid: backend.uid?.() || '', key }),
-    /** An admin frees a name so its owner can claim it again from a new phone. */
-    releaseClaim(tripId, memberId, actorId) {
-      return Promise.all([
-        backend.update(claimPath(tripId, memberId), { uid: '', key: '', released: true, releasedBy: actorId }),
+    /** An admin frees a name so someone else can claim it. */
+    async releaseClaim(tripId, memberId, actorId) {
+      const claim = await backend.get(claimPath(tripId, memberId));
+      await Promise.all([
+        backend.update(claimPath(tripId, memberId), { uid: '', released: true, releasedBy: actorId }),
         backend.update(tripPath(tripId), { [`members.${memberId}.claimed`]: false, changedBy: actorId }),
+        ...(claim?.uid ? [backend.update(joinedPath(tripId, claim.uid), { memberId: null })] : []),
       ]);
     },
-    setAdmin: (tripId, memberId, on, actorId) => backend.update(tripPath(tripId), { [`admins.${memberId}`]: on, changedBy: actorId }),
+    /** Removes someone's access. A name they held is freed; expenses stay. They can be let back in. */
+    async removePerson(tripId, person, actorId) {
+      await backend.update(joinedPath(tripId, person.uid), { removed: true, memberId: null });
+      if (person.memberId) {
+        await Promise.all([
+          backend.update(claimPath(tripId, person.memberId), { uid: '', released: true, releasedBy: actorId }),
+          backend.update(tripPath(tripId), { [`members.${person.memberId}.claimed`]: false, changedBy: actorId }),
+        ]);
+      }
+    },
+    letBackIn: (tripId, uid) => backend.update(joinedPath(tripId, uid), { removed: false }),
+    /** The uid goes on a list the rules read, because a read can't say which name it's for. */
+    setAdmin: (tripId, memberId, uid, on, actorId) => backend.update(tripPath(tripId), { [`admins.${memberId}`]: on, [`adminUids.${uid}`]: on, changedBy: actorId }),
 
     addMember(trip, name, actor, actorId) {
       const id = randomId(10);
@@ -187,10 +218,12 @@ export function createRepository(backend, now = () => Date.now()) {
      * Rebuilds a trip that no longer exists in the database from this phone's copy, under its own id.
      * Whoever rebuilds it becomes its admin, and everyone else claims their name again.
      */
-    async createFromBackup(backup, actorId) {
+    async createFromBackup(backup, actorId, profile) {
       const members = Object.fromEntries(Object.entries(backup.trip.members).map(([id, m]) => [id, { ...m, claimed: id === actorId }]));
-      const trip = { ...backup.trip, members, deletedAt: null, ...(actorId ? { admins: { [actorId]: true }, changedBy: actorId } : {}) };
+      const trip = { ...backup.trip, members, deletedAt: null, adminUids: { [backend.uid?.() || 'none']: true }, ...(actorId ? { admins: { [actorId]: true }, changedBy: actorId } : {}) };
       await backend.set(tripPath(trip.id), trip);
+      await backend.set(joinedPath(trip.id, backend.uid?.() || 'none'), joinedDoc(trip.id, profile, actorId || null));
+      await backend.set(mine(trip.id), { tripId: trip.id, at: now() });
       const claim = actorId ? claimDoc(trip.id, actorId) : null;
       if (claim) await backend.set(claimPath(trip.id, actorId), claim);
       await Promise.all(backup.entries.map(e => backend.set(`${col(trip.id, 'entries')}/${e.id}`, { ...e, ...stamp(actorId, 'updatedById') })));
@@ -199,15 +232,17 @@ export function createRepository(backend, now = () => Date.now()) {
     /**
      * Moves a trip to a new link. Everything is copied first, so a failure leaves the old trip as it
      * was. The old trip then shows as moved, and it deliberately does not record the new address.
-     * Everyone except the admin moving it claims their name again on the new link.
+     * Everyone except the admin moving it joins again through the new link and claims their name.
      * Needs a connection, because each step has to reach the server before the next.
      */
-    async replaceLink(trip, entries, actor, actorId) {
+    async replaceLink(trip, entries, actor, actorId, profile) {
       const id = newTripId();
       const { fromNewerApp, ...fields } = trip;
       const members = Object.fromEntries(Object.entries(trip.members).map(([mid, m]) => [mid, { ...m, claimed: mid === actorId }]));
-      const copy = { ...fields, id, members, deletedAt: null, retiredAt: null, ...(actorId ? { admins: { [actorId]: true }, changedBy: actorId } : {}) };
+      const copy = { ...fields, id, members, deletedAt: null, retiredAt: null, adminUids: { [backend.uid?.() || 'none']: true }, ...(actorId ? { admins: { [actorId]: true }, changedBy: actorId } : {}) };
       await backend.set(tripPath(id), copy);
+      await backend.set(joinedPath(id, backend.uid?.() || 'none'), joinedDoc(id, profile, actorId || null));
+      await backend.set(mine(id), { tripId: id, at: now() });
       const claim = actorId ? claimDoc(id, actorId) : null;
       if (claim) await backend.set(claimPath(id, actorId), claim);
       const list = Object.values(entries);
@@ -219,6 +254,7 @@ export function createRepository(backend, now = () => Date.now()) {
       await Promise.all(list.map(e => backend.set(`${col(id, 'entries')}/${e.id}`, { ...e, tripId: id, ...stamp(actorId, 'updatedById') })));
       await logActivity(copy, `${actor} replaced the invite link`, '', actorId);
       await backend.update(tripPath(trip.id), { retiredAt: now(), ...stamp(actorId, 'changedBy') });
+      await backend.remove(mine(trip.id));
       return { trip: copy, claim };
     },
     keepOldLink: (id, actorId) => backend.update(tripPath(id), { retiredAt: null, ...stamp(actorId, 'changedBy') }),

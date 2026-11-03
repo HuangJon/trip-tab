@@ -1,7 +1,7 @@
 /** The main list: every expense and settlement, newest first. */
 import { A, actions, inputs, render } from './state.js';
 import { CATEGORIES } from '../config/app.js';
-import { ICON, amAdmin, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
+import { ICON, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
 import { money } from '../core/money.js';
 import { inBase } from '../core/debts.js';
 import { byNewest, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
@@ -67,7 +67,6 @@ export function expensesView(trip) {
   const cats = [...new Set(all.filter(e => e.kind !== 'payment').map(e => e.category))];
   const damaged = A.skipped[trip.id] || 0;
   return `${A.device.linkUnsaved(trip.id) ? `<section class="notice stack"><span>Keep this trip's link somewhere safe, such as your group chat. If your phone clears this app's storage, the link is how you get back in.</span><button class="btn small" data-action="copy-link">Copy link</button></section>` : ''}
-    ${amAdmin(trip) && !A.device.codeSaved() ? `<section class="notice stack"><span>You manage this trip. Save your transfer code somewhere private. If you lose this phone without it, you can't manage the trip anymore.</span><button class="btn small" data-action="copy-transfer">Copy transfer code</button></section>` : ''}
     ${damaged ? `<div class="notice">${damaged} ${damaged > 1 ? 'entries' : 'entry'} couldn't be read and ${damaged > 1 ? 'are' : 'is'} left out of the balances. Update the app, or ask whoever added ${damaged > 1 ? 'them' : 'it'} to add ${damaged > 1 ? 'them' : 'it'} again.</div>` : ''}
     ${summaryCard(trip)}
     ${all.length ? `<div class="stack"><input id="search" type="search" placeholder="Search expenses or people" aria-label="Search expenses" value="${esc(A.search)}" data-input="search">

@@ -3,7 +3,6 @@ import { A, actions, changes, render, submits } from './state.js';
 import { LIMITS } from '../config/app.js';
 import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
 import { activeMembers, isAdminId, isInUse } from '../core/model.js';
-import { createTransferCode } from '../core/transfer.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { goHome, goTrip } from './routes.js';
 
@@ -20,28 +19,47 @@ function backupSection(trip) {
     <p class="tiny muted">${admin ? 'Importing and restoring only add or replace entries. They never delete anything.' : "Only the trip's admin can import or restore."}</p></section>`;
 }
 
+/** Who has opened the trip. Admins see everyone, including people who haven't picked a name. */
+function joinedSection(trip, admin, members) {
+  const claimed = members.filter(m => m.claimed).length;
+  if (!admin) return `<section class="panel pad stack"><h2>Who's joined</h2><p class="small muted">${claimed} of ${members.length} names claimed. The trip's admin can see everyone who has opened the link.</p></section>`;
+  const list = (A.joined[trip.id] || []).slice().sort((a, b) => a.at - b.at);
+  const active = list.filter(p => !p.removed), removed = list.filter(p => p.removed), unnamed = active.filter(p => !p.memberId).length;
+  return `<section class="panel pad stack"><h2>Who's joined</h2>
+    <p class="small muted" id="joinedCount">${active.length} ${active.length === 1 ? 'person has' : 'people have'} joined. ${unnamed ? `${unnamed} ${unnamed === 1 ? "hasn't" : "haven't"} picked a name yet.` : 'Everyone has picked a name.'}</p>
+    ${active.map(p => {
+      const self = p.uid === A.user?.uid, holds = p.memberId && trip.members[p.memberId];
+      return `<div class="stack tight joined-row"><strong class="small wrap-any">${esc(p.displayName || p.email)}${self ? ' <span class="tag you">you</span>' : ''}</strong>
+        <span class="tiny muted wrap-any">${esc(p.email)} · ${holds ? `is ${esc(holds.name)}` : "hasn't picked a name"}</span>
+        ${self ? '' : `<div class="person-actions flat">${holds ? `<button class="link small" data-action="toggle-admin" data-uid="${esc(p.uid)}" data-id="${esc(p.memberId)}">${isAdminId(trip, p.memberId) ? 'Remove admin' : 'Make admin'}</button>` : ''}<button class="link small danger-link" data-action="remove-person" data-uid="${esc(p.uid)}">Remove from trip</button></div>`}</div>`;
+    }).join('')}
+    ${removed.length ? `<div class="stack tight"><span class="flabel">Removed</span>${removed.map(p => `<div class="row between small"><span class="wrap-any">${esc(p.displayName || p.email)}</span><button class="link small" data-action="let-back-in" data-uid="${esc(p.uid)}">Let back in</button></div>`).join('')}</div>` : ''}
+    <p class="tiny muted">Only admins see this list and these emails. Removing someone stops them opening the trip. Their expenses stay.</p></section>`;
+}
+
 export function peopleView(trip) {
   const me = getMe(trip), write = canWrite(trip), admin = amAdmin(trip), rates = Object.entries(trip.rates || {}), entries = A.entries[trip.id];
   const members = activeMembers(trip);
   return `<section class="panel pad stack"><h2>Invite friends</h2>
-      <p class="small muted">Anyone with this link can see and edit this trip, with no account needed. Share it only with the group, and keep it somewhere safe. It's how you get back in if your phone clears this app's storage.</p>
+      <p class="small muted">Friends open this link, verify an email or Google account, then pick their name. Share it only with the group.</p>
       <div class="linkbox" id="inviteLink">${esc(inviteUrl(trip.id))}</div>
       <button class="btn primary" data-action="invite">Share invite link</button>
-      ${A.confirm === 'replace' ? `<p class="small">This copies the trip to a new link. The old link will stop opening the trip, so you'll need to send the new one to everyone, and everyone claims their name again. Edit history isn't copied, and the old copy stays stored, so someone with technical skills and the old link could still read it.</p><div class="row wrap"><button class="btn danger" data-action="replace-yes">Replace the link</button><button class="btn" data-action="confirm-clear">Keep this link</button></div>`
+      ${A.confirm === 'replace' ? `<p class="small">This copies the trip to a new link. The old link will stop opening the trip, so you'll need to send the new one to everyone, and everyone joins and claims their name again. Edit history isn't copied, and the old copy stays stored, so someone with technical skills and the old link could still read it.</p><div class="row wrap"><button class="btn danger" data-action="replace-yes">Replace the link</button><button class="btn" data-action="confirm-clear">Keep this link</button></div>`
       : admin ? '<button class="link small" data-action="confirm-replace">Link shared too widely? Replace it</button>' : ''}
       ${A.preview ? '<p class="tiny muted">In this preview the link only shows what friends will get. It starts working once the app is live.</p>' : ''}</section>
+  ${joinedSection(trip, admin, members)}
   <section class="panel pad stack"><h2>People on this trip</h2>
     ${members.map(m => {
       const self = me === m.id;
       return `<div class="stack tight"><div class="row">${avatar(trip, m.id)}<input id="mem-${m.id}" aria-label="${esc(m.name)}'s name" value="${esc(m.name)}" maxlength="${LIMITS.personName}" data-change="rename" data-id="${m.id}" ${admin || self ? '' : 'disabled'}>
         ${self ? '<span class="tag you">you</span>' : ''}
         ${admin && !isInUse(entries, m.id) && !m.claimed && members.length > 1 ? `<button class="x" data-action="remove-member" data-id="${m.id}" aria-label="Remove ${esc(m.name)}">×</button>` : ''}</div>
-        <div class="person-actions"><span class="tag ${m.claimed ? 'good' : ''}">${m.claimed ? 'Locked to a device' : 'Not claimed yet'}</span>${isAdminId(trip, m.id) ? '<span class="tag you">Admin</span>' : ''}
+        <div class="person-actions"><span class="tag ${m.claimed ? 'good' : ''}">${m.claimed ? 'Claimed' : 'Not claimed yet'}</span>${isAdminId(trip, m.id) ? '<span class="tag you">Admin</span>' : ''}
         ${admin && !self && m.claimed ? `<button class="link small" data-action="release-claim" data-id="${m.id}">Free this name</button>` : ''}
-        ${admin && !self && m.claimed ? `<button class="link small" data-action="toggle-admin" data-id="${m.id}">${isAdminId(trip, m.id) ? 'Remove admin' : 'Make admin'}</button>` : ''}</div></div>`;
+</div></div>`;
     }).join('')}
     ${admin ? `<form class="row" data-form="add-member"><input id="newMember" placeholder="Add a name" aria-label="New person's name" required maxlength="${LIMITS.personName}"><button class="btn">Add</button></form>` : ''}
-    <p class="tiny muted">A name belongs to the phone or browser that claimed it. Free a name if a friend lost their phone or cleared their browser, so they can claim it again.</p>
+    <p class="tiny muted">A name belongs to the account that claimed it. Free a name if someone took the wrong one.</p>
     <p class="tiny muted">People who appear on an expense can't be removed, because the balances would stop adding up.</p></section>
   <section class="panel pad stack"><h2>Payment details</h2>
     <p class="small muted">Optional. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
@@ -51,30 +69,30 @@ export function peopleView(trip) {
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
     <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="row between small"><span class="mono">1 ${esc(c)}</span><span class="mono">${esc(r)} ${esc(trip.currency)}</span></div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
-  ${me ? `<section class="panel pad stack"><h2>Moving to a new device</h2><p class="small muted">Your transfer code moves all your trips and names to a new phone or browser, or from Safari to the home-screen app. Paste it into the box on the app's first screen. Keep it private: anyone who has it can act as you.</p><button class="btn" data-action="copy-transfer">Copy transfer code</button></section>` : ''}
   ${backupSection(trip)}
   <section class="panel pad stack"><h2>Archive, leave or delete</h2>
     <div class="row wrap"><button class="btn" data-action="archive-toggle">${A.device.archived().includes(trip.id) ? 'Move out of archive' : 'Archive on this phone'}</button></div>
     <p class="tiny muted">Archiving moves the trip into a separate list on this phone. Friends still see it as usual.</p>
-    ${A.confirm === 'leave' ? `<p class="small">This removes the trip from this phone only. You can come back with the invite link.</p><div class="row wrap"><button class="btn danger" data-action="leave-yes">Remove from this phone</button><button class="btn" data-action="confirm-clear">Keep it</button></div>`
+    ${A.confirm === 'leave' ? `<p class="small">This removes the trip from your list. You can come back with the invite link.</p><div class="row wrap"><button class="btn danger" data-action="leave-yes">Remove from my trips</button><button class="btn" data-action="confirm-clear">Keep it</button></div>`
     : A.confirm === 'delete' ? `<p class="small">This hides the trip for everyone. An admin can restore it.</p><div class="row wrap"><button class="btn danger" data-action="delete-yes">Delete for everyone</button><button class="btn" data-action="confirm-clear">Keep it</button></div>`
-    : `<div class="row wrap"><button class="btn" data-action="confirm-leave">Remove from this phone</button>${admin ? '<button class="btn danger" data-action="confirm-delete">Delete for everyone</button>' : ''}</div>`}</section>`;
+    : `<div class="row wrap"><button class="btn" data-action="confirm-leave">Remove from my trips</button>${admin ? '<button class="btn danger" data-action="confirm-delete">Delete for everyone</button>' : ''}</div>`}</section>`;
 }
 
 /** Shown in place of the trip when it can't be opened. */
 export function unavailableView(id) {
   const t = A.trips[id];
+  if (A.denied[id]) return `<section class="panel empty"><h2>You can't open this trip</h2><p class="muted">The trip's admin has removed you. Ask them if you think that's a mistake.</p><button class="btn" data-action="forget-trip">Remove from my trips</button><button class="link" data-action="home">All trips</button></section>`;
   if (t && t.retiredAt) {
-    return `<section class="panel empty"><h2>${esc(t.name)} has a new link</h2><p class="muted">This link was replaced. Ask the group for the new one.</p>${amAdmin(t) ? '<button class="btn" data-action="keep-old-link">Keep using this link</button>' : ''}<button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
+    return `<section class="panel empty"><h2>${esc(t.name)} has a new link</h2><p class="muted">This link was replaced. Ask the group for the new one.</p>${amAdmin(t) ? '<button class="btn" data-action="keep-old-link">Keep using this link</button>' : ''}<button class="btn" data-action="forget-trip">Remove from my trips</button><button class="link" data-action="home">All trips</button></section>`;
   }
   if (t && t.deletedAt) {
-    return `<section class="panel empty"><h2>${esc(t.name)} was deleted</h2><p class="muted">Its expenses are still saved. The trip's admin can bring it back.</p>${amAdmin(t) ? '<button class="btn primary" data-action="restore-trip">Restore trip</button>' : ''}<button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
+    return `<section class="panel empty"><h2>${esc(t.name)} was deleted</h2><p class="muted">Its expenses are still saved. The trip's admin can bring it back.</p>${amAdmin(t) ? '<button class="btn primary" data-action="restore-trip">Restore trip</button>' : ''}<button class="btn" data-action="forget-trip">Remove from my trips</button><button class="link" data-action="home">All trips</button></section>`;
   }
-  if (!A.loaded[id]) return '<section class="panel empty"><h2>Opening the trip</h2><p class="muted">If this is your first time opening it, you need a connection.</p><button class="link" data-action="home">All trips</button></section>';
+  if (!A.loaded[id]) return '<section class="panel empty"><h2>Opening the trip</h2><p class="muted">Opening a trip for the first time needs a connection.</p><button class="link" data-action="home">All trips</button></section>';
   const copy = A.device.snapshots(id)[0];
   return `<section class="panel empty"><h2>This trip link doesn't work</h2><p class="muted">The trip wasn't found. Ask a friend to send the link again.</p>
     ${copy ? `<button class="btn primary" data-action="rebuild-trip">Rebuild from this phone's copy (${esc(copy.day)})</button>` : ''}
-    <button class="btn" data-action="forget-trip">Remove from this phone</button><button class="link" data-action="home">All trips</button></section>`;
+    <button class="btn" data-action="forget-trip">Remove from my trips</button><button class="link" data-action="home">All trips</button></section>`;
 }
 
 function linkHandled() {
@@ -93,12 +111,15 @@ actions['copy-link'] = () => {
   copyText(inviteUrl(A.route.tripId));
   linkHandled();
 };
-actions['copy-transfer'] = async () => {
-  const code = createTransferCode(A.device.claims());
-  await copyText(code);
-  A.device.setCodeSaved(true);
-  render();
+actions['remove-person'] = el => {
+  const t = A.trips[A.route.tripId], person = (A.joined[t.id] || []).find(p => p.uid === el.dataset.uid);
+  if (!person) return;
+  if (A.confirmRemove !== person.uid) { A.confirmRemove = person.uid; el.textContent = `Tap again to remove ${person.displayName || person.email}`; return; }
+  A.confirmRemove = null;
+  send(A.repo.removePerson(t.id, person, getMe(t)), 'Removing that person');
+  toast('Removed. They can no longer open this trip.');
 };
+actions['let-back-in'] = el => { send(A.repo.letBackIn(A.route.tripId, el.dataset.uid), 'Letting that person back in'); };
 actions['release-claim'] = el => {
   const t = A.trips[A.route.tripId];
   send(A.repo.releaseClaim(t.id, el.dataset.id, getMe(t)), 'Freeing that name');
@@ -106,7 +127,7 @@ actions['release-claim'] = el => {
 };
 actions['toggle-admin'] = el => {
   const t = A.trips[A.route.tripId], id = el.dataset.id;
-  send(A.repo.setAdmin(t.id, id, !isAdminId(t, id), getMe(t)), 'That change');
+  send(A.repo.setAdmin(t.id, id, el.dataset.uid, !isAdminId(t, id), getMe(t)), 'That change');
 };
 actions['confirm-replace'] = () => { A.confirm = 'replace'; render(); };
 actions['keep-old-link'] = () => { send(A.repo.keepOldLink(A.route.tripId, getMe(A.trips[A.route.tripId]))); toast('This link works again'); };
@@ -116,9 +137,9 @@ actions['replace-yes'] = async () => {
   const me = A.device.me(t.id), name = actor(t);
   A.confirm = null;
   toast('Moving the trip to a new link…');
-  let copy, claim;
+  let copy;
   try {
-    ({ trip: copy, claim } = await A.repo.replaceLink(t, A.entries[t.id] || {}, name, me));
+    ({ trip: copy } = await A.repo.replaceLink(t, A.entries[t.id] || {}, name, me, A.user));
   } catch {
     render();
     toast("The link wasn't replaced. Nothing changed, so try again.");
@@ -126,8 +147,6 @@ actions['replace-yes'] = async () => {
   }
   A.device.addTrip(copy.id);
   if (me) A.device.setMe(copy.id, me);
-  if (claim) A.device.setKey(copy.id, claim.key);
-  A.device.setCodeSaved(false);
   A.device.setLinkUnsaved(copy.id, true);
   A.device.removeTrip(t.id);
   A.trips[copy.id] = copy;
@@ -154,7 +173,7 @@ changes['trip-name'] = el => { if (el.value.trim()) send(A.repo.updateTrip(A.rou
 actions['confirm-leave'] = () => { A.confirm = 'leave'; render(); };
 actions['confirm-delete'] = () => { A.confirm = 'delete'; render(); };
 actions['confirm-clear'] = () => { A.confirm = null; render(); };
-const forget = () => { A.device.removeTrip(A.route.tripId); goHome(); };
+const forget = () => { const id = A.route.tripId; A.device.removeTrip(id); send(A.repo.leaveMyList(id)); goHome(); };
 actions['leave-yes'] = forget;
 actions['forget-trip'] = forget;
 actions['delete-yes'] = () => {
@@ -168,9 +187,8 @@ actions['restore-trip'] = () => { send(A.repo.restoreTrip(A.route.tripId, getMe(
 actions['rebuild-trip'] = () => {
   const copy = A.device.snapshots(A.route.tripId)[0];
   if (!copy) return;
-  const tripId = A.route.tripId, me = A.device.me(tripId) || null;
-  A.repo.createFromBackup(parseBackup(JSON.stringify(copy.backup)), me).then(({ claim }) => {
-    if (claim) A.device.setKey(tripId, claim.key);
+  const me = A.device.me(A.route.tripId) || null;
+  A.repo.createFromBackup(parseBackup(JSON.stringify(copy.backup)), me, A.user).then(() => {
     toast('Trip rebuilt');
   }).catch(() => toast("The trip wasn't rebuilt. Check your connection and try again."));
 };

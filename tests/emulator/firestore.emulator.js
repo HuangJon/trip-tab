@@ -1,5 +1,5 @@
 /**
- * Runs the real Firebase backend and rules against the emulators, as two different phones:
+ * Runs the real Firebase backend and rules against the emulators, as several different accounts:
  *   npm run test:rules
  */
 import assert from 'node:assert/strict';
@@ -30,15 +30,35 @@ function phoneSdk() {
   };
 }
 const config = { projectId: 'demo-trip-tab', apiKey: 'x' };
-const newPhone = async () => { const backend = await createFirebaseBackend(config, phoneSdk(), { signInWaitMs: 10000 }); return { backend, repo: createRepository(backend) }; };
+let people = 0;
+/** A verified account. The emulator accepts a made-up Google identity, which counts as verified. */
+const newPhone = async (email = `person${people += 1}@example.com`) => {
+  const backend = await createFirebaseBackend(config, phoneSdk());
+  await authSdk.signInWithCredential(backend.firebaseAuth, authSdk.GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true, name: email })));
+  return { backend, repo: createRepository(backend), profile: backend.auth.current() };
+};
 const refused = (p, why) => assert.rejects(p, /permission|PERMISSION/, why);
 
 const admin = await newPhone(), friend = await newPhone(), stranger = await newPhone();
 assert.ok(admin.backend.uid()); assert.notEqual(admin.backend.uid(), friend.backend.uid());
 
 /* The admin creates a trip. */
-const { trip, written, claim: adminClaim } = admin.repo.createTrip({ name: 'Rules test', currency: 'TWD', memberNames: ['Ana', 'Ben'] });
+const { trip, written } = admin.repo.createTrip({ name: 'Rules test', currency: 'TWD', memberNames: ['Ana', 'Ben'], profile: admin.profile });
 await written;
+
+/* Nobody reads a trip without verifying and joining. */
+const unverified = await createFirebaseBackend(config, phoneSdk());
+await authSdk.createUserWithEmailAndPassword(unverified.firebaseAuth, 'unverified@example.com', 'password1');
+await refused(unverified.get(`trips/${trip.id}`), 'an unverified account gets nothing');
+await refused(unverified.set(`trips/${trip.id}/joined/${unverified.uid()}`, { uid: unverified.uid(), tripId: trip.id, displayName: 'x', email: 'x', memberId: null, removed: false, at: 1 }), 'an unverified account cannot join');
+await refused(friend.backend.get(`trips/${trip.id}`), 'a verified account has to join first');
+await friend.repo.recordJoin(trip.id, friend.profile);
+await stranger.repo.recordJoin(trip.id, stranger.profile);
+assert.ok(await friend.backend.get(`trips/${trip.id}`));
+assert.equal((await admin.backend.list(`trips/${trip.id}/joined`)).length, 3, 'the admin sees everyone, named or not');
+await refused(friend.backend.list(`trips/${trip.id}/joined`), 'only admins see the joined list');
+await refused(friend.backend.get(`trips/${trip.id}/joined/${admin.backend.uid()}`), "others' emails stay private");
+await refused(friend.backend.update(`trips/${trip.id}/joined/${stranger.backend.uid()}`, { removed: true }), "only admins remove people");
 const [a, b] = Object.keys(trip.members);
 const entryFor = (id, by) => ({ id, tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [by]: 10 }, owed: { [a]: 5, [b]: 5 }, note: '', comments: {}, createdAt: 5, updatedAt: 5, updatedBy: 'x', createdById: by, deleted: false });
 const save = (phone, e, opts) => phone.repo.saveEntry(trip, e, { actor: 'x', label: 'x', ...opts });
@@ -48,8 +68,7 @@ await refused(stranger.backend.set(`trips/${trip.id}/entries/entry00000000099`, 
 const benClaim = await friend.repo.claimMember(trip.id, b);
 await assert.rejects(stranger.repo.claimMember(trip.id, b), /Taken/);
 await assert.rejects(stranger.repo.claimMember(trip.id, a), /Taken/);
-await refused(stranger.backend.set(`trips/${trip.id}/claims/${b}`, { tripId: trip.id, memberId: b, uid: stranger.backend.uid(), key: 'x'.repeat(24), at: 1, released: false }), 'cannot overwrite a claim');
-await refused(stranger.backend.get(`trips/${trip.id}/claims/${b}`), 'keys stay private');
+await refused(stranger.backend.set(`trips/${trip.id}/claims/${b}`, { tripId: trip.id, memberId: b, uid: stranger.backend.uid(), at: 1, released: false }), 'cannot overwrite a claim');
 
 /* Adding and changing expenses. */
 const benEntry = entryFor('entry00000000001', b), anaEntry = entryFor('entry00000000002', a);
@@ -79,7 +98,7 @@ await friend.repo.setMemberPayment(trip.id, b, 'venmo', '@ben', b);
 await friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.21 }, b);
 await refused(friend.repo.renameMember(trip.id, a, 'Hacked', b), "cannot rename someone else");
 await refused(friend.repo.setMemberPayment(trip.id, a, 'venmo', '@scam', b), "cannot change someone else's Venmo");
-await refused(friend.repo.setAdmin(trip.id, b, true, b), 'cannot promote yourself');
+await refused(friend.repo.setAdmin(trip.id, b, friend.backend.uid(), true, b), 'cannot promote yourself');
 await refused(friend.repo.updateTrip(trip.id, { name: 'Hacked' }, b), 'only admins rename the trip');
 await refused(friend.repo.deleteTrip(trip.id, 1, b), 'only admins delete the trip');
 await refused(friend.repo.updateTrip(trip.id, { 'rates.JPY': 1 }, a), 'cannot act as the admin by naming them');
@@ -91,25 +110,41 @@ await admin.repo.addMember(trip, 'Chi', 'Ana', a).written;
 const joined = await stranger.repo.joinAs(trip, 'Rui');
 await stranger.repo.renameMember(trip.id, joined.memberId, 'Ruiz', joined.memberId);
 
-/* Moving to a new phone. */
-const newBen = await newPhone();
-await refused(newBen.repo.transferClaim(trip.id, b, 'y'.repeat(24)), 'a wrong code does nothing');
-await newBen.repo.transferClaim(trip.id, b, benClaim.key);
-await newBen.repo.renameMember(trip.id, b, 'Ben N', b);
-await refused(friend.repo.renameMember(trip.id, b, 'Old phone', b), 'the old phone is cut off');
+/* The same account on a new device keeps its name. */
+const benAgain = await newPhone(friend.profile.email);
+assert.equal(benAgain.backend.uid(), friend.backend.uid());
+await benAgain.repo.renameMember(trip.id, b, 'Ben N', b);
 
-/* An admin frees a name after a lost phone. */
+/* An admin frees a name. */
 const lost = await newPhone();
+await lost.repo.recordJoin(trip.id, lost.profile);
 await refused(lost.repo.releaseClaim(trip.id, b, b), 'only admins free names');
 await admin.repo.releaseClaim(trip.id, b, a);
-await refused(newBen.repo.renameMember(trip.id, b, 'Freed', b), 'a freed name stops working');
+await refused(friend.repo.renameMember(trip.id, b, 'Freed', b), 'a freed name stops working');
 await lost.repo.claimMember(trip.id, b);
 await lost.repo.renameMember(trip.id, b, 'Ben again', b);
 
+/* An admin removes someone who forwarded their way in. */
+const joinedList = await admin.backend.list(`trips/${trip.id}/joined`);
+const rui = joinedList.find(p => p.uid === stranger.backend.uid());
+assert.equal(rui.memberId, joined.memberId);
+await admin.repo.removePerson(trip.id, rui, a);
+await refused(stranger.backend.get(`trips/${trip.id}`), 'someone removed cannot read the trip');
+await refused(stranger.backend.list(`trips/${trip.id}/entries`), 'or its expenses');
+await refused(stranger.repo.renameMember(trip.id, joined.memberId, 'Back', joined.memberId), 'or change anything');
+await refused(stranger.backend.update(`trips/${trip.id}/joined/${rui.uid}`, { removed: false }), 'or let themselves back in');
+await admin.repo.letBackIn(trip.id, rui.uid);
+assert.ok(await stranger.backend.get(`trips/${trip.id}`));
+
+/* Your trip list follows your account. */
+const myList = await friend.backend.list(`users/${friend.backend.uid()}/trips`);
+assert.equal(myList[0].tripId, trip.id);
+await refused(stranger.backend.list(`users/${friend.backend.uid()}/trips`), "others' trip lists are private");
+
 /* A second admin. */
-await admin.repo.setAdmin(trip.id, b, true, a);
+await admin.repo.setAdmin(trip.id, b, lost.backend.uid(), true, a);
 await lost.repo.updateTrip(trip.id, { name: 'Renamed' }, b);
-await admin.repo.setAdmin(trip.id, b, false, a);
+await admin.repo.setAdmin(trip.id, b, lost.backend.uid(), false, a);
 await refused(lost.repo.updateTrip(trip.id, { name: 'Again' }, b), 'removed admins lose access');
 
 /* Receipts. */
@@ -124,15 +159,15 @@ await refused(lost.repo.importBackup(current, { trip: current, entries: [{ ...an
 await admin.repo.deleteTrip(trip.id, 1, a);
 await admin.repo.restoreTrip(trip.id, a);
 const entries = Object.fromEntries((await admin.backend.list(`trips/${trip.id}/entries`)).map(e => [e.id, e]));
-const moved = await admin.repo.replaceLink(current, entries, 'Ana', a);
+const moved = await admin.repo.replaceLink(current, entries, 'Ana', a, admin.profile);
 assert.equal((await admin.backend.list(`trips/${moved.trip.id}/entries`)).length, Object.keys(entries).length);
 assert.ok((await admin.backend.get(`trips/${trip.id}`)).retiredAt);
 await refused(lost.repo.keepOldLink(trip.id, b), 'only admins undo a move');
 await admin.repo.keepOldLink(trip.id, a);
 
 /* A rebuilt trip works under a new owner. */
-const rebuilt = await lost.repo.createFromBackup({ trip: { ...current, id: 'rebuilttriprebuilttrip01' }, entries: [] }, b);
-assert.ok(rebuilt.claim.key);
+const rebuilt = await lost.repo.createFromBackup({ trip: { ...current, id: 'rebuilttriprebuilttrip01' }, entries: [] }, b, lost.profile);
+assert.ok(rebuilt.claim);
 
 /* Things nobody can do. */
 const { db } = admin.backend, sdk = store;
@@ -161,6 +196,5 @@ const unsigned = store.initializeFirestore(app.initializeApp(config, 'unsigned')
 store.connectFirestoreEmulator(unsigned, '127.0.0.1', 8181);
 await refused(store.getDoc(store.doc(unsigned, `trips/${trip.id}`)));
 
-assert.ok(adminClaim.key);
 console.log('Emulator checks passed');
 process.exit(0);

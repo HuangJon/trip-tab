@@ -1,26 +1,39 @@
 rules_version = '2';
-// A phone signs in invisibly and gets a private id, with no account for people to create.
-// A name on a trip belongs to the phone that claimed it, recorded in claims/{memberId}.
-// Every write says which name is making it, and that name has to be claimed by this phone.
-// Anyone with the trip's long random id can read it. Nobody can list trips, and nothing can be deleted.
+// Only accounts with a verified email get in: Google accounts, or email accounts after tapping the link.
+// Opening a trip's link records the account in joined/{uid}, and an admin can remove anyone from there.
+// A name on a trip belongs to the account that claimed it, recorded in claims/{memberId}.
+// Every write says which name is making it, and that name has to belong to this account.
+// Nobody can list trips, and nothing can be deleted except an entry on your own trip list.
 // Rules can't add up a map, so the app also checks that each expense's shares reach its total.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function okId(id) { return id.matches('^[a-z0-9]{10,40}$'); }
     function okTripId(id) { return signedIn() && id.matches('^[a-z0-9]{20,40}$'); }
     function short(value, limit) { return value is string && value.size() <= limit; }
 
     function tripPath(tripId) { return /databases/$(database)/documents/trips/$(tripId); }
     function claimPath(tripId, memberId) { return /databases/$(database)/documents/trips/$(tripId)/claims/$(memberId); }
+    function joinedPath(tripId) { return /databases/$(database)/documents/trips/$(tripId)/joined/$(request.auth.uid); }
+    // On the trip: this account has opened it, and no admin has removed it.
+    function onTrip(tripId) {
+      return exists(joinedPath(tripId)) && get(joinedPath(tripId)).data.removed != true;
+    }
+    // Reads can't say which name they're for, so this list of accounts decides who can see the joined list.
+    function isAdminAccount(tripId) {
+      return get(tripPath(tripId)).data.adminUids.get(request.auth.uid, false) == true;
+    }
     function isMe(tripId, memberId) {
       return memberId is string && memberId.size() > 0
+        && onTrip(tripId)
         && exists(claimPath(tripId, memberId))
         && get(claimPath(tripId, memberId)).data.uid == request.auth.uid;
     }
     function isAdmin(tripId, memberId) {
       return isMe(tripId, memberId) && get(tripPath(tripId)).data.admins.get(memberId, false) == true;
     }
+
+    function isTripCreator(tripId) { return isAdminAccount(tripId); }
 
     function validTrip(d, tripId) {
       return d.id == tripId
@@ -59,10 +72,17 @@ service cloud.firestore {
       ));
     }
 
+    // Your own list of trips, which follows you to any device.
+    match /users/{uid}/trips/{tripId} {
+      allow read, delete: if signedIn() && uid == request.auth.uid;
+      allow create, update: if signedIn() && uid == request.auth.uid && request.resource.data.tripId == tripId;
+    }
+
     match /trips/{tripId} {
-      allow get: if okTripId(tripId);
+      allow get: if okTripId(tripId) && (resource == null || onTrip(tripId));
       allow list: if false;
-      allow create: if okTripId(tripId) && validTrip(request.resource.data, tripId);
+      allow create: if okTripId(tripId) && validTrip(request.resource.data, tripId)
+        && request.resource.data.adminUids.get(request.auth.uid, false) == true;
       allow update: if okTripId(tripId) && validTrip(request.resource.data, tripId)
         && request.resource.data.currency == resource.data.currency
         && request.resource.data.createdAt == resource.data.createdAt
@@ -77,35 +97,50 @@ service cloud.firestore {
         );
       allow delete: if false;
 
+      match /joined/{uid} {
+        allow get: if okTripId(tripId) && (uid == request.auth.uid || isAdminAccount(tripId));
+        allow list: if okTripId(tripId) && isAdminAccount(tripId);
+        allow create: if okTripId(tripId) && uid == request.auth.uid
+          && request.resource.data.uid == uid
+          && request.resource.data.tripId == tripId
+          && request.resource.data.removed == false
+          && short(request.resource.data.displayName, 80)
+          && short(request.resource.data.email, 200)
+          // The name comes from a real claim, or is empty until one is made.
+          && (request.resource.data.memberId == null || isTripCreator(tripId));
+        allow update: if okTripId(tripId) && (
+          isAdminAccount(tripId)
+          // Your own record can only change which name you hold, and that name has to be yours.
+          || (uid == request.auth.uid && resource.data.removed != true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberId'])
+            && (request.resource.data.memberId == null || isMe(tripId, request.resource.data.memberId)))
+        );
+        allow delete: if false;
+      }
+
       match /claims/{memberId} {
-        // The secret key stays with the phone holding the name. A freed name is open to claim.
-        allow get: if okTripId(tripId) && (resource == null || resource.data.uid == request.auth.uid || resource.data.released == true);
+        allow get: if okTripId(tripId) && onTrip(tripId);
         allow list: if false;
         allow create: if okTripId(tripId) && okId(memberId)
+          && (onTrip(tripId) || isTripCreator(tripId))
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.memberId == memberId
-          && request.resource.data.tripId == tripId
-          && short(request.resource.data.key, 40) && request.resource.data.key.size() >= 20;
+          && request.resource.data.tripId == tripId;
         allow update: if okTripId(tripId) && (
           // Claiming a freed name.
-          (resource.data.released == true && request.resource.data.uid == request.auth.uid
-            && request.resource.data.released == false
-            && short(request.resource.data.key, 40) && request.resource.data.key.size() >= 20)
-          // Moving to a new phone, by showing the secret key.
-          || (request.resource.data.uid == request.auth.uid
-            && resource.data.key.size() >= 20
-            && request.resource.data.key == resource.data.key
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid']))
+          (resource.data.released == true && onTrip(tripId)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.released == false)
           // An admin freeing the name.
           || (isAdmin(tripId, request.resource.data.releasedBy)
             && request.resource.data.released == true
-            && request.resource.data.uid == '' && request.resource.data.key == '')
+            && request.resource.data.uid == '')
         );
         allow delete: if false;
       }
 
       match /entries/{id} {
-        allow read: if okTripId(tripId);
+        allow read: if okTripId(tripId) && onTrip(tripId);
         allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
           && (isAdmin(tripId, request.resource.data.updatedById)
             || (isMe(tripId, request.resource.data.updatedById)
@@ -124,7 +159,7 @@ service cloud.firestore {
         allow delete: if false;
 
         match /revisions/{revId} {
-          allow read: if okTripId(tripId);
+          allow read: if okTripId(tripId) && onTrip(tripId);
           allow create: if okTripId(tripId) && okId(revId)
             && isMe(tripId, request.resource.data.byId)
             && request.resource.data.tripId == tripId
@@ -136,7 +171,7 @@ service cloud.firestore {
         }
       }
       match /activity/{id} {
-        allow read: if okTripId(tripId);
+        allow read: if okTripId(tripId) && onTrip(tripId);
         allow create: if okTripId(tripId) && okId(id)
           && isMe(tripId, request.resource.data.byId)
           && request.resource.data.tripId == tripId
@@ -145,7 +180,7 @@ service cloud.firestore {
         allow update, delete: if false;
       }
       match /receipts/{id} {
-        allow get: if okTripId(tripId);
+        allow get: if okTripId(tripId) && onTrip(tripId);
         allow list: if false; // receipts load one at a time, only when someone opens one
         allow create: if okTripId(tripId) && okId(id)
           && isMe(tripId, request.resource.data.byId)

@@ -1,8 +1,8 @@
 /** The example trip the preview opens with. Only preview builds use it. */
 import { randomId } from '../core/ids.js';
 
-export async function seedExample(repo, device, today) {
-  const { trip, written, claim } = repo.createTrip({ name: 'Example: Okinawa (delete me)', currency: 'TWD', memberNames: ['Ana', 'Ben', 'Chi'] });
+export async function seedExample(repo, device, today, profile) {
+  const { trip, written } = repo.createTrip({ name: 'Example: Okinawa (delete me)', currency: 'TWD', memberNames: ['Ana', 'Ben', 'Chi'], profile });
   await written;
   const [a, b, c] = Object.keys(trip.members);
   const names = { [a]: 'Ana', [b]: 'Ben', [c]: 'Chi' };
@@ -23,6 +23,4 @@ export async function seedExample(repo, device, today) {
   await repo.setMemberPayment(trip.id, b, 'zelle', 'ben@example.com');
   device.addTrip(trip.id);
   device.setMe(trip.id, a);
-  device.setKey(trip.id, claim.key);
-  device.setCodeSaved(true);
 }

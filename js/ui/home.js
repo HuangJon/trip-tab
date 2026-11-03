@@ -7,7 +7,6 @@ import { netBalances, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { isIos, shouldSuggestInstall } from '../core/platform.js';
-import { looksLikeTransferCode, parseTransferCode } from '../core/transfer.js';
 import { goTrip } from './routes.js';
 
 export function modeNotice() {
@@ -23,31 +22,10 @@ export function alerts() {
   const suggest = shouldSuggestInstall({ ios: isIos(navigator.userAgent, navigator.platform, navigator.maxTouchPoints), standalone, preview: A.preview, dismissed: A.device.installTipDismissed() });
   return `${navigator.onLine === false ? '<div class="notice">You\'re offline. New expenses stay on this phone, marked "Waiting to sync", until you reconnect.</div>' : ''}
     ${failed.length ? `<div class="notice note-row bad-note"><span>${failed.map(f => esc(f.text)).join('<br>')}</span><button class="btn small" data-action="failed-dismiss">Dismiss</button></div>` : ''}
-    ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. Safari can clear a site's data if you don't visit for about a week. Copy your transfer code under People first, then paste it into the app's first screen.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
+    ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. It keeps you signed in, because Safari can clear a site's data if you don't visit for about a week. Sign in on the home-screen app and your trips will be there.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
 }
 actions['failed-dismiss'] = () => { A.device.clearFailedChanges(); render(); };
 actions['install-dismiss'] = () => { A.device.dismissInstallTip(); render(); };
-
-/** Moves every trip in a transfer code to this phone. Needs a connection. */
-async function applyTransferCode(text) {
-  const claims = parseTransferCode(text);
-  if (!claims) { toast("That transfer code isn't readable. Copy the whole code and try again."); return; }
-  if (navigator.onLine === false) { toast('Moving your trips needs a connection.'); return; }
-  let moved = 0;
-  for (const c of claims) {
-    try {
-      await A.repo.transferClaim(c.tripId, c.memberId, c.key);
-      A.device.addTrip(c.tripId);
-      A.device.setMe(c.tripId, c.memberId);
-      A.device.setKey(c.tripId, c.key);
-      A.watchTrip(c.tripId);
-      moved += 1;
-    } catch { /* counted below */ }
-  }
-  render();
-  toast(moved === claims.length ? `Moved ${moved} trip${moved > 1 ? 's' : ''} to this phone.`
-    : `Moved ${moved} of ${claims.length} trips. For the rest, ask that trip's admin to free your name.`);
-}
 
 export function homeView() {
   const ids = A.device.trips(), archived = A.device.archived();
@@ -83,11 +61,12 @@ export function homeView() {
   return `<div class="airmail" aria-hidden="true"></div>
     <header class="home-head"><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
+    <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
-    : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They can add expenses without an account.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
-    <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link or transfer code" placeholder="Paste an invite link or transfer code" autocomplete="off"><button class="btn">Join</button></form>
+    : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They verify an email or Google account, then pick their name.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
+    <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
     ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}`;
 }
 
@@ -100,21 +79,19 @@ actions['new-trip'] = () => {
   openSheet(`<form class="sheet" data-form="new-trip">${sheetHead('New trip', '<button class="btn small primary">Create</button>')}<div class="sheet-body">
     <label class="f"><span>Trip name</span><input id="ntName" required maxlength="${LIMITS.tripName}" placeholder="Okinawa, April"></label>
     <label class="f"><span>Show balances in</span><select id="ntCur">${CURRENCIES.map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
-    <label class="f"><span>Who's going? One name per line, starting with you</span><textarea id="ntPeople" rows="5" required placeholder="Jonathan&#10;Mia&#10;Wei"></textarea></label>
-    <p class="small muted">You can add more people later, and friends can add themselves when they open the link. The currency can't change once the trip starts.</p>
+    <label class="f"><span>Who's going? One name per line, starting with you</span><textarea id="ntPeople" rows="5" required placeholder="Jonathan&#10;Mia&#10;Wei">${esc(A.user?.displayName ? `${A.user.displayName}\n` : '')}</textarea></label>
+    <p class="small muted">Your own name goes first. You can add more later, and friends can add themselves when they open the link. The currency can't change once the trip starts.</p>
   </div></form>`);
 };
 submits['new-trip'] = () => {
   const name = val('ntName').trim().slice(0, LIMITS.tripName);
   const people = [...new Set(val('ntPeople').split(/\n|,|、/).map(s => s.trim().slice(0, LIMITS.personName)).filter(Boolean))].slice(0, LIMITS.members);
   if (!name || !people.length) return toast('Enter a trip name and at least one person.');
-  const { trip, written, claim } = A.repo.createTrip({ name, currency: val('ntCur'), memberNames: people });
+  const { trip, written } = A.repo.createTrip({ name, currency: val('ntCur'), memberNames: people, profile: A.user });
   closeSheet();
   A.device.addTrip(trip.id);
   const firstId = Object.keys(trip.members)[0];
   A.device.setMe(trip.id, firstId);
-  A.device.setKey(trip.id, claim.key);
-  A.device.setCodeSaved(false);
   A.device.setLinkUnsaved(trip.id, true);
   A.trips[trip.id] = trip;
   A.loaded[trip.id] = true;
@@ -125,12 +102,9 @@ submits['new-trip'] = () => {
   return undefined;
 };
 submits['join-link'] = () => {
-  const pasted = val('joinLink').trim();
-  if (looksLikeTransferCode(pasted)) { applyTransferCode(pasted); return undefined; }
-  const m = /#(?:join|t)-([a-z0-9]+)/.exec(pasted);
-  if (!m || !TRIP_ID_PATTERN.test(m[1])) return toast("That isn't a trip link or transfer code. Copy the whole thing and try again.");
-  A.device.addTrip(m[1]);
-  A.watchTrip(m[1]);
+  const m = /#(?:join|t)-([a-z0-9]+)/.exec(val('joinLink').trim());
+  if (!m || !TRIP_ID_PATTERN.test(m[1])) return toast("That isn't a trip link. Copy the whole link and try again.");
+  A.enterTrip(m[1]);
   goTrip(m[1]);
   return undefined;
 };
