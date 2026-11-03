@@ -19,7 +19,7 @@ function fakeSdk({ user = null, signInWorks = true } = {}) {
     onAuthStateChanged: (_a, fn) => { authListeners.push(fn); queueMicrotask(() => fn(auth.currentUser)); return () => {}; },
     signInAnonymously: async () => { calls.push('signin'); if (!signInWorks) throw new Error('offline'); setUser({ uid: 'u' }); },
     doc: (_d, p) => p, collection: (_d, p) => p, query: (c, ...x) => ({ c, x }), orderBy: f => f, limit: n => n,
-    onSnapshot: (ref, next, err) => { const s = { ref, next, err, off: false }; snaps.push(s); return () => { s.off = true; }; },
+    onSnapshot: (ref, a, b, c) => { const [next, err] = typeof a === 'function' ? [a, b] : [b, c]; const s = { ref, next, err, off: false }; snaps.push(s); return () => { s.off = true; }; },
   };
 }
 const config = { projectId: 'x' };
@@ -90,4 +90,14 @@ test('a cached missing trip is not treated as gone', async () => {
   assert.deepEqual(seen, []);
   sdk.snaps[0].next({ exists: () => false, metadata: { fromCache: false } });
   assert.deepEqual(seen, [null]);
+});
+test('collections report which documents are still waiting to sync', async () => {
+  const sdk = fakeSdk({ user: { uid: 'u' } });
+  const backend = await createFirebaseBackend(config, sdk);
+  let got;
+  backend.watchCollection('trips/a/entries', (list, meta) => { got = { list, meta }; }, () => {});
+  const doc = (id, waiting) => ({ id, data: () => ({ id }), metadata: { hasPendingWrites: waiting } });
+  sdk.snaps[0].next({ docs: [doc('e1', true), doc('e2', false)] });
+  assert.deepEqual(got.meta.pending, ['e1']);
+  assert.equal(got.list.length, 2);
 });

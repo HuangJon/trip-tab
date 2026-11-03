@@ -81,9 +81,10 @@ A.watchTrip = id => {
     A.trips[id] = t ? { ...t, fromNewerApp: isFromNewerApp(t) } : null;
     off();
   }, off);
-  A.repo.watchEntries(id, (entries, skipped) => {
+  A.repo.watchEntries(id, (entries, skipped, pending) => {
     A.entries[id] = entries;
     A.skipped[id] = skipped;
+    A.pending[id] = pending;
     render();
     if (A.detail && !A.form && A.route.tripId === id && document.getElementById('dlg').open) openDetail(A.detail, { keepTyped: true });
     saveSnapshot(id);
@@ -115,6 +116,8 @@ document.addEventListener('submit', ev => {
 // The close event arrives late, so a sheet opened right after another must not be closed by it.
 const sheetEl = document.getElementById('dlg');
 sheetEl.addEventListener('close', () => { if (!sheetEl.open && (A.form || A.detail)) closeSheet(); });
+addEventListener('online', () => render());
+addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
 
 /* ---------- Start ---------- */

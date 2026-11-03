@@ -21,7 +21,7 @@ service cloud.firestore {
 
     function validEntry(d, id, tripId) {
       return d.id == id && d.tripId == tripId
-        && d.kind in ['expense', 'payment']
+        && d.kind in ['expense', 'payment', 'refund']
         && d.total is int && d.total > 0 && d.total <= 1000000000000
         && d.currency.matches('^[A-Z]{3}$')
         && d.rate is number && d.rate > 0

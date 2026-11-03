@@ -31,9 +31,9 @@ export function createRepository(backend, now = () => Date.now()) {
     kind: backend.kind,
     watchTrip: (id, cb, err) => backend.watchDoc(tripPath(id), t => cb(isValidTrip(t) ? migrateTrip(t) : null), err),
     /** Calls back with the readable entries and how many were too damaged to use. */
-    watchEntries: (id, cb, err) => backend.watchCollection(col(id, 'entries'), list => {
+    watchEntries: (id, cb, err) => backend.watchCollection(col(id, 'entries'), (list, meta) => {
       const good = list.filter(isValidEntry);
-      cb(Object.fromEntries(good.map(e => [e.id, e])), list.length - good.length);
+      cb(Object.fromEntries(good.map(e => [e.id, e])), list.length - good.length, meta?.pending || []);
     }, err),
     watchActivity: (id, cb, err) => backend.watchCollection(col(id, 'activity'), cb, err, { orderBy: 'at', limit: LIMITS.activityShown }),
 
@@ -55,6 +55,8 @@ export function createRepository(backend, now = () => Date.now()) {
       ]);
       return { id, written };
     },
+    /** One person's Venmo or Zelle details. Each field saves on its own so friends can't overwrite each other. */
+    setMemberPayment: (tripId, id, field, value) => backend.update(tripPath(tripId), { [`members.${id}.${field}`]: value }),
     renameMember: (tripId, id, name) => backend.update(tripPath(tripId), { [`members.${id}.name`]: name }),
     removeMember: (tripId, id) => backend.update(tripPath(tripId), { [`members.${id}.removed`]: true }),
     deleteTrip: (id, at = now()) => backend.update(tripPath(id), { deletedAt: at }),

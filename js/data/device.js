@@ -22,6 +22,20 @@ export function createDevice(storage, now = () => Date.now()) {
     linkUnsaved: tripId => storage.get(`link-unsaved:${tripId}`, false),
     setLinkUnsaved: (tripId, value) => (value ? storage.trySet(`link-unsaved:${tripId}`, true) : storage.remove(`link-unsaved:${tripId}`)),
 
+    /** Archiving only tidies this phone's list. Friends keep seeing the trip as usual. */
+    archived: () => storage.get('archived', []),
+    setArchived(id, on) {
+      const rest = storage.get('archived', []).filter(x => x !== id);
+      storage.trySet('archived', on ? [id, ...rest] : rest);
+    },
+    installTipDismissed: () => storage.get('install-tip-dismissed', false),
+    dismissInstallTip: () => storage.trySet('install-tip-dismissed', true),
+
+    /** Changes the server refused, kept until someone has read them. */
+    failedChanges: () => storage.get('failed-changes', []),
+    addFailedChange(text) { storage.trySet('failed-changes', [{ text, at: now() }, ...storage.get('failed-changes', [])].slice(0, 5)); },
+    clearFailedChanges: () => storage.remove('failed-changes'),
+
     lastBackup: tripId => storage.get(`backup-at:${tripId}`),
     markBackup: tripId => storage.trySet(`backup-at:${tripId}`, now()),
 

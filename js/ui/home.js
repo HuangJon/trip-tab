@@ -1,11 +1,12 @@
 /** The list of trips on this phone. */
-import { A, actions, submits } from './state.js';
+import { A, actions, render, submits } from './state.js';
 import { APP_NAME, CURRENCIES, LIMITS, ZONE_CURRENCY } from '../config/app.js';
 import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from './dom.js';
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
+import { isIos, shouldSuggestInstall } from '../core/platform.js';
 import { goTrip } from './routes.js';
 
 export function modeNotice() {
@@ -14,12 +15,26 @@ export function modeNotice() {
   return '';
 }
 
+/** Offline state, refused changes and the install suggestion. Shown on every trip screen and at home. */
+export function alerts() {
+  const failed = A.device.failedChanges();
+  const standalone = globalThis.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+  const suggest = shouldSuggestInstall({ ios: isIos(navigator.userAgent, navigator.platform, navigator.maxTouchPoints), standalone, preview: A.preview, dismissed: A.device.installTipDismissed() });
+  return `${navigator.onLine === false ? '<div class="notice">You\'re offline. New expenses stay on this phone, marked "Waiting to sync", until you reconnect.</div>' : ''}
+    ${failed.length ? `<div class="notice note-row bad-note"><span>${failed.map(f => esc(f.text)).join('<br>')}</span><button class="btn small" data-action="failed-dismiss">Dismiss</button></div>` : ''}
+    ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. Safari can clear a site's data if you don't visit for about a week. Copy your trip link first, and paste it into the app's first screen.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
+}
+actions['failed-dismiss'] = () => { A.device.clearFailedChanges(); render(); };
+actions['install-dismiss'] = () => { A.device.dismissInstallTip(); render(); };
+
 export function homeView() {
-  const ids = A.device.trips();
-  const trips = ids.map(id => A.trips[id]).filter(t => t && !t.deletedAt && !t.retiredAt);
+  const ids = A.device.trips(), archived = A.device.archived();
+  const all = ids.map(id => A.trips[id]).filter(t => t && !t.deletedAt && !t.retiredAt);
+  const trips = all.filter(t => !archived.includes(t.id));
+  const shelved = all.filter(t => archived.includes(t.id));
   const waiting = ids.filter(id => !A.loaded[id]).length;
   const totals = {};
-  const rows = trips.map(t => {
+  const rowFor = t => {
     const list = liveEntries(A.entries[t.id]);
     const net = netBalances(list, t.currency);
     const me = getMe(t);
@@ -35,20 +50,23 @@ export function homeView() {
     } else status = `<span class="muted small">${settled ? 'Settled up' : 'Pick who you are'}</span>`;
     return `<button class="tap" data-action="open-trip" data-id="${t.id}">
       <span class="grow"><strong class="block wrap-any">${esc(t.name)}</strong><span class="small muted">${activeMembers(t).length} people · ${money(total, t.currency)} spent</span></span>
-      <span class="right">${status}</span></button>`;
-  }).join('');
+      <span class="right">${status}${(A.pending[t.id]?.length) ? '<div class="tag">Waiting to sync</div>' : ''}</span></button>`;
+  };
+  const rows = trips.map(rowFor).join('');
+  const shelvedRows = shelved.map(rowFor).join('');
   const sums = Object.entries(totals).filter(([, v]) => v !== 0);
-  const summary = !trips.length ? '' : `<section class="panel summary"><span class="label">Your overall balance</span>
+  const summary = !all.length ? '' : `<section class="panel summary"><span class="label">Your overall balance</span>
     ${sums.length ? sums.map(([c, v]) => `<div class="big ${v > 0 ? 'owed' : 'owe'}">${v > 0 ? '+' : '−'}${money(Math.abs(v), c)}</div>`).join('') : '<div class="big">All square</div>'}
     <p class="small muted">Counts the trips where you've chosen your name.</p></section>`;
   return `<div class="airmail" aria-hidden="true"></div>
     <header class="home-head"><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
-    ${modeNotice()}${summary}
+    ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
-    : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
+    : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
     : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They can add expenses without an account.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
-    <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>`;
+    <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
+    ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}`;
 }
 
 function defaultCurrency() {
@@ -90,4 +108,5 @@ submits['join-link'] = () => {
   goTrip(m[1]);
   return undefined;
 };
+actions['toggle-archived'] = () => { A.showArchived = !A.showArchived; render(); };
 actions['open-trip'] = el => goTrip(el.dataset.id);

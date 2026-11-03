@@ -1,6 +1,6 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { activeMembers, isFromNewerApp, isInUse, isValidEntry, migrateTrip } from '../../js/core/model.js';
+import { activeMembers, handlersOf, sharesOf, isFromNewerApp, isInUse, isValidEntry, migrateTrip } from '../../js/core/model.js';
 import { backupFilename, createBackup, csvFor, parseBackup } from '../../js/core/backup.js';
 import { SCHEMA_VERSION } from '../../js/config/app.js';
 
@@ -63,4 +63,13 @@ test('CSV has every person and blocks spreadsheet formulas', () => {
 });
 test('CSV leaves out deleted entries', () => {
   assert.ok(!csvFor(trip, { x: { ...parsed.entries[0], desc: 'Gone', deleted: true } }).includes('Gone'));
+});
+
+test('refunds are valid, read the right way round and export as negatives', () => {
+  const r = { id: 'r', kind: 'refund', desc: 'Back', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 100, paid: { aaaaaaaaaa: 50, bbbbbbbbbb: 50 }, owed: { aaaaaaaaaa: 100 } };
+  assert.ok(isValidEntry(r));
+  assert.deepEqual(handlersOf(r), { aaaaaaaaaa: 100 });
+  assert.deepEqual(sharesOf(r), r.paid);
+  const row = csvFor(trip, { r }).split('\n')[1];
+  assert.ok(row.includes('"Refund"')); assert.ok(row.includes('"-100"')); assert.ok(row.includes('"-50"'));
 });

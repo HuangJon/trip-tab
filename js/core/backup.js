@@ -40,12 +40,13 @@ export function csvFor(trip, entries) {
   const rows = [['Date', 'Type', 'Description', 'Category', 'Amount', 'Currency', 'Rate', `Amount in ${base}`, ...everyone.flatMap(m => [`${m.name} paid`, `${m.name} share`])]];
   for (const e of liveEntries(entries).sort(byNewest).reverse()) {
     const b = inBase(e, base);
-    const pay = e.kind === 'payment';
+    const pay = e.kind === 'payment', refund = e.kind === 'refund';
+    const sign = refund ? -1 : 1, handled = refund ? b.owed : b.paid, shares = refund ? b.paid : b.owed;
     rows.push([
-      e.date, pay ? 'Settlement' : 'Expense',
+      e.date, pay ? 'Settlement' : refund ? 'Refund' : 'Expense',
       pay ? `${memberName(trip, Object.keys(e.paid)[0])} paid ${memberName(trip, Object.keys(e.owed)[0])}` : e.desc,
-      pay ? '' : CATEGORIES[e.category] || 'Other', fromMinor(e.total, e.currency), e.currency, e.rate ?? 1, fromMinor(b.total, base),
-      ...everyone.flatMap(m => [fromMinor(b.paid[m.id] || 0, base), fromMinor(b.owed[m.id] || 0, base)]),
+      pay ? '' : CATEGORIES[e.category] || 'Other', fromMinor(sign * e.total, e.currency), e.currency, e.rate ?? 1, fromMinor(sign * b.total, base),
+      ...everyone.flatMap(m => [fromMinor(sign * (handled[m.id] || 0), base), fromMinor(sign * (shares[m.id] || 0), base)]),
     ]);
   }
   return `﻿${rows.map(r => r.map(q).join(',')).join('\n')}`;

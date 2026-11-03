@@ -31,6 +31,8 @@ button { cursor:pointer } label[for] { cursor:pointer }
 .panel { background:var(--surface); border:1px solid var(--line); border-radius:14px }
 .pad { padding:16px }
 .notice { padding:10px 14px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:.875rem }
+.note-row { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap }
+.note-row>span { flex:1 1 200px; min-width:0 }
 .nudge { color:var(--warn); font-weight:600 }
 input,select,textarea { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 11px; width:100%; min-height:44px; min-width:0; font-size:16px }
 input[type=checkbox] { width:22px; height:22px; min-height:0; accent-color:var(--accent); flex:none }

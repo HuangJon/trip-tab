@@ -35,13 +35,18 @@ export function peopleView(trip) {
       ${write && !isInUse(entries, m.id) && members.length > 1 ? `<button class="x" data-action="remove-member" data-id="${m.id}" aria-label="Remove ${esc(m.name)}">×</button>` : ''}</div>`).join('')}
     ${write ? `<form class="row" data-form="add-member"><input id="newMember" placeholder="Add a name" aria-label="New person's name" required maxlength="${LIMITS.personName}"><button class="btn">Add</button></form>` : ''}
     <p class="tiny muted">People who appear on an expense can't be removed, because the balances would stop adding up.</p></section>
+  <section class="panel pad stack"><h2>Payment details</h2>
+    <p class="small muted">Optional. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
+    ${members.map(m => `<div class="stack tight"><strong class="small wrap-any">${esc(m.name)}</strong><div class="pay-grid"><input id="ven-${m.id}" aria-label="${esc(m.name)}'s Venmo" placeholder="Venmo @name" maxlength="60" value="${esc(m.venmo || '')}" data-change="payment" data-field="venmo" data-id="${m.id}" autocomplete="off" ${write ? '' : 'disabled'}><input id="zel-${m.id}" aria-label="${esc(m.name)}'s Zelle" placeholder="Zelle phone or email" maxlength="60" value="${esc(m.zelle || '')}" data-change="payment" data-field="zelle" data-id="${m.id}" autocomplete="off" ${write ? '' : 'disabled'}></div></div>`).join('')}</section>
   <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${write ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
     <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="row between small"><span class="mono">1 ${esc(c)}</span><span class="mono">${esc(r)} ${esc(trip.currency)}</span></div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
   ${backupSection(trip)}
-  <section class="panel pad stack"><h2>Leave or delete</h2>
+  <section class="panel pad stack"><h2>Archive, leave or delete</h2>
+    <div class="row wrap"><button class="btn" data-action="archive-toggle">${A.device.archived().includes(trip.id) ? 'Move out of archive' : 'Archive on this phone'}</button></div>
+    <p class="tiny muted">Archiving moves the trip into a separate list on this phone. Friends still see it as usual.</p>
     ${A.confirm === 'leave' ? `<p class="small">This removes the trip from this phone only. You can come back with the invite link.</p><div class="row wrap"><button class="btn danger" data-action="leave-yes">Remove from this phone</button><button class="btn" data-action="confirm-clear">Keep it</button></div>`
     : A.confirm === 'delete' ? `<p class="small">This hides the trip for everyone. Anyone with the link can restore it.</p><div class="row wrap"><button class="btn danger" data-action="delete-yes">Delete for everyone</button><button class="btn" data-action="confirm-clear">Keep it</button></div>`
     : `<div class="row wrap"><button class="btn" data-action="confirm-leave">Remove from this phone</button>${write ? '<button class="btn danger" data-action="confirm-delete">Delete for everyone</button>' : ''}</div>`}</section>`;
@@ -110,6 +115,12 @@ submits['add-member'] = () => {
   const t = A.trips[A.route.tripId], name = val('newMember').trim().slice(0, LIMITS.personName);
   if (!name) return;
   send(A.repo.addMember(t, name, actor(t)).written);
+};
+changes.payment = el => { send(A.repo.setMemberPayment(A.route.tripId, el.dataset.id, el.dataset.field, el.value.trim().slice(0, 60)), 'A payment detail'); };
+actions['archive-toggle'] = () => {
+  const id = A.route.tripId, on = !A.device.archived().includes(id);
+  A.device.setArchived(id, on);
+  if (on) { goHome(); toast('Archived on this phone'); } else render();
 };
 changes.rename = el => { if (el.value.trim()) send(A.repo.renameMember(A.route.tripId, el.dataset.id, el.value.trim().slice(0, LIMITS.personName))); };
 changes['trip-name'] = el => { if (el.value.trim()) send(A.repo.updateTrip(A.route.tripId, { name: el.value.trim().slice(0, LIMITS.tripName) })); };

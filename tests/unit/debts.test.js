@@ -54,3 +54,14 @@ test('breakdown ignores settlements', () => {
   assert.equal(s.byCategory.food, 900);
   assert.equal(s.paid.c, undefined);
 });
+
+test('a refund gives the sharers credit and the receiver the debt', () => {
+  const spent = { kind: 'expense', category: 'lodging', date: '2026-01-01', currency: 'T', total: 300, paid: { a: 300 }, owed: { a: 100, b: 100, c: 100 } };
+  const refund = { kind: 'refund', category: 'lodging', date: '2026-01-02', currency: 'T', total: 300, paid: { a: 100, b: 100, c: 100 }, owed: { a: 300 } };
+  assert.deepEqual(netBalances([spent, refund], 'T'), { a: 0, b: 0, c: 0 });
+  const half = { ...refund, total: 150, paid: { a: 50, b: 50, c: 50 }, owed: { a: 150 } };
+  assert.deepEqual(simplify(netBalances([spent, half], 'T')).map(d => d.amount), [50, 50]);
+  const s = spendingBreakdown([spent, half], 'T');
+  assert.equal(s.total, 150); assert.equal(s.byCategory.lodging, 150); assert.equal(s.count, 1);
+  assert.equal(s.paid.a, 150); assert.equal(s.share.b, 50);
+});

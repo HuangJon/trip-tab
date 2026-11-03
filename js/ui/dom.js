@@ -1,5 +1,5 @@
 /** Small shared helpers for building and updating the page. */
-import { A } from './state.js';
+import { A, render } from './state.js';
 import { memberName } from '../core/model.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -88,13 +88,24 @@ export function toast(message, undo) {
 }
 
 /** Runs a write without waiting. Offline writes stay open until reconnecting, so only failure is reported. */
-export function send(promise) {
+export function send(promise, label = 'A change') {
   promise.catch(e => {
-    if (e?.code === 'permission-denied') toast("That change was refused. Check that you're on the latest version.");
-    else if (e?.name === 'QuotaExceededError') toast('This device is out of storage for the preview. Remove a photo or trip.');
-    else if (e?.code === 'resource-exhausted') toast("The free database limit is used up for now. Changes will work again after it resets.");
-    else toast("That change didn't save. Check your connection and try again.");
+    let why = "That change didn't save. Check your connection and try again.";
+    if (e?.code === 'permission-denied') why = "That change was refused. Check that you're on the latest version.";
+    else if (e?.name === 'QuotaExceededError') why = 'This device is out of storage for the preview. Remove a photo or trip.';
+    else if (e?.code === 'resource-exhausted') why = 'The free database limit is used up for now. Changes will work again after it resets.';
+    toast(why);
+    A.device.addFailedChange(`${label} didn't save. ${why}`);
+    render();
   });
+}
+/** Actions need a name to credit. People pick theirs on the trip, with no account. */
+export function requireMe(trip) {
+  if (getMe(trip)) return true;
+  closeSheet();
+  scrollTo(0, 0);
+  toast('Choose your name at the top first, so friends can see who did this.');
+  return false;
 }
 
 export async function copyText(text, fallbackId) {

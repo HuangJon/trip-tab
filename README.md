@@ -8,6 +8,9 @@ Split trip costs with friends. Share a link, and everyone adds expenses without 
 - **Splitting:** equally, exact amounts, percentages, shares, adjustments or item by item, with one or several payers.
 - **Settling up:** simplified debts or expense-by-expense debts, recorded payments and a summary to paste into a group chat.
 - **Currencies:** every expense can use its own currency, at the rate you enter.
+- **Credit:** every expense shows who added it and who it's split among. People pick their name on the trip, with no login.
+- **Refunds and repeats:** record money coming back, or duplicate an expense.
+- **Paying back:** Venmo and Zelle details beside each debt, with copy buttons.
 - **History:** comments, receipt photos, search, category filters, an activity log, undo and restore.
 - **Insights and export:** spending by category, person and day, plus CSV.
 
@@ -31,7 +34,10 @@ Open the link in Safari, tap Share, then Add to Home Screen, and open the app fr
 - If a link is shared too widely, People → "Replace it" moves the trip to a new link. The old link stops opening the trip and never reveals the new one. The old copy stays stored, so someone with technical skills and the old link could still read it. Anyone with the old link can also choose to keep using it.
 - The database keeps an offline copy on each phone and sends changes when back online.
 - Each phone keeps up to 3 daily safety copies of each trip it opens. People → Backups can restore them, and can export, import, copy and paste backups. These merge by id and never delete anything. Backups don't include receipt photos.
-- Who you are on a trip and your trip list are stored only on your phone.
+- Who you are on a trip and your trip list are stored only on your phone. Names aren't verified: anyone with the link can pick any name.
+- Expenses added offline show "Waiting to sync" until they reach the database. They exist only on that phone until then, so don't delete the app first.
+- Venmo and Zelle details are visible to anyone with the trip link.
+- In Safari, a site's data can be cleared after about a week without a visit, so iPhone users are asked to add the app to their Home Screen. Synced trips stay safe, and the link gets you back in.
 
 ## Set up the database (free)
 

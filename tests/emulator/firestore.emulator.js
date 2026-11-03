@@ -63,6 +63,9 @@ assert.equal((await backend.list(`trips/${moved.id}/entries`)).length, 1);
 assert.ok((await backend.get(`trips/${trip.id}`)).retiredAt);
 await repo.keepOldLink(trip.id);
 
+await repo.setMemberPayment(moved.id, a, 'venmo', '@ana');
+await backend.set(`trips/${trip.id}/entries/entry00000000009`, { ...entry, id: 'entry00000000009', kind: 'refund', paid: { [a]: 5, [b]: 5 }, owed: { [a]: 10 } });
+
 // What should never happen has to be refused.
 await refused(sdk.getDocs(sdk.collection(db, 'trips')));
 await refused(sdk.deleteDoc(sdk.doc(db, `trips/${trip.id}`)));

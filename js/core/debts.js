@@ -83,14 +83,16 @@ export function spendingBreakdown(entries, base) {
   const byCategory = {}, byDay = {}, paid = {}, share = {};
   let total = 0, count = 0;
   for (const e of entries) {
-    if (e.kind !== 'expense') continue;
+    if (e.kind === 'payment') continue;
     const b = inBase(e, base);
-    count += 1;
-    total += b.total;
-    byCategory[e.category] = (byCategory[e.category] || 0) + b.total;
-    byDay[e.date] = (byDay[e.date] || 0) + b.total;
-    for (const i in b.paid) paid[i] = (paid[i] || 0) + b.paid[i];
-    for (const i in b.owed) share[i] = (share[i] || 0) + b.owed[i];
+    const refund = e.kind === 'refund', sign = refund ? -1 : 1;
+    if (!refund) count += 1;
+    total += sign * b.total;
+    byCategory[e.category] = (byCategory[e.category] || 0) + sign * b.total;
+    byDay[e.date] = (byDay[e.date] || 0) + sign * b.total;
+    const handled = refund ? b.owed : b.paid, shares = refund ? b.paid : b.owed;
+    for (const i in handled) paid[i] = (paid[i] || 0) + sign * handled[i];
+    for (const i in shares) share[i] = (share[i] || 0) + sign * shares[i];
   }
   return { total, count, byCategory, byDay, paid, share };
 }

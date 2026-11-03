@@ -1,16 +1,28 @@
 /** Adding and editing an expense. What people type lives in A.form, so nothing they typed is lost on a redraw. */
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
-import { actor, avatar, closeSheet, esc, getMe, openSheet, send, today, toast } from './dom.js';
+import { actor, avatar, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
-import { activeMembers, memberName } from '../core/model.js';
+import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { shrinkPhoto } from './receipt.js';
 
 const clone = o => JSON.parse(JSON.stringify(o));
 const tripOf = () => A.trips[A.form.tripId];
 const ids = t => activeMembers(t).map(m => m.id);
+
+/** Starts a new expense from an old one, dated today, with no receipt photo. */
+export function duplicateExpense(trip, entry) {
+  openExpenseForm(trip, entry);
+  const F = A.form;
+  delete F.id;
+  delete F.baseUpdatedAt;
+  F.date = today();
+  F.receipt = '';
+  F.isCopy = true;
+  drawForm();
+}
 
 export function openExpenseForm(trip, entry) {
   const all = ids(trip), me = getMe(trip) || all[0];
@@ -19,15 +31,15 @@ export function openExpenseForm(trip, entry) {
     const c = entry.currency;
     A.form = {
       tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : String(entry.rate),
-      amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(entry.paid).map(([k, v]) => [k, fromMinor(v, c)])),
-      multi: Object.keys(entry.paid).length > 1, payer: Object.keys(entry.paid)[0],
-      split: { inputs: {}, items: [], selected: Object.keys(entry.owed), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
+      kind: entry.kind, amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(handlersOf(entry)).map(([k, v]) => [k, fromMinor(v, c)])),
+      multi: Object.keys(handlersOf(entry)).length > 1, payer: Object.keys(handlersOf(entry))[0],
+      split: { inputs: {}, items: [], selected: Object.keys(sharesOf(entry)), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
     };
   } else if (draft) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
     const currency = A.device.lastCurrency(trip.id) || trip.currency;
-    A.form = { tripId: trip.id, desc: '', category: 'food', date: today(), currency, rate: currency === trip.currency ? '' : String(trip.rates?.[currency] ?? ''), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: 'food', date: today(), currency, rate: currency === trip.currency ? '' : String(trip.rates?.[currency] ?? ''), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
 }
@@ -78,23 +90,26 @@ function rateNote(t) {
 function drawForm() {
   const F = A.form, t = tripOf();
   if (!t) return closeSheet();
+  const refund = F.kind === 'refund';
   const people = activeMembers(t), scroll = document.querySelector('#dlg .sheet-body')?.scrollTop || 0;
-  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? 'Edit expense' : 'Add expense'}</h2><div class="sheet-right"><button class="btn small primary" id="fSave">Save</button></div></div>
+  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"><button class="btn small primary" id="fSave">Save</button></div></div>
   <div class="sheet-body">
     ${F.isDraft ? `<div class="notice row between wrap"><span>Picked up your unsaved expense.</span><button type="button" class="btn small" data-action="draft-discard">${F.discardArmed ? 'Tap again to discard' : 'Discard'}</button></div>` : ''}
-    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="Dinner at the night market" value="${esc(F.desc)}" data-input="draft"></label>
+    ${F.id ? '' : `<div class="seg" role="group" aria-label="Type"><button type="button" data-action="form-kind" data-id="expense" aria-pressed="${!refund}">Expense</button><button type="button" data-action="form-kind" data-id="refund" aria-pressed="${refund}">Refund</button></div>`}
+    ${refund ? '<p class="small muted">Use this when money comes back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
+    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="draft"></label>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(F.currency)} = how many ${esc(t.currency)}?</span><input id="fRate" class="mono" inputmode="decimal" required value="${esc(F.rate)}" data-input="rate"><span class="tiny muted" id="fConv">${esc(rateNote(t))}</span></label>` : ''}
     <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
-    <div class="stack"><div class="row between"><span class="flabel">Paid by</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? 'One person paid' : 'More than one person paid'}</button></div>
+    <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
-    : `<select id="fPayer" aria-label="Paid by">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
-    <div class="stack"><span class="flabel">Split</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
+    : `<select id="fPayer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
+    <div class="stack"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="draft">${esc(F.note)}</textarea></label>
-    ${F.id ? `<button type="button" class="btn danger" data-action="delete-entry" data-id="${F.id}">Delete expense</button>` : ''}
+    ${F.id ? `<button type="button" class="btn danger" data-action="delete-entry" data-id="${F.id}">Delete ${refund ? 'refund' : 'expense'}</button>` : ''}
   </div></form>`);
   const b = document.querySelector('#dlg .sheet-body');
   if (b) b.scrollTop = scroll;
@@ -132,7 +147,8 @@ changes['form-currency'] = el => {
   drawForm();
 };
 
-actions['add-expense'] = () => openExpenseForm(A.trips[A.route.tripId]);
+actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
+actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {
   const hadText = A.form && !A.form.id && (document.getElementById('fDesc')?.value || document.getElementById('fAmt')?.value);
   keepDraft();
@@ -209,8 +225,9 @@ submits.expense = () => {
     if (s !== total) return toast(`Payments add up to ${money(s, F.currency)}. They need to reach ${money(total, F.currency)}.`);
   } else paid = { [F.payer]: total };
   const isNew = !F.id, id = F.id || randomId(), at = Date.now(), name = actor(t);
-  const entry = { id, tripId: t.id, kind: 'expense', desc: F.desc.trim(), category: F.category, date: F.date || today(), currency: F.currency, rate, total, paid, owed: nonZero(res.owed), split: clone(F.split), note: F.note.trim(), receipt: F.receipt || '', updatedAt: at, updatedBy: name, deleted: false };
-  if (isNew) { entry.comments = {}; entry.createdAt = at; }
+  const shares = nonZero(res.owed), refund = F.kind === 'refund';
+  const entry = { id, tripId: t.id, kind: refund ? 'refund' : 'expense', desc: F.desc.trim(), category: F.category, date: F.date || today(), currency: F.currency, rate, total, paid: refund ? shares : paid, owed: refund ? paid : shares, split: clone(F.split), note: F.note.trim(), receipt: F.receipt || '', updatedAt: at, updatedBy: name, deleted: false };
+  if (isNew) { entry.comments = {}; entry.createdAt = at; entry.createdById = getMe(t); }
   const current = isNew ? null : A.entries[t.id]?.[id];
   if (current && current.updatedAt !== F.baseUpdatedAt) return showConflict(t, entry, current);
   commit(t, entry, current);
@@ -224,14 +241,17 @@ function commit(t, entry, current) {
   if (isNew) A.device.clearDraft(t.id);
   if (entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }));
   closeSheet();
-  send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, label: `${isNew ? 'added' : 'edited'} "${entry.desc}" (${money(entry.total, entry.currency)})` }));
-  toast(isNew ? 'Expense added' : 'Expense saved');
+  const refund = entry.kind === 'refund';
+  const among = Object.keys(sharesOf(entry)).map(i => memberName(t, i)).join(', ');
+  const noun = refund ? 'refund ' : '';
+  send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, label: `${isNew ? 'added' : 'edited'} ${noun}"${entry.desc}" (${money(entry.total, entry.currency)}), split among ${among}`.slice(0, 340) }), `"${entry.desc}"`);
+  toast(refund ? (isNew ? 'Refund added' : 'Refund saved') : isNew ? 'Expense added' : 'Expense saved');
 }
 
 const versionCard = (t, title, e) => {
-  const payers = Object.keys(e.paid).map(i => memberName(t, i)).join(', ');
-  const shares = Object.entries(e.owed).map(([i, v]) => `${memberName(t, i)} ${money(v, e.currency)}`).join(', ');
-  return `<section class="panel pad stack tight"><h3>${esc(title)}</h3><strong class="wrap-any">${esc(e.deleted ? `${e.desc} (deleted)` : e.desc)}</strong><span class="amt">${money(e.total, e.currency)}</span><span class="small muted wrap-any">Paid by ${esc(payers)}</span><span class="small muted wrap-any">${esc(shares)}</span></section>`;
+  const payers = Object.keys(handlersOf(e)).map(i => memberName(t, i)).join(', ');
+  const shares = Object.entries(sharesOf(e)).map(([i, v]) => `${memberName(t, i)} ${money(v, e.currency)}`).join(', ');
+  return `<section class="panel pad stack tight"><h3>${esc(title)}</h3><strong class="wrap-any">${esc(e.deleted ? `${e.desc} (deleted)` : e.desc)}</strong><span class="amt">${money(e.total, e.currency)}</span><span class="small muted wrap-any">${e.kind === 'refund' ? 'Received by' : 'Paid by'} ${esc(payers)}</span><span class="small muted wrap-any">${esc(shares)}</span></section>`;
 };
 function showConflict(t, mine, theirs) {
   A.form.conflict = { mine, theirs };

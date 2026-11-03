@@ -296,6 +296,127 @@ await addExpense(page, '<img src=x onerror=alert(1)>', '5');
 assert.equal(await page.locator('#app img').count(), 0);
 check('names and descriptions cannot inject markup');
 
+/* Credit: who added it and who it's split among */
+await tab(page, 'expenses');
+await addExpense(page, 'Credit test', '90', async () => {
+  await page.selectOption('#fCur', 'TWD');
+  await page.uncheck('[id^=sel-] >> nth=2');
+});
+{
+  const row = await page.textContent('.tap:has-text("Credit test")');
+  assert.match(row, /Added by You/);
+  assert.match(row, /Split among you, Mia Chen/);
+  await page.click('.tap:has-text("Credit test")');
+  assert.match(await page.textContent('#dlg'), /Added by Jonathan on/);
+  await page.click('[data-action=close-sheet]');
+  await tab(page, 'activity');
+  await page.waitForFunction(() => /added "Credit test".*split among Jonathan, Mia Chen/.test(document.getElementById('app').textContent));
+}
+check('each expense shows who added it and who it is split among');
+
+/* Name required */
+{
+  const noName = await context.newPage();
+  await noName.route(/fonts\./, r => r.abort());
+  await noName.goto(invite);
+  await noName.evaluate(id => { localStorage.removeItem(`triptab:me:${id}`); }, new URL(invite).hash.slice(6));
+  await noName.reload();
+  await noName.waitForSelector('#joinName');
+  await noName.click('[data-action=add-expense]');
+  await noName.waitForFunction(() => /Choose your name/.test(document.getElementById('toast').textContent));
+  assert.equal(await noName.evaluate(() => document.getElementById('dlg').open), false);
+  await noName.click('[data-action=set-me] >> nth=0');
+  await noName.close();
+  check('adding needs a name, with no account');
+}
+
+/* Refunds */
+await tab(page, 'balances');
+const beforeRefund = await text(page);
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+await page.click('[data-action=form-kind][data-id=refund]');
+await page.fill('#fDesc', 'Deposit back');
+await page.fill('#fAmt', '300');
+assert.match(await page.textContent('#dlg'), /Received by/);
+assert.match(await page.textContent('#dlg'), /Shared by/);
+await page.click('#fSave');
+await page.waitForSelector('.tap:has-text("Deposit back")');
+assert.match(await page.textContent('.tap:has-text("Deposit back")'), /You received NT\$300/);
+await tab(page, 'balances');
+await page.waitForTimeout(30);
+assert.notEqual(await text(page), beforeRefund);
+await tab(page, 'expenses');
+await page.click('.tap:has-text("Deposit back")');
+await page.click('[data-action=edit-entry]');
+assert.equal(await page.inputValue('#fAmt'), '300');
+assert.match(await page.textContent('#dlg .sheet-head'), /Edit refund/);
+await page.click('#fSave');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+check('refunds add, change balances and edit correctly');
+
+/* Duplicate */
+await page.click('.tap:has-text("Credit test")');
+await page.click('[data-action=duplicate-entry]');
+assert.equal(await page.inputValue('#fDesc'), 'Credit test');
+await page.fill('#fDesc', 'Credit copy');
+await page.click('#fSave');
+await page.waitForSelector('.tap:has-text("Credit copy")');
+assert.match(await page.textContent('.tap:has-text("Credit copy")'), /Split among you, Mia Chen/);
+assert.ok(await page.locator('.tap:has-text("Credit test")').count());
+check('duplicate makes a new expense and leaves the original');
+
+/* Waiting to sync */
+await page.evaluate(() => localStorage.setItem('triptab:test-hang-writes', 'true'));
+await addExpense(page, 'Sync test', '40');
+await page.waitForSelector('.tap:has-text("Sync test") .tag:has-text("Waiting to sync")');
+assert.match(await text(page), /your friends can't see yet/);
+await page.evaluate(() => { localStorage.removeItem('triptab:test-hang-writes'); window.dispatchEvent(new Event('online')); });
+await page.waitForFunction(() => !/Waiting to sync/.test(document.getElementById('entryList').textContent));
+check('unsynced expenses are marked until they reach the database');
+
+/* Offline notice */
+await context.setOffline(true);
+await page.waitForFunction(() => /You're offline/.test(document.getElementById('app').textContent));
+await context.setOffline(false);
+await page.waitForFunction(() => !/You're offline/.test(document.getElementById('app').textContent));
+check('offline notice comes and goes');
+
+/* Payment details */
+await tab(page, 'people');
+await page.fill('input[aria-label="Mia Chen\'s Venmo"]', '@mia');
+await page.press('input[aria-label="Mia Chen\'s Venmo"]', 'Tab');
+await page.fill('input[aria-label="Jonathan\'s Zelle"]', 'j@example.com');
+await page.press('input[aria-label="Jonathan\'s Zelle"]', 'Tab');
+await tab(page, 'balances');
+await page.waitForSelector('.handle');
+const handleBtn = page.locator('[data-action=copy-handle]').first();
+const handleValue = await handleBtn.getAttribute('data-value');
+await handleBtn.click();
+assert.equal(await page.evaluate(() => navigator.clipboard.readText()), handleValue);
+check('payment details appear beside debts and copy');
+
+/* Archive */
+await tab(page, 'people');
+await page.click('[data-action=archive-toggle]');
+await page.waitForSelector('.home-head');
+assert.equal(await page.locator('.tap').count(), 0);
+await page.click('[data-action=toggle-archived]');
+await page.click('.tap');
+await page.waitForSelector('#entryList');
+await tab(page, 'people');
+await page.click('[data-action=archive-toggle]');
+check('archive moves a trip aside and back');
+
+/* A change the server refuses is reported and stays until read */
+await page.evaluate(() => { const k = 'triptab:failed-changes'; localStorage.setItem(k, JSON.stringify([{ text: '"Dinner" didn\'t save.', at: 1 }])); });
+await page.reload();
+await page.waitForSelector('[data-action=failed-dismiss]');
+assert.match(await text(page), /"Dinner" didn't save/);
+await page.click('[data-action=failed-dismiss]');
+await page.waitForFunction(() => !document.querySelector('[data-action=failed-dismiss]'));
+check('refused changes stay on screen until dismissed');
+
 /* Link reminder and replacing a link */
 await tab(page, 'expenses');
 await page.waitForSelector('[data-action=copy-link]');

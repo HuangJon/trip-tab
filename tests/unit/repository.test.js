@@ -190,3 +190,34 @@ test('a failed move leaves the old trip working', async () => {
   await assert.rejects(createRepository(failing).replaceLink(trip, {}, 'A'));
   assert.equal((await inner.get(`trips/${trip.id}`)).retiredAt, undefined);
 });
+
+test('payment details save per field without touching anything else', async () => {
+  const { backend, repo, trip, a } = await setup();
+  await repo.setMemberPayment(trip.id, a, 'venmo', '@ana');
+  await repo.setMemberPayment(trip.id, a, 'zelle', 'ana@x.co');
+  const m = (await backend.get(`trips/${trip.id}`)).members[a];
+  assert.deepEqual([m.name, m.venmo, m.zelle], ['A', '@ana', 'ana@x.co']);
+});
+test('entries waiting to sync are reported until they arrive', async () => {
+  let hang = true;
+  const listeners = [];
+  const realAdd = globalThis.addEventListener;
+  globalThis.addEventListener = (n, f) => { if (n === 'online') listeners.push(f); };
+  const backend = createLocalBackend({ area: area(), hangWrites: () => hang });
+  globalThis.addEventListener = realAdd;
+  backend.set('trips/t/entries/e1', { id: 'e1' });
+  const seen = [];
+  backend.watchCollection('trips/t/entries', (_l, meta) => seen.push(meta.pending));
+  await new Promise(r => setTimeout(r, 1));
+  assert.deepEqual(seen.at(-1), ['e1']);
+  hang = false;
+  listeners.forEach(f => f());
+  assert.deepEqual(seen.at(-1), []);
+});
+test('archiving stays on this phone; refused changes are remembered until dismissed', () => {
+  const d = createDevice(createMemoryStorage());
+  d.setArchived('a', true); assert.deepEqual(d.archived(), ['a']);
+  d.setArchived('a', false); assert.deepEqual(d.archived(), []);
+  d.addFailedChange('x'); assert.equal(d.failedChanges()[0].text, 'x');
+  d.clearFailedChanges(); assert.deepEqual(d.failedChanges(), []);
+});

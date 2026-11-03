@@ -63,7 +63,10 @@ export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = nul
       const parts = [];
       if (orderBy) parts.push(sdk.orderBy(orderBy, 'desc'));
       if (limit) parts.push(sdk.limit(limit));
-      return sdk.onSnapshot(sdk.query(sdk.collection(db, col), ...parts), snap => cb(snap.docs.map(data)), fail);
+      // Metadata changes tell the app when a document saved offline has reached the server.
+      return sdk.onSnapshot(sdk.query(sdk.collection(db, col), ...parts), { includeMetadataChanges: true }, snap => {
+        cb(snap.docs.map(data), { pending: snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id) });
+      }, fail);
     }, err),
   };
 }

@@ -13,7 +13,7 @@ const isAmounts = m => isMap(m) && Object.values(m).every(v => Number.isInteger(
 const sum = m => Object.values(m).reduce((a, b) => a + b, 0);
 
 export function isValidEntry(e) {
-  return isMap(e) && typeof e.id === 'string' && (e.kind === 'expense' || e.kind === 'payment')
+  return isMap(e) && typeof e.id === 'string' && ['expense', 'payment', 'refund'].includes(e.kind)
     && Number.isInteger(e.total) && e.total > 0 && typeof e.currency === 'string'
     && isAmounts(e.paid) && isAmounts(e.owed) && sum(e.paid) === e.total && sum(e.owed) === e.total
     && (e.rate === undefined || (typeof e.rate === 'number' && e.rate > 0));
@@ -36,6 +36,14 @@ export const activeMembers = trip => Object.entries(trip.members)
   .map(([id, m]) => ({ id, ...m }))
   .filter(m => !m.removed)
   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+/**
+ * Who handled the money and who it was split among. A refund is stored the other way round: the
+ * person who received it "owes" the group and everyone sharing it is credited, so balances, debts
+ * and rounding all work without special cases. Use these instead of reading paid and owed directly.
+ */
+export const handlersOf = e => (e.kind === 'refund' ? e.owed : e.paid);
+export const sharesOf = e => (e.kind === 'refund' ? e.paid : e.owed);
 
 export const memberName = (trip, id) => trip.members[id]?.name ?? 'Former member';
 export const liveEntries = entries => Object.values(entries || {}).filter(e => !e.deleted);
