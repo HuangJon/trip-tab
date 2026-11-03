@@ -1,0 +1,51 @@
+rules_version = '2';
+// Whoever knows a trip's long random id can use that trip. Nobody can list trips to find one.
+// Anything not matched below is refused.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function okId(id) { return id.matches('^[a-z0-9]{10,40}$'); }
+    function okTripId(id) { return id.matches('^[a-z0-9]{20,40}$'); }
+
+    match /trips/{tripId} {
+      allow get: if okTripId(tripId);
+      allow list: if false;
+      allow create: if okTripId(tripId)
+        && request.resource.data.id == tripId
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && request.resource.data.currency is string
+        && request.resource.data.members is map && request.resource.data.members.size() <= 50;
+      allow update: if okTripId(tripId)
+        && request.resource.data.id == tripId
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.members.size() <= 50;
+      allow delete: if false;
+
+      match /entries/{id} {
+        allow read: if okTripId(tripId);
+        allow create, update: if okTripId(tripId) && okId(id)
+          && request.resource.data.id == id
+          && request.resource.data.tripId == tripId
+          && request.resource.data.total is int && request.resource.data.total > 0
+          && request.resource.data.paid is map && request.resource.data.owed is map;
+        allow delete: if false; // deleting an expense only marks it, so it can be restored
+      }
+      match /activity/{id} {
+        allow read: if okTripId(tripId);
+        allow create: if okTripId(tripId) && okId(id)
+          && request.resource.data.tripId == tripId
+          && request.resource.data.text is string && request.resource.data.text.size() <= 400;
+        allow update, delete: if false;
+      }
+      match /receipts/{id} {
+        allow get: if okTripId(tripId);
+        allow list: if false; // receipts load one at a time, only when someone opens one
+        allow create: if okTripId(tripId) && okId(id)
+          && request.resource.data.dataUrl is string
+          && request.resource.data.dataUrl.size() <= 800000
+          && request.resource.data.dataUrl.matches('^data:image/jpeg;base64,.*');
+        allow update, delete: if false;
+      }
+    }
+  }
+}

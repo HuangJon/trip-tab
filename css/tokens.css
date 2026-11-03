@@ -1,0 +1,21 @@
+/* Every color and font. Phone-first single column, with ticket-style tear lines for settling up. */
+:root {
+  --ground:#e9f0f2; --surface:#f8fbfb; --sunken:#dde7ea; --ink:#10272e; --muted:#536a71; --line:#c6d5d9;
+  --accent:#1f45d0; --accent-ink:#ffffff; --accent-soft:#d9e1fb;
+  --owed:#07704f; --owed-soft:#cfeee0; --owe:#b92f2a; --owe-soft:#f8dcd8; --warn:#7a4f00; --warn-soft:#f6e7c1;
+  --m1:#1f45d0; --m2:#b4397a; --m3:#07704f; --m4:#a65300; --m5:#6a3fc2; --m6:#00707f; --m7:#a3282f; --m8:#55651a;
+  --shadow:rgba(16,39,46,.28); --scrim:rgba(5,18,24,.55);
+  --display:"Bricolage Grotesque","Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --body:"Instrument Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","Noto Sans TC",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:#0d1a20; --surface:#15262d; --sunken:#0a151a; --ink:#e7f1f3; --muted:#9db2b9; --line:#2b4049;
+    --accent:#8ea6ff; --accent-ink:#0b1533; --accent-soft:#1f2d5e;
+    --owed:#58d3a4; --owed-soft:#12392c; --owe:#ff9389; --owe-soft:#47201e; --warn:#eec35e; --warn-soft:#3d3010;
+    --m1:#3f63e6; --m2:#c4528e; --m3:#16805f; --m4:#b5661a; --m5:#7d56d3; --m6:#14808f; --m7:#b9434a; --m8:#6b7d28;
+    --shadow:rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "trip-tab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Split trip costs with friends.",
+  "scripts": {
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:smoke": "node tests/e2e/smoke.e2e.js",
+    "test:e2e": "node tests/e2e/app.e2e.js",
+    "test:rules": "npx --yes firebase-tools@15 emulators:exec --only firestore --project demo-trip-tab \"node tests/emulator/firestore.emulator.js\"",
+    "preview": "node tools/build-preview.mjs . preview.html"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "firebase": "11.10.0",
+    "playwright": "1.63.0"
+  }
+}

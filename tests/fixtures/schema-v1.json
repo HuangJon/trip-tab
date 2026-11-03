@@ -1,0 +1,11 @@
+{
+  "format": "trip-tab-backup", "schemaVersion": 1, "createdAt": "2026-11-03T00:00:00.000Z",
+  "trip": { "id": "fixturetripfixturetrip01", "schemaVersion": 1, "name": "Fixture trip", "currency": "TWD",
+    "members": { "aaaaaaaaaa": { "name": "Ana", "color": 1, "order": 0 }, "bbbbbbbbbb": { "name": "Ben", "color": 2, "order": 1 }, "cccccccccc": { "name": "Chi", "color": 3, "order": 2, "removed": true } },
+    "simplify": true, "rates": { "JPY": 0.21 }, "createdAt": 1793600000000, "futureField": "kept" },
+  "entries": [
+    { "id": "entry00000000001", "tripId": "fixturetripfixturetrip01", "kind": "expense", "desc": "Dinner", "category": "food", "date": "2026-04-10", "currency": "JPY", "rate": 0.21, "total": 1000, "paid": { "aaaaaaaaaa": 1000 }, "owed": { "aaaaaaaaaa": 500, "bbbbbbbbbb": 500 }, "split": { "mode": "equal", "selected": ["aaaaaaaaaa", "bbbbbbbbbb"], "inputs": {}, "items": [] }, "note": "", "receipt": "", "comments": { "c1": { "by": "Ana", "text": "Good", "at": 1 } }, "createdAt": 1, "updatedAt": 1, "deleted": false },
+    { "id": "entry00000000002", "tripId": "fixturetripfixturetrip01", "kind": "payment", "desc": "Settlement", "category": "other", "date": "2026-04-11", "currency": "TWD", "rate": 1, "total": 105, "paid": { "bbbbbbbbbb": 105 }, "owed": { "aaaaaaaaaa": 105 }, "note": "", "comments": {}, "createdAt": 2, "updatedAt": 2, "deleted": false }
+  ],
+  "activity": []
+}

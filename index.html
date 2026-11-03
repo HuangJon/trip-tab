@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Trip Tab</title>
+<meta name="description" content="Split trip costs with friends.">
+<meta name="theme-color" content="#e9f0f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1a20" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trip Tab">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/screens.css">
+</head>
+<body>
+<div id="updateBanner" class="update" hidden><span>A new version is ready.</span><button class="btn small" data-action="apply-update">Update</button></div>
+<div id="app"><div class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></div></div>
+<nav class="tabs" id="tabs" hidden></nav>
+<div id="fabSlot"></div>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" hidden></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
