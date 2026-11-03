@@ -10,6 +10,14 @@ export function createDevice(storage, now = () => Date.now()) {
 
     me: tripId => storage.get(`me:${tripId}`),
     setMe: (tripId, memberId) => storage.trySet(`me:${tripId}`, memberId),
+    /** The secret that lets this person move their name to a new phone. */
+    key: tripId => storage.get(`key:${tripId}`),
+    setKey: (tripId, key) => storage.trySet(`key:${tripId}`, key),
+    claims() {
+      return storage.get('trips', []).map(tripId => ({ tripId, memberId: storage.get(`me:${tripId}`), key: storage.get(`key:${tripId}`) })).filter(c => c.memberId && c.key);
+    },
+    codeSaved: () => storage.get('transfer-code-saved', false),
+    setCodeSaved: value => storage.trySet('transfer-code-saved', value),
 
     lastCurrency: tripId => storage.get(`currency:${tripId}`),
     setLastCurrency: (tripId, c) => storage.trySet(`currency:${tripId}`, c),

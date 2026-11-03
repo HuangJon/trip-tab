@@ -1,7 +1,7 @@
 /** One expense or payment: its details, comments, edit and delete. */
 import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
-import { actor, avatar, canWrite, closeSheet, esc, fmtDate, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
+import { actor, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
 import { inBase } from '../core/debts.js';
 import { handlersOf, memberName, sharesOf } from '../core/model.js';
@@ -22,10 +22,10 @@ export function openDetail(id, { keepTyped } = {}) {
   if (!e) return closeSheet();
   A.detail = id;
   const typed = keepTyped ? val('cText') : '';
-  const pay = e.kind === 'payment', refund = e.kind === 'refund', foreign = e.currency !== t.currency, write = canWrite(t);
+  const pay = e.kind === 'payment', refund = e.kind === 'refund', foreign = e.currency !== t.currency, write = canWrite(t), editable = canEdit(t, e);
   const comments = Object.values(e.comments || {}).sort((a, b) => a.at - b.at);
   const items = e.split?.mode === 'items' ? e.split.items || [] : [];
-  openSheet(`<div class="sheet">${sheetHead(pay ? 'Payment' : refund ? 'Refund' : 'Expense', write && !pay && !e.deleted ? `<button type="button" class="btn small" data-action="edit-entry" data-id="${id}">Edit</button>` : '', 'Close')}
+  openSheet(`<div class="sheet">${sheetHead(pay ? 'Payment' : refund ? 'Refund' : 'Expense', editable && !pay && !e.deleted ? `<button type="button" class="btn small" data-action="edit-entry" data-id="${id}">Edit</button>` : '', 'Close')}
   <div class="sheet-body">
     <div class="stack tight"><h1 class="detail-title">${esc(pay ? `${memberName(t, Object.keys(e.paid)[0])} paid ${memberName(t, Object.keys(e.owed)[0])}` : e.desc)}</h1><div class="big">${money(e.total, e.currency)}</div>
     ${foreign ? `<p class="small muted mono">≈ ${money(inBase(e, t.currency).total, t.currency)} at ${esc(e.rate)}</p>` : ''}
@@ -40,7 +40,8 @@ export function openDetail(id, { keepTyped } = {}) {
       ${write && !e.deleted ? `<form class="row" data-form="comment" data-id="${id}"><input id="cText" placeholder="Add a comment" aria-label="Comment" required maxlength="${LIMITS.comment}" value="${esc(typed)}"><button class="btn">Post</button></form>` : ''}</section>
     ${pay ? '' : `<section class="stack"><h3>Edit history</h3><div id="historySlot" class="stack"><button type="button" class="link small" data-action="history-show" data-id="${id}">See earlier versions</button></div></section>`}
     ${write && !pay && !e.deleted ? `<button type="button" class="btn" data-action="duplicate-entry" data-id="${id}">Duplicate</button>` : ''}
-    ${write ? (e.deleted ? `<button type="button" class="btn" data-action="restore-entry" data-id="${id}">Restore</button>` : `<button type="button" class="btn danger" data-action="delete-entry" data-id="${id}">Delete ${pay ? 'payment' : refund ? 'refund' : 'expense'}</button>`) : ''}
+    ${editable ? '' : '<p class="small muted">Only the person who added or paid for this, or the trip\'s admin, can change it. You can leave a comment.</p>'}
+    ${editable ? (e.deleted ? `<button type="button" class="btn" data-action="restore-entry" data-id="${id}">Restore</button>` : `<button type="button" class="btn danger" data-action="delete-entry" data-id="${id}">Delete ${pay ? 'payment' : refund ? 'refund' : 'expense'}</button>`) : ''}
   </div></div>`);
   if (e.receipt) loadReceipt(t.id, e);
   if (A.historyFor === id) loadHistory(t, id);
@@ -56,7 +57,7 @@ async function loadHistory(t, id) {
     revisions = await A.repo.listRevisions(t.id, id);
     const el = slot();
     if (!el) return;
-    const write = canWrite(t);
+    const write = canEdit(t, A.entries[t.id][id]);
     el.innerHTML = revisions.length ? revisions.map((r, i) => `<div class="panel pad stack tight"><div class="row between wrap"><strong class="wrap-any">${esc(r.entry.desc)}</strong><span class="amt">${money(r.entry.total, r.entry.currency)}</span></div>
       <span class="small muted wrap-any">${r.entry.kind === 'refund' ? 'Received by' : 'Paid by'} ${esc(Object.keys(handlersOf(r.entry)).map(p => memberName(t, p)).join(', '))} · ${esc(Object.entries(sharesOf(r.entry)).map(([p, v]) => `${memberName(t, p)} ${money(v, r.entry.currency)}`).join(', '))}</span>
       <span class="tiny muted">Replaced by ${esc(r.by)}, ${new Date(r.at).toLocaleString('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
@@ -72,7 +73,7 @@ actions['history-restore'] = el => {
   const entry = { ...rev.entry, deleted: false, updatedAt: Date.now(), updatedBy: name };
   closeSheet();
   A.historyFor = null;
-  send(A.repo.saveEntry(t, entry, { isNew: false, previous: current, actor: name, label: `restored an earlier version of "${entry.desc}"` }));
+  send(A.repo.saveEntry(t, entry, { isNew: false, previous: current, actor: name, actorId: getMe(t), label: `restored an earlier version of "${entry.desc}"` }));
   toast('Earlier version restored');
 };
 
@@ -92,7 +93,7 @@ function setDeleted(id, deleted) {
   const t = A.trips[A.route.tripId], e = A.entries[t.id][id];
   const name = e.kind === 'payment' ? 'a settlement' : `"${e.desc}"`;
   closeSheet();
-  send(A.repo.setEntryDeleted(t, id, deleted, actor(t), name));
+  send(A.repo.setEntryDeleted(t, id, deleted, actor(t), name, getMe(t)));
   toast(deleted ? 'Deleted' : 'Restored', deleted ? () => setDeleted(id, false) : null);
 }
 actions['open-entry'] = el => openDetail(el.dataset.id);
@@ -110,6 +111,6 @@ actions.undo = () => {
 submits.comment = form => {
   const t = A.trips[A.route.tripId], e = A.entries[t.id][form.dataset.id], text = val('cText').trim();
   if (!text || !requireMe(t)) return;
-  send(A.repo.addComment(t, e, actor(t), text));
+  send(A.repo.addComment(t, e, actor(t), text, getMe(t)));
   document.getElementById('cText').value = '';
 };

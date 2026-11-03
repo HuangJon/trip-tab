@@ -1,5 +1,5 @@
 /**
- * Runs the real Firebase backend and rules against the Firestore emulator:
+ * Runs the real Firebase backend and rules against the emulators, as two different phones:
  *   npm run test:rules
  */
 import assert from 'node:assert/strict';
@@ -9,87 +9,158 @@ import * as authSdk from 'firebase/auth';
 import { createFirebaseBackend } from '../../js/data/backend-firebase.js';
 import { createRepository } from '../../js/data/repository.js';
 
-// The real backend, with the phone-only offline cache swapped for one that works in Node.
-const sdk = {
-  ...app, ...store, ...authSdk,
-  getAuth: a => {
-    const auth = authSdk.getAuth(a);
-    if (!auth.emulatorConfig) authSdk.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    return auth;
-  },
-  persistentLocalCache: () => store.memoryLocalCache(),
-  persistentMultipleTabManager: () => undefined,
-  initializeFirestore: (a, options) => {
-    const instance = store.initializeFirestore(a, options);
-    store.connectFirestoreEmulator(instance, '127.0.0.1', 8181);
-    return instance;
-  },
-};
-const backend = await createFirebaseBackend({ projectId: 'demo-trip-tab', apiKey: 'x' }, sdk);
-const { db } = backend;
-const repo = createRepository(backend);
-const refused = p => assert.rejects(p, /permission|PERMISSION/);
+let phones = 0;
+function phoneSdk() {
+  const name = `phone${phones += 1}`;
+  return {
+    ...app, ...store, ...authSdk,
+    initializeApp: config => app.initializeApp(config, name),
+    getAuth: a => {
+      const auth = authSdk.getAuth(a);
+      if (!auth.emulatorConfig) authSdk.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      return auth;
+    },
+    persistentLocalCache: () => store.memoryLocalCache(),
+    persistentMultipleTabManager: () => undefined,
+    initializeFirestore: (a, options) => {
+      const instance = store.initializeFirestore(a, options);
+      store.connectFirestoreEmulator(instance, '127.0.0.1', 8181);
+      return instance;
+    },
+  };
+}
+const config = { projectId: 'demo-trip-tab', apiKey: 'x' };
+const newPhone = async () => { const backend = await createFirebaseBackend(config, phoneSdk(), { signInWaitMs: 10000 }); return { backend, repo: createRepository(backend) }; };
+const refused = (p, why) => assert.rejects(p, /permission|PERMISSION/, why);
 
-const { trip, written } = repo.createTrip({ name: 'Rules test', currency: 'TWD', memberNames: ['A', 'B'] });
+const admin = await newPhone(), friend = await newPhone(), stranger = await newPhone();
+assert.ok(admin.backend.uid()); assert.notEqual(admin.backend.uid(), friend.backend.uid());
+
+/* The admin creates a trip. */
+const { trip, written, claim: adminClaim } = admin.repo.createTrip({ name: 'Rules test', currency: 'TWD', memberNames: ['Ana', 'Ben'] });
 await written;
 const [a, b] = Object.keys(trip.members);
-const entry = { id: 'entry00000000001', tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [a]: 10 }, owed: { [b]: 10 }, note: '', comments: {}, createdAt: 5, updatedAt: 5, updatedBy: 'A', deleted: false };
+const entryFor = (id, by) => ({ id, tripId: trip.id, kind: 'expense', desc: 'D', category: 'food', date: '2026-01-01', currency: 'TWD', rate: 1, total: 10, paid: { [by]: 10 }, owed: { [a]: 5, [b]: 5 }, note: '', comments: {}, createdAt: 5, updatedAt: 5, updatedBy: 'x', createdById: by, deleted: false });
+const save = (phone, e, opts) => phone.repo.saveEntry(trip, e, { actor: 'x', label: 'x', ...opts });
 
-// What the app does has to be allowed.
-await repo.saveEntry(trip, entry, { isNew: true, actor: 'A', label: 'added' });
-await repo.addComment(trip, entry, 'B', 'Hi');
-await repo.saveEntry(trip, { ...entry, desc: 'Edited', updatedAt: 6 }, { isNew: false, previous: entry, actor: 'A', label: 'edited' });
-await repo.setEntryDeleted(trip, entry.id, true, 'A', 'x');
-await repo.setEntryDeleted(trip, entry.id, false, 'A', 'x');
-await repo.addMember(trip, 'C', 'A').written;
-await repo.renameMember(trip.id, a, 'Ana');
-await repo.removeMember(trip.id, b);
-await repo.updateTrip(trip.id, { 'rates.JPY': 0.21, simplify: false });
-const receipt = repo.saveReceipt(trip.id, 'data:image/jpeg;base64,AAAA');
+/* Claiming names. */
+await refused(stranger.backend.set(`trips/${trip.id}/entries/entry00000000099`, { ...entryFor('entry00000000099', a), updatedById: a }), 'cannot act as a name claimed by another phone');
+const benClaim = await friend.repo.claimMember(trip.id, b);
+await assert.rejects(stranger.repo.claimMember(trip.id, b), /Taken/);
+await assert.rejects(stranger.repo.claimMember(trip.id, a), /Taken/);
+await refused(stranger.backend.set(`trips/${trip.id}/claims/${b}`, { tripId: trip.id, memberId: b, uid: stranger.backend.uid(), key: 'x'.repeat(24), at: 1, released: false }), 'cannot overwrite a claim');
+await refused(stranger.backend.get(`trips/${trip.id}/claims/${b}`), 'keys stay private');
+
+/* Adding and changing expenses. */
+const benEntry = entryFor('entry00000000001', b), anaEntry = entryFor('entry00000000002', a);
+await save(friend, benEntry, { isNew: true, actorId: b });
+await save(admin, anaEntry, { isNew: true, actorId: a });
+await refused(save(friend, { ...entryFor('entry00000000003', a) }, { isNew: true, actorId: a }), "cannot add as someone else");
+await refused(save(friend, { ...anaEntry, desc: 'Hacked' }, { isNew: false, previous: anaEntry, actorId: b }), "cannot edit someone else's expense");
+await refused(friend.repo.setEntryDeleted(trip, anaEntry.id, true, 'Ben', 'x', b), "cannot delete someone else's expense");
+await save(friend, { ...benEntry, desc: 'Fixed', updatedAt: 6 }, { isNew: false, previous: benEntry, actorId: b });
+await save(admin, { ...benEntry, desc: 'Admin fixed', updatedAt: 7 }, { isNew: false, previous: benEntry, actorId: a });
+await admin.repo.setEntryDeleted(trip, benEntry.id, true, 'Ana', 'x', a);
+await admin.repo.setEntryDeleted(trip, benEntry.id, false, 'Ana', 'x', a);
+await friend.repo.addComment(trip, anaEntry, 'Ben', 'Hi', b);
+await refused(friend.backend.update(`trips/${trip.id}/entries/${anaEntry.id}`, { comments: {}, commentedBy: b }), 'cannot wipe comments');
+const saved = (await admin.backend.list(`trips/${trip.id}/entries`)).find(e => e.id === benEntry.id);
+assert.equal(saved.desc, 'Admin fixed'); assert.equal(saved.createdById, b); assert.equal(saved.createdAt, 5);
+assert.equal((await admin.repo.listRevisions(trip.id, benEntry.id)).length, 2);
+
+/* A refund: the receiver can change it. */
+const refund = { ...entryFor('entry00000000004', b), kind: 'refund', paid: { [a]: 5, [b]: 5 }, owed: { [b]: 10 } };
+await save(friend, refund, { isNew: true, actorId: b });
+await save(friend, { ...refund, desc: 'Refund fixed' }, { isNew: false, previous: refund, actorId: b });
+
+/* Names, payment details and trip settings. */
+await friend.repo.renameMember(trip.id, b, 'Benny', b);
+await friend.repo.setMemberPayment(trip.id, b, 'venmo', '@ben', b);
+await friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.21 }, b);
+await refused(friend.repo.renameMember(trip.id, a, 'Hacked', b), "cannot rename someone else");
+await refused(friend.repo.setMemberPayment(trip.id, a, 'venmo', '@scam', b), "cannot change someone else's Venmo");
+await refused(friend.repo.setAdmin(trip.id, b, true, b), 'cannot promote yourself');
+await refused(friend.repo.updateTrip(trip.id, { name: 'Hacked' }, b), 'only admins rename the trip');
+await refused(friend.repo.deleteTrip(trip.id, 1, b), 'only admins delete the trip');
+await refused(friend.repo.updateTrip(trip.id, { 'rates.JPY': 1 }, a), 'cannot act as the admin by naming them');
+await admin.repo.renameMember(trip.id, b, 'Ben', a);
+await admin.repo.updateTrip(trip.id, { simplify: false }, a);
+await admin.repo.addMember(trip, 'Chi', 'Ana', a).written;
+
+/* A stranger joins through the link. */
+const joined = await stranger.repo.joinAs(trip, 'Rui');
+await stranger.repo.renameMember(trip.id, joined.memberId, 'Ruiz', joined.memberId);
+
+/* Moving to a new phone. */
+const newBen = await newPhone();
+await refused(newBen.repo.transferClaim(trip.id, b, 'y'.repeat(24)), 'a wrong code does nothing');
+await newBen.repo.transferClaim(trip.id, b, benClaim.key);
+await newBen.repo.renameMember(trip.id, b, 'Ben N', b);
+await refused(friend.repo.renameMember(trip.id, b, 'Old phone', b), 'the old phone is cut off');
+
+/* An admin frees a name after a lost phone. */
+const lost = await newPhone();
+await refused(lost.repo.releaseClaim(trip.id, b, b), 'only admins free names');
+await admin.repo.releaseClaim(trip.id, b, a);
+await refused(newBen.repo.renameMember(trip.id, b, 'Freed', b), 'a freed name stops working');
+await lost.repo.claimMember(trip.id, b);
+await lost.repo.renameMember(trip.id, b, 'Ben again', b);
+
+/* A second admin. */
+await admin.repo.setAdmin(trip.id, b, true, a);
+await lost.repo.updateTrip(trip.id, { name: 'Renamed' }, b);
+await admin.repo.setAdmin(trip.id, b, false, a);
+await refused(lost.repo.updateTrip(trip.id, { name: 'Again' }, b), 'removed admins lose access');
+
+/* Receipts. */
+const receipt = admin.repo.saveReceipt(trip.id, 'data:image/jpeg;base64,AAAA', a);
 await receipt.written;
-assert.ok((await repo.getReceipt(trip.id, receipt.id)).dataUrl);
-await repo.deleteTrip(trip.id);
-await repo.restoreTrip(trip.id);
-const saved = (await backend.list(`trips/${trip.id}/entries`))[0];
-assert.equal(saved.desc, 'Edited');
-assert.equal(Object.keys(saved.comments).length, 1);
-assert.equal(saved.createdAt, 5);
-assert.equal((await repo.listRevisions(trip.id, entry.id)).length, 1);
-await repo.importBackup(trip, { trip, entries: [{ ...entry, desc: 'From backup', comments: {} }] }, 'A');
-assert.equal((await repo.listRevisions(trip.id, entry.id)).length, 2);
-assert.equal(Object.keys((await backend.list(`trips/${trip.id}/entries`))[0].comments).length, 1, 'import keeps comments');
-const moved = await repo.replaceLink(await backend.get(`trips/${trip.id}`), { [entry.id]: (await backend.list(`trips/${trip.id}/entries`))[0] }, 'A');
-assert.equal((await backend.list(`trips/${moved.id}/entries`)).length, 1);
-assert.ok((await backend.get(`trips/${trip.id}`)).retiredAt);
-await repo.keepOldLink(trip.id);
+assert.ok((await friend.repo.getReceipt(trip.id, receipt.id)).dataUrl);
 
-await repo.setMemberPayment(moved.id, a, 'venmo', '@ana');
-await backend.set(`trips/${trip.id}/entries/entry00000000009`, { ...entry, id: 'entry00000000009', kind: 'refund', paid: { [a]: 5, [b]: 5 }, owed: { [a]: 10 } });
+/* Restoring from a backup, deleting and moving a trip. */
+const current = await admin.backend.get(`trips/${trip.id}`);
+await admin.repo.importBackup(current, { trip: current, entries: [{ ...benEntry, desc: 'From backup', comments: {}, updatedAt: 8 }] }, 'Ana', a);
+await refused(lost.repo.importBackup(current, { trip: current, entries: [{ ...anaEntry, desc: 'Bad backup', comments: {}, updatedAt: 9 }] }, 'Ben', b), "a non-admin can't overwrite others through import");
+await admin.repo.deleteTrip(trip.id, 1, a);
+await admin.repo.restoreTrip(trip.id, a);
+const entries = Object.fromEntries((await admin.backend.list(`trips/${trip.id}/entries`)).map(e => [e.id, e]));
+const moved = await admin.repo.replaceLink(current, entries, 'Ana', a);
+assert.equal((await admin.backend.list(`trips/${moved.trip.id}/entries`)).length, Object.keys(entries).length);
+assert.ok((await admin.backend.get(`trips/${trip.id}`)).retiredAt);
+await refused(lost.repo.keepOldLink(trip.id, b), 'only admins undo a move');
+await admin.repo.keepOldLink(trip.id, a);
 
-// What should never happen has to be refused.
+/* A rebuilt trip works under a new owner. */
+const rebuilt = await lost.repo.createFromBackup({ trip: { ...current, id: 'rebuilttriprebuilttrip01' }, entries: [] }, b);
+assert.ok(rebuilt.claim.key);
+
+/* Things nobody can do. */
+const { db } = admin.backend, sdk = store;
+const entryPath = `trips/${trip.id}/entries/${anaEntry.id}`;
 await refused(sdk.getDocs(sdk.collection(db, 'trips')));
-await refused(sdk.deleteDoc(sdk.doc(db, `trips/${trip.id}`)));
-await refused(sdk.deleteDoc(sdk.doc(db, `trips/${trip.id}/entries/${entry.id}`)));
+await refused(sdk.getDocs(sdk.collection(db, `trips/${trip.id}/claims`)));
 await refused(sdk.getDocs(sdk.collection(db, `trips/${trip.id}/receipts`)));
-await refused(backend.set('trips/short', { id: 'short', name: 'x', currency: 'TWD', members: {} }));
-await refused(backend.update(`trips/${trip.id}`, { currency: 'USD' }));
-await refused(backend.set(`trips/${trip.id}/entries/entry00000000002`, { ...entry, id: 'entry00000000002', total: -5 }));
-await refused(backend.set(`trips/${trip.id}/receipts/receipt000000001`, { dataUrl: 'javascript:alert(1)' }));
-await refused(backend.set(`other/thing`, { a: 1 }));
-const entryPath = `trips/${trip.id}/entries/${entry.id}`;
-await refused(backend.update(entryPath, { comments: {} }));
-await refused(backend.update(entryPath, { createdAt: 99 }));
-await refused(backend.update(entryPath, { kind: 'payment' }));
-await refused(backend.set(`trips/${trip.id}/entries/entry00000000003`, { ...entry, id: 'entry00000000003', desc: 'x'.repeat(81) }));
-await refused(backend.set(`trips/${trip.id}/entries/entry00000000003`, { ...entry, id: 'entry00000000003', kind: 'payment', paid: { [a]: 5, [b]: 5 } }));
-await refused(backend.set(`trips/${trip.id}/entries/entry00000000003`, { ...entry, id: 'entry00000000003', rate: 0 }));
-const [rev] = await repo.listRevisions(trip.id, entry.id);
-await refused(backend.update(`${entryPath}/revisions/${rev.id}`, { by: 'Forged' }));
-await refused(sdk.deleteDoc(sdk.doc(db, `${entryPath}/revisions/${rev.id}`)));
+await refused(sdk.deleteDoc(sdk.doc(db, `trips/${trip.id}`)));
+await refused(sdk.deleteDoc(sdk.doc(db, entryPath)));
+await refused(admin.backend.set('trips/short', { id: 'short', name: 'x', currency: 'TWD', members: {} }));
+await refused(admin.backend.update(`trips/${trip.id}`, { currency: 'USD', changedBy: a }));
+await refused(admin.backend.update(entryPath, { createdAt: 99, updatedById: a }));
+await refused(admin.backend.update(entryPath, { kind: 'payment', updatedById: a }));
+await refused(admin.backend.update(entryPath, { createdById: b, updatedById: a }));
+await refused(admin.backend.set(`trips/${trip.id}/entries/entry00000000005`, { ...entryFor('entry00000000005', a), updatedById: a, total: -5 }));
+await refused(admin.backend.set(`trips/${trip.id}/entries/entry00000000005`, { ...entryFor('entry00000000005', a), updatedById: a, desc: 'x'.repeat(81) }));
+await refused(admin.backend.set(`trips/${trip.id}/entries/entry00000000005`, { ...entryFor('entry00000000005', a), updatedById: a, kind: 'payment', paid: { [a]: 5, [b]: 5 } }));
+await refused(admin.backend.set(`trips/${trip.id}/entries/entry00000000005`, { ...entryFor('entry00000000005', a), updatedById: a, rate: 0 }));
+await refused(admin.backend.set(`trips/${trip.id}/receipts/receipt000000001`, { dataUrl: 'javascript:alert(1)', byId: a }));
+await refused(admin.backend.set('other/thing', { a: 1 }));
+const [rev] = await admin.repo.listRevisions(trip.id, benEntry.id);
+await refused(admin.backend.update(`trips/${trip.id}/entries/${benEntry.id}/revisions/${rev.id}`, { by: 'Forged' }));
 
-// A phone that hasn't signed in gets nothing, even with the right link.
-const stranger = store.initializeFirestore(app.initializeApp({ projectId: 'demo-trip-tab', apiKey: 'x' }, 'stranger'), {});
-store.connectFirestoreEmulator(stranger, '127.0.0.1', 8181);
-await refused(store.getDoc(store.doc(stranger, `trips/${trip.id}`)));
+/* A phone that hasn't signed in gets nothing, even with the right link. */
+const unsigned = store.initializeFirestore(app.initializeApp(config, 'unsigned'), {});
+store.connectFirestoreEmulator(unsigned, '127.0.0.1', 8181);
+await refused(store.getDoc(store.doc(unsigned, `trips/${trip.id}`)));
+
+assert.ok(adminClaim.key);
 console.log('Emulator checks passed');
 process.exit(0);

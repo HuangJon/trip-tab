@@ -19,6 +19,7 @@
 .handle>span { flex:1 1 140px; min-width:0; overflow-wrap:anywhere }
 .pay-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
 .credit { display:block; overflow-wrap:anywhere }
+.person-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding-left:42px }
 .linkbox { font:400 .8rem/1.4 var(--mono); padding:10px; background:var(--sunken); border-radius:8px; overflow-wrap:anywhere; user-select:all }
 /* Trip frame */
 .topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--ground); padding-block:8px; margin-top:-8px; display:flex; gap:12px; align-items:center }

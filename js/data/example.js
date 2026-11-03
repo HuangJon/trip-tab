@@ -2,7 +2,7 @@
 import { randomId } from '../core/ids.js';
 
 export async function seedExample(repo, device, today) {
-  const { trip, written } = repo.createTrip({ name: 'Example: Okinawa (delete me)', currency: 'TWD', memberNames: ['Ana', 'Ben', 'Chi'] });
+  const { trip, written, claim } = repo.createTrip({ name: 'Example: Okinawa (delete me)', currency: 'TWD', memberNames: ['Ana', 'Ben', 'Chi'] });
   await written;
   const [a, b, c] = Object.keys(trip.members);
   const names = { [a]: 'Ana', [b]: 'Ben', [c]: 'Chi' };
@@ -16,11 +16,13 @@ export async function seedExample(repo, device, today) {
   let i = 0;
   for (const e of list) {
     const at = Date.now() + (i += 1);
-    await repo.saveEntry(trip, { ...base, ...(({ by, ...rest }) => rest)(e), id: randomId(), createdById: e.by, createdAt: at, updatedAt: at, updatedBy: names[e.by] }, { isNew: true, actor: names[e.by], label: `added "${e.desc}"` });
+    await repo.saveEntry(trip, { ...base, ...(({ by, ...rest }) => rest)(e), id: randomId(), createdById: e.by, createdAt: at, updatedAt: at, updatedBy: names[e.by] }, { isNew: true, actor: names[e.by], actorId: e.by, label: `added "${e.desc}"` });
   }
   await repo.updateTrip(trip.id, { 'rates.JPY': 0.21 });
   await repo.setMemberPayment(trip.id, a, 'venmo', '@ana-example');
   await repo.setMemberPayment(trip.id, b, 'zelle', 'ben@example.com');
   device.addTrip(trip.id);
   device.setMe(trip.id, a);
+  device.setKey(trip.id, claim.key);
+  device.setCodeSaved(true);
 }

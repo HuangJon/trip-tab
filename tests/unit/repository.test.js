@@ -89,7 +89,7 @@ test('import merges by id and deletes nothing', async () => {
 test('a trip can be rebuilt from a copy', async () => {
   const { backend, repo, trip, entry } = await setup();
   const fresh = createRepository(createLocalBackend({ area: area() }));
-  const rebuilt = await fresh.createFromBackup(parseBackup(JSON.stringify(createBackup(trip, { x: entry }))));
+  const { trip: rebuilt } = await fresh.createFromBackup(parseBackup(JSON.stringify(createBackup(trip, { x: entry }))));
   assert.equal(rebuilt.id, trip.id);
   assert.ok(backend);
 });
@@ -171,7 +171,7 @@ test('replacing a link copies everything and the old trip keeps no pointer to th
   const r = repo.saveReceipt(trip.id, 'data:image/jpeg;base64,AA'); await r.written;
   const withPhoto = { ...entry, receipt: r.id };
   await repo.saveEntry(trip, withPhoto, { isNew: true, actor: 'A', label: 'added' });
-  const moved = await repo.replaceLink(trip, { [entry.id]: withPhoto }, 'A');
+  const { trip: moved } = await repo.replaceLink(trip, { [entry.id]: withPhoto }, 'A');
   assert.notEqual(moved.id, trip.id);
   const [copied] = await entriesOf(backend, moved.id);
   assert.equal(copied.tripId, moved.id);
@@ -220,4 +220,82 @@ test('archiving stays on this phone; refused changes are remembered until dismis
   d.setArchived('a', false); assert.deepEqual(d.archived(), []);
   d.addFailedChange('x'); assert.equal(d.failedChanges()[0].text, 'x');
   d.clearFailedChanges(); assert.deepEqual(d.failedChanges(), []);
+});
+
+test('the creator claims the first name and becomes admin', async () => {
+  const { backend, trip, a, b } = await setup();
+  const t = await backend.get(`trips/${trip.id}`);
+  assert.deepEqual(t.admins, { [a]: true });
+  assert.equal(t.members[a].claimed, true); assert.equal(t.members[b].claimed, undefined);
+  const claim = await backend.get(`trips/${trip.id}/claims/${a}`);
+  assert.equal(claim.uid, backend.uid()); assert.ok(claim.key.length >= 20);
+});
+function twoPhones() {
+  const shared = area();
+  const phone = name => {
+    const backend = createLocalBackend({ area: { getItem: k => (k.endsWith('local-uid') ? name : shared.getItem(k)), setItem: (k, v) => { if (!k.endsWith('local-uid')) shared.setItem(k, v); } } });
+    return { backend, repo: createRepository(backend) };
+  };
+  return phone;
+}
+test('a name can only be claimed once', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+  await written;
+  const [a, b] = Object.keys(trip.members);
+  await assert.rejects(two.repo.claimMember(trip.id, a), e => e.code === 'taken');
+  const claim = await two.repo.claimMember(trip.id, b);
+  assert.ok(claim.key);
+  assert.equal((await phone('two').backend.get(`trips/${trip.id}`)).members[b].claimed, true);
+  assert.equal((await two.repo.claimMember(trip.id, b)).key, claim.key, 'claiming your own again keeps your key');
+});
+test('a transfer needs the right key; a freed name can be claimed fresh', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written, claim } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A', 'B'] });
+  await written;
+  const [a, b] = Object.keys(trip.members);
+  await assert.rejects(two.repo.transferClaim(trip.id, a, 'wrong'));
+  await two.repo.transferClaim(trip.id, a, claim.key);
+  assert.equal((await two.backend.get(`trips/${trip.id}/claims/${a}`)).uid, 'two');
+  const three = phone('three');
+  await three.repo.claimMember(trip.id, b);
+  await two.repo.releaseClaim(trip.id, b, a);
+  const t = await two.backend.get(`trips/${trip.id}`);
+  assert.equal(t.members[b].claimed, false);
+  const fresh = await phone('four').repo.claimMember(trip.id, b);
+  assert.equal(fresh.uid, 'four');
+  assert.equal((await phone('four').backend.get(`trips/${trip.id}`)).members[b].claimed, true);
+});
+test('joining adds the person and locks their name', async () => {
+  const phone = twoPhones(), one = phone('one'), two = phone('two');
+  const { trip, written } = one.repo.createTrip({ name: 'T', currency: 'TWD', memberNames: ['A'] });
+  await written;
+  const { memberId, claim } = await two.repo.joinAs(trip, 'Rui');
+  const t = await two.backend.get(`trips/${trip.id}`);
+  assert.equal(t.members[memberId].name, 'Rui'); assert.equal(t.members[memberId].claimed, true);
+  assert.equal(claim.uid, 'two');
+});
+test('writes name the person making them', async () => {
+  const { backend, repo, trip, entry, a } = await setup();
+  await repo.saveEntry(trip, entry, { isNew: true, actor: 'A', actorId: a, label: 'added' });
+  const [saved] = await entriesOf(backend, trip.id);
+  assert.equal(saved.updatedById, a);
+  const log = await backend.list(`trips/${trip.id}/activity`);
+  assert.ok(log.some(x => x.byId === a));
+  await repo.renameMember(trip.id, a, 'New', a);
+  assert.equal((await backend.get(`trips/${trip.id}`)).changedBy, a);
+});
+test('edits never change who added an expense', async () => {
+  const { backend, repo, trip, entry, a, b } = await setup();
+  await repo.saveEntry(trip, { ...entry, createdById: a }, { isNew: true, actor: 'A', actorId: a, label: 'added' });
+  await repo.saveEntry(trip, { ...entry, createdById: b, desc: 'E' }, { isNew: false, previous: entry, actor: 'B', actorId: b, label: 'edited' });
+  assert.equal((await entriesOf(backend, trip.id))[0].createdById, a);
+});
+test('moving a link keeps only the mover as admin; others claim again', async () => {
+  const { backend, repo, trip, a, b } = await setup();
+  const { trip: moved, claim } = await repo.replaceLink(trip, {}, 'A', a);
+  const t = await backend.get(`trips/${moved.id}`);
+  assert.deepEqual(t.admins, { [a]: true });
+  assert.equal(t.members[a].claimed, true); assert.equal(t.members[b].claimed, false);
+  assert.equal(claim.memberId, a);
 });

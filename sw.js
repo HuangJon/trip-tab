@@ -10,7 +10,7 @@ const APP_FILES = [
   './css/tokens.css', './css/base.css', './css/screens.css',
   './js/main.js',
   './js/config/app.js', './js/config/firebase.js',
-  './js/core/backup.js', './js/core/debts.js', './js/core/ids.js', './js/core/model.js', './js/core/money.js', './js/core/platform.js', './js/core/split.js',
+  './js/core/backup.js', './js/core/debts.js', './js/core/ids.js', './js/core/model.js', './js/core/money.js', './js/core/platform.js', './js/core/transfer.js', './js/core/split.js',
   './js/data/backend-firebase.js', './js/data/backend-local.js', './js/data/device.js', './js/data/example.js', './js/data/repository.js', './js/data/storage.js',
   './js/ui/activity.js', './js/ui/balances.js', './js/ui/detail.js', './js/ui/dom.js', './js/ui/expense-form.js', './js/ui/expenses.js', './js/ui/home.js', './js/ui/insights.js', './js/ui/people.js', './js/ui/receipt.js', './js/ui/routes.js', './js/ui/state.js', './js/ui/trip.js',
 ];

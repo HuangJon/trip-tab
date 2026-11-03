@@ -47,6 +47,7 @@ export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = nul
   return {
     kind: 'firebase',
     db,
+    uid: () => auth.currentUser?.uid || '',
     set: (path, value) => sdk.setDoc(sdk.doc(db, path), value),
     update: (path, fields) => sdk.updateDoc(sdk.doc(db, path), fields),
     get: async path => {

@@ -1,6 +1,6 @@
 /** Small shared helpers for building and updating the page. */
 import { A, render } from './state.js';
-import { memberName } from '../core/model.js';
+import { canEditEntry, isAdminId, memberName } from '../core/model.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const svg = paths => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -41,6 +41,8 @@ export const getMe = trip => {
 export const who = (trip, id) => (id && id === getMe(trip) ? 'You' : memberName(trip, id));
 export const actor = trip => { const m = getMe(trip); return m ? memberName(trip, m) : 'Someone'; };
 export const canWrite = trip => !trip.fromNewerApp;
+export const amAdmin = trip => canWrite(trip) && isAdminId(trip, getMe(trip));
+export const canEdit = (trip, e) => canWrite(trip) && canEditEntry(trip, e, getMe(trip));
 
 export const fmtDate = d => {
   const x = new Date(`${d}T12:00:00`);

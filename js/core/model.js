@@ -45,6 +45,13 @@ export const activeMembers = trip => Object.entries(trip.members)
 export const handlersOf = e => (e.kind === 'refund' ? e.owed : e.paid);
 export const sharesOf = e => (e.kind === 'refund' ? e.paid : e.owed);
 
+/** Trip admins can fix anything. Everyone else can change what they added or handled. The rules enforce the same. */
+export const isAdminId = (trip, id) => Boolean(id && trip.admins?.[id]);
+export function canEditEntry(trip, e, id) {
+  if (!id) return false;
+  return isAdminId(trip, id) || e.createdById === id || Boolean(handlersOf(e)[id]);
+}
+
 export const memberName = (trip, id) => trip.members[id]?.name ?? 'Former member';
 export const liveEntries = entries => Object.values(entries || {}).filter(e => !e.deleted);
 export const byNewest = (a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0);

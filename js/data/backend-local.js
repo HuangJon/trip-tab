@@ -5,6 +5,7 @@
  * Other tabs in the same browser see changes too, which is how the end-to-end tests stand in for a friend.
  */
 const KEY = 'triptab:localdb';
+const UID_KEY = 'triptab:local-uid';
 
 const parentOf = p => p.split('/').slice(0, -1).join('/');
 const clone = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
@@ -24,6 +25,10 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
   const docWatchers = new Map(), colWatchers = new Map();
 
   function load() { try { return JSON.parse(area?.getItem(KEY) || '{}'); } catch { return {}; } }
+  /** Picks up what another tab wrote since the last look, so a write never overwrites it. */
+  function refresh() {
+    try { const raw = area?.getItem(KEY); if (raw) docs = JSON.parse(raw); } catch { /* keep what's in memory */ }
+  }
   function persist() { area?.setItem(KEY, JSON.stringify(docs)); }
   const docsIn = col => Object.keys(docs).filter(p => parentOf(p) === col).map(p => docs[p]);
   const add = (map, key, fn) => { if (!map.has(key)) map.set(key, new Set()); map.get(key).add(fn); return () => map.get(key).delete(fn); };
@@ -58,14 +63,29 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
 
   return {
     kind: 'local',
+    uid() {
+      let id = null;
+      try { id = area?.getItem(UID_KEY); } catch { /* blocked storage */ }
+      if (!id) {
+        id = `local${Math.random().toString(36).slice(2, 14)}`;
+        try { area?.setItem(UID_KEY, id); } catch { /* blocked storage */ }
+      }
+      return id;
+    },
     set(path, data) {
+      refresh();
       docs[path] = clone(data);
       try { persist(); } catch (e) { delete docs[path]; return Promise.reject(e); }
       emit(path);
       return done(path);
     },
     update(path, fields) {
+      refresh();
       if (!docs[path]) return Promise.reject(new Error(`No document at ${path}`));
+      // Mirrors the rule that taking over a name needs its secret key.
+      if (path.includes('/claims/') && 'key' in fields && !docs[path].released && !fields.released && docs[path].key !== fields.key) {
+        return Promise.reject(Object.assign(new Error('Wrong key'), { code: 'permission-denied' }));
+      }
       const before = docs[path];
       const next = clone(before);
       for (const [f, v] of Object.entries(fields)) setDotted(next, f, clone(v));
@@ -74,8 +94,8 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
       emit(path);
       return done(path);
     },
-    get(path) { return Promise.resolve(clone(docs[path]) ?? null); },
-    list(col) { return Promise.resolve(clone(docsIn(col))); },
+    get(path) { refresh(); return Promise.resolve(clone(docs[path]) ?? null); },
+    list(col) { refresh(); return Promise.resolve(clone(docsIn(col))); },
     watchDoc(path, cb) {
       const off = add(docWatchers, path, cb);
       queueMicrotask(() => cb(clone(docs[path]) ?? null));

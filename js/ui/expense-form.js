@@ -199,7 +199,7 @@ export async function attachReceipt(file) {
   collect();
   try {
     const dataUrl = await shrinkPhoto(file);
-    const { id, written } = A.repo.saveReceipt(A.form.tripId, dataUrl);
+    const { id, written } = A.repo.saveReceipt(A.form.tripId, dataUrl, getMe(A.trips[A.form.tripId]));
     send(written);
     if (A.form) { A.form.receipt = id; drawForm(); toast('Receipt attached'); }
   } catch { toast("That image couldn't be opened. Try a JPG or PNG."); }
@@ -239,12 +239,12 @@ function commit(t, entry, current) {
   const isNew = !current;
   A.device.setLastCurrency(t.id, entry.currency);
   if (isNew) A.device.clearDraft(t.id);
-  if (entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }));
+  if (entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
   closeSheet();
   const refund = entry.kind === 'refund';
   const among = Object.keys(sharesOf(entry)).map(i => memberName(t, i)).join(', ');
   const noun = refund ? 'refund ' : '';
-  send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, label: `${isNew ? 'added' : 'edited'} ${noun}"${entry.desc}" (${money(entry.total, entry.currency)}), split among ${among}`.slice(0, 340) }), `"${entry.desc}"`);
+  send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, actorId: getMe(t), label: `${isNew ? 'added' : 'edited'} ${noun}"${entry.desc}" (${money(entry.total, entry.currency)}), split among ${among}`.slice(0, 340) }), `"${entry.desc}"`);
   toast(refund ? (isNew ? 'Refund added' : 'Refund saved') : isNew ? 'Expense added' : 'Expense saved');
 }
 
@@ -272,6 +272,6 @@ actions['conflict-theirs'] = () => {
   const { mine, theirs } = A.form.conflict, t = tripOf();
   closeSheet();
   // Their version stays live. Filing yours lets you find it again if you change your mind.
-  send(A.repo.fileVersion(t.id, { ...mine, createdAt: theirs.createdAt }, mine.updatedBy));
+  send(A.repo.fileVersion(t.id, { ...mine, createdAt: theirs.createdAt }, mine.updatedBy, getMe(t)));
   toast('Kept their version. Yours is in the edit history.');
 };

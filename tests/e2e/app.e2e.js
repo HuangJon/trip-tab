@@ -254,6 +254,72 @@ assert.deepEqual(friend.errors, []);
 await fresh.close();
 check('a friend picks or adds their name');
 
+/* Rights: a friend on another phone */
+{
+  const dump = await page.evaluate(() => localStorage.getItem('triptab:localdb'));
+  const friendPhone = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  await friendPhone.addInitScript(d => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('triptab:localdb', d); } }, dump);
+  const pal = await openPage(friendPhone, invite);
+  await pal.waitForSelector('#joinName');
+  const picker = await pal.textContent('#app');
+  assert.ok(!/Jonathan/.test(await pal.textContent('.chips')), 'names already claimed are not offered');
+  assert.match(picker, /locks it to this phone or browser/);
+  await pal.click('[data-action=set-me]:has-text("Mia")');
+  await pal.waitForFunction(() => !/Which one is you/.test(document.getElementById('app').textContent));
+  await pal.waitForSelector('.tap:has-text("Rental car")');
+  await pal.click('.tap:has-text("Rental car")');
+  await pal.waitForSelector('#dlg .big');
+  assert.equal(await pal.locator('#dlg [data-action=edit-entry]').count(), 0, "can't edit an expense someone else added and paid");
+  assert.equal(await pal.locator('#dlg [data-action=delete-entry]').count(), 0);
+  assert.match(await pal.textContent('#dlg'), /Only the person who added or paid/);
+  assert.equal(await pal.locator('#dlg #cText').count(), 1, 'can still comment');
+  await pal.click('[data-action=close-sheet]');
+  await pal.click('[data-action=add-expense]');
+  await pal.fill('#fDesc', 'Mia lunch');
+  await pal.fill('#fAmt', '60');
+  await pal.click('#fSave');
+  await pal.waitForSelector('.tap:has-text("Mia lunch")');
+  await pal.click('.tap:has-text("Mia lunch")');
+  assert.equal(await pal.locator('#dlg [data-action=edit-entry]').count(), 1, 'can edit their own');
+  await pal.click('[data-action=close-sheet]');
+  await tab(pal, 'people');
+  const peopleScreen = await pal.textContent('#app');
+  assert.match(peopleScreen, /Admin/);
+  assert.equal(await pal.locator('[data-action=confirm-delete]').count(), 0);
+  assert.equal(await pal.locator('[data-action=confirm-replace]').count(), 0);
+  assert.equal(await pal.locator('[data-action=release-claim]').count(), 0);
+  assert.equal(await pal.locator('#newMember').count(), 0);
+  assert.equal(await pal.locator('[data-action=backup-paste]').count(), 0);
+  assert.ok(await pal.locator('input[aria-label="Jonathan\'s name"]').isDisabled());
+  assert.ok(!(await pal.locator('input[aria-label="Mia\'s name"]').isDisabled()), 'can rename themselves');
+  assert.ok(!(await pal.locator('input[aria-label="Mia\'s Venmo"]').isDisabled()));
+  assert.ok(await pal.locator('input[aria-label="Jonathan\'s Venmo"]').isDisabled());
+
+  /* Moving to a new phone */
+  await pal.click('section:has(h2:has-text("Moving to a new device")) [data-action=copy-transfer]');
+  const code = await pal.evaluate(() => navigator.clipboard.readText());
+  assert.match(code, /^TT1\./);
+  const dump2 = await pal.evaluate(() => localStorage.getItem('triptab:localdb'));
+  const newPhone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await newPhone.addInitScript(d => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('triptab:localdb', d); } }, dump2);
+  const moved = await openPage(newPhone, server.url);
+  await moved.waitForSelector('#joinLink');
+  await moved.fill('#joinLink', 'TT1.garbage');
+  await moved.click('form[data-form=join-link] button');
+  await moved.waitForFunction(() => /isn't readable/.test(document.getElementById('toast').textContent));
+  await moved.fill('#joinLink', code);
+  await moved.click('form[data-form=join-link] button');
+  await moved.waitForSelector('.tap:has-text("Okinawa")');
+  await moved.click('.tap:has-text("Okinawa")');
+  await moved.waitForSelector('.tap:has-text("Mia lunch")');
+  assert.ok(!/Which one is you/.test(await text(moved)), 'the new phone is already Mia');
+  assert.deepEqual(moved.errors, []);
+  await newPhone.close();
+  assert.deepEqual(pal.errors, []);
+  await friendPhone.close();
+  check("friends can change only their own things; a transfer code moves them to a new phone");
+}
+
 /* Offline: writes that have not reached the server must not block the screen */
 await page.evaluate(() => localStorage.setItem('triptab:test-hang-writes', 'true'));
 await addExpense(page, 'Offline dinner', '200');
@@ -319,13 +385,15 @@ check('each expense shows who added it and who it is split among');
   const noName = await context.newPage();
   await noName.route(/fonts\./, r => r.abort());
   await noName.goto(invite);
-  await noName.evaluate(id => { localStorage.removeItem(`triptab:me:${id}`); }, new URL(invite).hash.slice(6));
+  const tripKey = `triptab:me:${new URL(invite).hash.slice(6)}`;
+  const mine = await noName.evaluate(k => localStorage.getItem(k), tripKey);
+  await noName.evaluate(k => localStorage.removeItem(k), tripKey);
   await noName.reload();
   await noName.waitForSelector('#joinName');
   await noName.click('[data-action=add-expense]');
   await noName.waitForFunction(() => /Choose your name/.test(document.getElementById('toast').textContent));
   assert.equal(await noName.evaluate(() => document.getElementById('dlg').open), false);
-  await noName.click('[data-action=set-me] >> nth=0');
+  await noName.evaluate(([k, v]) => localStorage.setItem(k, v), [tripKey, mine]);
   await noName.close();
   check('adding needs a name, with no account');
 }
@@ -416,6 +484,37 @@ assert.match(await text(page), /"Dinner" didn't save/);
 await page.click('[data-action=failed-dismiss]');
 await page.waitForFunction(() => !document.querySelector('[data-action=failed-dismiss]'));
 check('refused changes stay on screen until dismissed');
+
+/* Admin frees a name */
+await tab(page, 'people');
+await page.fill('#newMember', 'Kai');
+await page.click('form[data-form=add-member] button');
+await page.waitForSelector('input[value="Kai"]');
+{
+  const dump = await page.evaluate(() => localStorage.getItem('triptab:localdb'));
+  const kaiPhone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await kaiPhone.addInitScript(d => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('triptab:localdb', d); } }, dump);
+  const kai = await openPage(kaiPhone, invite);
+  await kai.click('[data-action=set-me]:has-text("Kai")');
+  await kai.waitForFunction(() => !/Which one is you/.test(document.getElementById('app').textContent));
+  const after = await kai.evaluate(() => localStorage.getItem('triptab:localdb'));
+  await kaiPhone.close();
+  await page.evaluate(d => { localStorage.setItem('triptab:localdb', d); }, after);
+  await page.reload();
+  await page.waitForSelector('[data-action=release-claim]');
+  assert.match(await text(page), /Locked to a device/);
+  const rows = page.locator('.stack:has(input[value="Kai"]) [data-action=release-claim]');
+  await rows.click();
+  await page.waitForFunction(() => /Name freed/.test(document.getElementById('toast').textContent));
+}
+check('an admin can free a name for someone who lost their phone');
+
+/* Admin's transfer code reminder */
+await tab(page, 'expenses');
+await page.waitForSelector('[data-action=copy-transfer]');
+await page.click('[data-action=copy-transfer]');
+await page.waitForFunction(() => !document.querySelector('[data-action=copy-transfer]'));
+check('admins are reminded to save their transfer code');
 
 /* Link reminder and replacing a link */
 await tab(page, 'expenses');

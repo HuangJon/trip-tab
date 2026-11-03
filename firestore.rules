@@ -1,7 +1,8 @@
 rules_version = '2';
-// Only signed-in phones get in (the app signs in invisibly, with no account for people to create).
-// Beyond that, whoever knows a trip's long random id can use that trip. Nobody can list trips.
-// Nothing can be deleted. Anything not matched below is refused.
+// A phone signs in invisibly and gets a private id, with no account for people to create.
+// A name on a trip belongs to the phone that claimed it, recorded in claims/{memberId}.
+// Every write says which name is making it, and that name has to be claimed by this phone.
+// Anyone with the trip's long random id can read it. Nobody can list trips, and nothing can be deleted.
 // Rules can't add up a map, so the app also checks that each expense's shares reach its total.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -10,11 +11,23 @@ service cloud.firestore {
     function okTripId(id) { return signedIn() && id.matches('^[a-z0-9]{20,40}$'); }
     function short(value, limit) { return value is string && value.size() <= limit; }
 
+    function tripPath(tripId) { return /databases/$(database)/documents/trips/$(tripId); }
+    function claimPath(tripId, memberId) { return /databases/$(database)/documents/trips/$(tripId)/claims/$(memberId); }
+    function isMe(tripId, memberId) {
+      return memberId is string && memberId.size() > 0
+        && exists(claimPath(tripId, memberId))
+        && get(claimPath(tripId, memberId)).data.uid == request.auth.uid;
+    }
+    function isAdmin(tripId, memberId) {
+      return isMe(tripId, memberId) && get(tripPath(tripId)).data.admins.get(memberId, false) == true;
+    }
+
     function validTrip(d, tripId) {
       return d.id == tripId
         && short(d.name, 60) && d.name.size() > 0
         && d.currency.matches('^[A-Z]{3}$')
         && d.members is map && d.members.size() >= 1 && d.members.size() <= 200
+        && d.admins is map && d.admins.size() >= 1 && d.admins.size() <= 200
         && d.rates is map && d.rates.size() <= 40
         && d.simplify is bool;
     }
@@ -34,7 +47,16 @@ service cloud.firestore {
         && d.paid is map && d.paid.size() >= 1 && d.paid.size() <= 200
         && d.owed is map && d.owed.size() >= 1 && d.owed.size() <= 200
         && d.comments is map && d.comments.size() <= 500
-        && (d.kind == 'expense' || (d.paid.size() == 1 && d.owed.size() == 1));
+        && (d.kind != 'payment' || (d.paid.size() == 1 && d.owed.size() == 1));
+    }
+
+    // Who can change an existing expense: whoever added it, whoever handled the money, or an admin.
+    function canChange(tripId, old, actor) {
+      return isAdmin(tripId, actor) || (isMe(tripId, actor) && (
+        old.get('createdById', '') == actor
+        || (old.kind != 'refund' && old.paid.keys().hasAny([actor]))
+        || (old.kind == 'refund' && old.owed.keys().hasAny([actor]))
+      ));
     }
 
     match /trips/{tripId} {
@@ -44,21 +66,67 @@ service cloud.firestore {
       allow update: if okTripId(tripId) && validTrip(request.resource.data, tripId)
         && request.resource.data.currency == resource.data.currency
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.members.size() >= resource.data.members.size();
+        && request.resource.data.members.size() >= resource.data.members.size()
+        && (
+          isAdmin(tripId, request.resource.data.changedBy)
+          // Everyone else changes only their own name, Venmo and Zelle, and shares new exchange rates.
+          // No admin lists change here, so nobody can promote themselves.
+          || (isMe(tripId, request.resource.data.changedBy)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'rates', 'changedBy'])
+            && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.resource.data.changedBy]))
+        );
       allow delete: if false;
+
+      match /claims/{memberId} {
+        // The secret key stays with the phone holding the name. A freed name is open to claim.
+        allow get: if okTripId(tripId) && (resource == null || resource.data.uid == request.auth.uid || resource.data.released == true);
+        allow list: if false;
+        allow create: if okTripId(tripId) && okId(memberId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.memberId == memberId
+          && request.resource.data.tripId == tripId
+          && short(request.resource.data.key, 40) && request.resource.data.key.size() >= 20;
+        allow update: if okTripId(tripId) && (
+          // Claiming a freed name.
+          (resource.data.released == true && request.resource.data.uid == request.auth.uid
+            && request.resource.data.released == false
+            && short(request.resource.data.key, 40) && request.resource.data.key.size() >= 20)
+          // Moving to a new phone, by showing the secret key.
+          || (request.resource.data.uid == request.auth.uid
+            && resource.data.key.size() >= 20
+            && request.resource.data.key == resource.data.key
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid']))
+          // An admin freeing the name.
+          || (isAdmin(tripId, request.resource.data.releasedBy)
+            && request.resource.data.released == true
+            && request.resource.data.uid == '' && request.resource.data.key == '')
+        );
+        allow delete: if false;
+      }
 
       match /entries/{id} {
         allow read: if okTripId(tripId);
-        allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId);
+        allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
+          && (isAdmin(tripId, request.resource.data.updatedById)
+            || (isMe(tripId, request.resource.data.updatedById)
+              && request.resource.data.createdById == request.resource.data.updatedById));
         allow update: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
           && request.resource.data.kind == resource.data.kind
           && request.resource.data.createdAt == resource.data.createdAt
-          && request.resource.data.comments.size() >= resource.data.comments.size();
+          && request.resource.data.get('createdById', '') == resource.data.get('createdById', '')
+          && request.resource.data.comments.size() >= resource.data.comments.size()
+          && (
+            canChange(tripId, resource.data, request.resource.data.get('updatedById', ''))
+            // Anyone on the trip can comment.
+            || (isMe(tripId, request.resource.data.get('commentedBy', ''))
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'commentedBy']))
+          );
         allow delete: if false;
 
         match /revisions/{revId} {
           allow read: if okTripId(tripId);
           allow create: if okTripId(tripId) && okId(revId)
+            && isMe(tripId, request.resource.data.byId)
             && request.resource.data.tripId == tripId
             && request.resource.data.entryId == id
             && short(request.resource.data.by, 60)
@@ -70,6 +138,7 @@ service cloud.firestore {
       match /activity/{id} {
         allow read: if okTripId(tripId);
         allow create: if okTripId(tripId) && okId(id)
+          && isMe(tripId, request.resource.data.byId)
           && request.resource.data.tripId == tripId
           && short(request.resource.data.text, 400)
           && request.resource.data.at is number;
@@ -79,6 +148,7 @@ service cloud.firestore {
         allow get: if okTripId(tripId);
         allow list: if false; // receipts load one at a time, only when someone opens one
         allow create: if okTripId(tripId) && okId(id)
+          && isMe(tripId, request.resource.data.byId)
           && short(request.resource.data.dataUrl, 800000)
           && request.resource.data.dataUrl.matches('^data:image/jpeg;base64,.*');
         allow update, delete: if false;

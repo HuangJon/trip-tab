@@ -1,7 +1,7 @@
 /** Who pays whom, each person's balance, and recording payments. */
 import { A, actions, submits } from './state.js';
 import { LIMITS } from '../config/app.js';
-import { actor, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
+import { actor, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
 import { netBalances, pairwise, simplify } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
@@ -25,9 +25,9 @@ export function balancesView(trip) {
   const c = trip.currency, members = activeMembers(trip), me = getMe(trip);
   const net = netBalances(liveEntries(A.entries[trip.id]), c, members.map(m => m.id));
   const max = Math.max(1, ...Object.values(net).map(Math.abs));
-  const debts = debtsFor(trip), write = canWrite(trip);
+  const debts = debtsFor(trip), write = canWrite(trip), admin = amAdmin(trip);
   return `${summaryCard(trip)}<section class="panel ticket">
-    <div class="pad stack"><div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${write ? '' : 'disabled'}>Simplify debts</label></div>
+    <div class="pad stack"><div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
     <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. The amount each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p></div>
     <div class="tear" aria-hidden="true"></div>
     ${debts.length ? `<div class="list">${debts.map(d => `<div class="debt">${avatar(trip, d.from)}<span class="names"><strong>${esc(who(trip, d.from))}</strong> ${d.from === me ? 'pay' : 'pays'} <strong>${esc(who(trip, d.to))}</strong><br><span class="amt ${d.from === me ? 'owe' : d.to === me ? 'owed' : ''}">${money(d.amount, c)}</span></span>
@@ -44,7 +44,7 @@ export function balancesView(trip) {
     <p class="tiny muted">Left of center owes money. Right of center is owed money.</p></section>`;
 }
 
-actions.simplify = el => { send(A.repo.updateTrip(A.route.tripId, { simplify: el.checked })); };
+actions.simplify = el => { const t = A.trips[A.route.tripId]; send(A.repo.updateTrip(t.id, { simplify: el.checked }, getMe(t))); };
 actions['share-summary'] = () => {
   const t = A.trips[A.route.tripId], debts = debtsFor(t);
   const contact = id => {
@@ -81,7 +81,7 @@ submits.settle = () => {
   const id = randomId(), at = Date.now();
   const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: trip.currency, rate: 1, total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), comments: {}, createdAt: at, updatedAt: at, createdById: getMe(trip), updatedBy: actor(trip), deleted: false };
   closeSheet();
-  send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), label: `recorded that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, trip.currency)}` }), 'A payment');
+  send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), actorId: getMe(trip), label: `recorded that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, trip.currency)}` }), 'A payment');
   toast('Payment recorded');
   return undefined;
 };
