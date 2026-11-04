@@ -158,6 +158,19 @@ try {
   assert.equal(forged, 'permission-denied');
   check('the published rules refuse a direct attempt to change the trip');
 
+  await tab(host, 'people');
+  await host.fill('#newMember', 'Unused');
+  await host.click('form[data-form=add-member] button');
+  await host.waitForSelector('[aria-label="Remove Unused"]');
+  await host.click('[aria-label="Remove Unused"]');
+  await host.waitForFunction(() => !document.querySelector('input[value="Unused"]'));
+  await host.reload();
+  await tab(host, 'people');
+  await host.waitForSelector('#newMember');
+  assert.equal(await host.locator('input[value="Unused"]').count(), 0);
+  await noFailures(host);
+  check('an admin can remove an unused name on the real rules');
+
   await host.reload();
   await host.waitForSelector('.tap:has-text("From friend")', { timeout: 20000 });
   assert.deepEqual(host.errors, []);
