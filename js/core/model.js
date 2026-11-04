@@ -55,6 +55,27 @@ export function canEditEntry(trip, e, id) {
 export const memberName = (trip, id) => trip.members[id]?.name ?? 'Former member';
 export const liveEntries = entries => Object.values(entries || {}).filter(e => !e.deleted);
 export const byNewest = (a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0);
+/**
+ * The color each person shows in, so nobody on a trip shares one. Whoever is first on the trip keeps
+ * theirs and a later duplicate gets the next free color, which also sorts out older trips and two
+ * people picking at the same moment. A trip with more people than colors has to repeat some.
+ */
+export function displayColors(trip, count = 12) {
+  const shown = {}, used = new Set();
+  for (const [id, m] of Object.entries(trip.members)) shown[id] = m.color || 1;
+  const waiting = [];
+  for (const m of activeMembers(trip)) {
+    if (m.color >= 1 && m.color <= count && !used.has(m.color)) used.add(m.color);
+    else waiting.push(m.id);
+  }
+  for (const id of waiting) {
+    for (let i = 1; i <= count; i += 1) {
+      if (!used.has(i)) { used.add(i); shown[id] = i; break; }
+    }
+  }
+  return shown;
+}
+
 /** Whether a name is on an expense that counts. Deleted ones don't; restoring one brings the name back. */
 export function isInUse(entries, id) {
   return Object.values(entries || {}).some(e => !e.deleted && (e.paid?.[id] || e.owed?.[id]));

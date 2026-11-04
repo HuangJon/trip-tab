@@ -1,7 +1,7 @@
 /** Small shared helpers for building and updating the page. */
 import { A, render } from './state.js';
-import { canEditEntry, isAdminId, memberName } from '../core/model.js';
-import { AVATARS } from '../config/app.js';
+import { canEditEntry, displayColors, isAdminId, memberName } from '../core/model.js';
+import { AVATARS, AVATAR_COLORS } from '../config/app.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const svg = paths => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
@@ -32,7 +32,7 @@ export const catIcon = c => svg(CAT_ICON[c] || CAT_ICON.other);
 export function avatar(trip, id, large) {
   const name = memberName(trip, id);
   const m = trip.members[id];
-  const color = m ? `var(--m${m.color || 1})` : 'var(--muted)';
+  const color = m ? `var(--m${displayColors(trip, AVATAR_COLORS)[id]})` : 'var(--muted)';
   const pic = AVATARS.includes(m?.emoji) ? m.emoji : '';
   return `<span class="ava ${large ? 'lg' : ''} ${pic ? 'pic' : ''}" style="background:${color}" aria-hidden="true">${pic || esc([...name][0] || '?').toUpperCase()}</span>`;
 }

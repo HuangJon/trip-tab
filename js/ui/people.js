@@ -2,7 +2,7 @@
 import { A, actions, changes, render, submits } from './state.js';
 import { AVATARS, AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
 import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
-import { activeMembers, isAdminId, isInUse } from '../core/model.js';
+import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
@@ -78,10 +78,11 @@ export function peopleView(trip) {
 
 /** Pick a color and a small picture. Your own, or anyone's if you're an admin. */
 function avatarBody(trip, id) {
-  const m = trip.members[id], color = A.avatarEdit.color ?? m.color ?? 1, emoji = A.avatarEdit.emoji ?? m.emoji ?? '';
+  const m = trip.members[id], shown = displayColors(trip, AVATAR_COLORS), color = A.avatarEdit.color ?? shown[id], emoji = A.avatarEdit.emoji ?? m.emoji ?? '';
+  const taken = new Set(activeMembers(trip).filter(o => o.id !== id).map(o => shown[o.id]));
   const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, emoji } } };
   return `<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
-    <span class="flabel">Color</span><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}" aria-pressed="${color === i + 1}"></button>`).join('')}</div>
+    <span class="flabel">Color</span><p class="tiny muted">Dimmed colors belong to someone else on this trip.</p><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}${taken.has(i + 1) ? ', taken' : ''}" aria-pressed="${color === i + 1}" ${taken.has(i + 1) ? 'disabled' : ''}></button>`).join('')}</div>
     <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!emoji}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" data-action="pick-pic" data-id="${e}" aria-pressed="${emoji === e}">${e}</button>`).join('')}</div>`;
 }
 actions['edit-avatar'] = el => {

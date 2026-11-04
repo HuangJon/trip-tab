@@ -724,11 +724,15 @@ check('an exchange rate set in settings fills in on new expenses');
 /* Color and picture */
 await page.click('.topbar [data-action=edit-avatar]');
 await page.click('#avatarBody [data-action=pick-pic][data-id="🐼"]');
-await page.click('#avatarBody [data-action=pick-color][data-id="5"]');
-assert.equal(await page.getAttribute('#avatarBody [data-action=pick-color][data-id="5"]', 'aria-pressed'), 'true');
+await page.click('#avatarBody [data-action=pick-color][data-id="12"]');
+assert.equal(await page.getAttribute('#avatarBody [data-action=pick-color][data-id="12"]', 'aria-pressed'), 'true');
 assert.match(await page.textContent('#avatarBody .ava-preview'), /🐼/);
 await page.click('[data-action=close-sheet]');
 await page.waitForFunction(() => /🐼/.test(document.querySelector('.topbar').textContent));
+assert.equal(await page.locator('.tap.payer-strip').first().evaluate(el => el.style.getPropertyValue('--payer').startsWith('var(--')), true);
+await page.click('.topbar [data-action=edit-avatar]');
+assert.ok(await page.locator('.color-pick[disabled]').count() >= 1, "other people's colors can't be picked");
+await page.click('[data-action=close-sheet]');
 check('you can pick your own color and picture');
 
 /* Quick actions: right-click and long press */

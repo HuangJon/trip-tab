@@ -1,6 +1,6 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { activeMembers, handlersOf, sharesOf, isFromNewerApp, isInUse, isValidEntry, removedNames, migrateTrip } from '../../js/core/model.js';
+import { activeMembers, handlersOf, sharesOf, isFromNewerApp, displayColors, isInUse, isValidEntry, removedNames, migrateTrip } from '../../js/core/model.js';
 import { backupFilename, createBackup, csvFor, parseBackup } from '../../js/core/backup.js';
 import { SCHEMA_VERSION } from '../../js/config/app.js';
 
@@ -87,4 +87,12 @@ test('a name on only deleted expenses is free to remove, and restoring finds it'
   assert.ok(!isInUse({ e }, 'b'));
   assert.ok(isInUse({ e: { ...e, deleted: false } }, 'b'));
   assert.deepEqual(removedNames({ members: { a: {}, b: { removed: true } } }, e), ['b']);
+});
+
+test('nobody on a trip shows the same color', () => {
+  const t = { members: { a: { color: 1, order: 0 }, b: { color: 1, order: 1 }, c: { color: 2, order: 2 }, d: { order: 3 }, e: { color: 1, order: 4, removed: true } } };
+  const c = displayColors(t);
+  assert.equal(c.a, 1); assert.equal(c.c, 2);
+  assert.equal(new Set([c.a, c.b, c.c, c.d]).size, 4);
+  assert.equal(displayColors(t).b, c.b, 'stays the same each time');
 });

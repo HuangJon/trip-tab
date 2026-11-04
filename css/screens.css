@@ -164,7 +164,7 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .ava-btn { background:none; border:0; padding:0; border-radius:50%; flex:none; min-width:30px; min-height:30px }
 .topbar .ava-btn { padding:6px; margin-right:-2px }
 .ava-preview { display:flex; align-items:center; gap:12px }
-.color-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:8px }
+.color-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
 .color-pick { aspect-ratio:1; border-radius:50%; border:0; min-height:0; padding:0 }
 .color-pick[aria-pressed=true] { box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink) }
 .pic-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
@@ -183,3 +183,6 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .payer-mark .tile { position:absolute; right:-2px; bottom:-2px; width:22px; height:22px; border-radius:7px; box-shadow:0 0 0 2px var(--surface) }
 .payer-mark .tile svg { width:13px; height:13px }
 .ava.pic { font-size:.95rem }
+.color-pick[disabled] { opacity:.2 }
+/* A strip in the payer's color down each expense. */
+.payer-strip { box-shadow:inset 5px 0 0 var(--payer) }
