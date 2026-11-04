@@ -2,8 +2,6 @@
 export const SCHEMA_VERSION = 1;
 export const APP_NAME = 'The Trip Tab';
 
-/** Pictures someone can pick instead of their initial. */
-export const AVATARS = ['🐼', '🐱', '🐶', '🦊', '🐻', '🐨', '🐯', '🦁', '🐸', '🐵', '🐧', '🐰', '🐙', '🦄', '🐢', '🐳'];
 export const AVATAR_COLORS = 12;
 
 /** Currencies that travelers normally pay without cents. */

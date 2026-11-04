@@ -1,6 +1,7 @@
 /** People, invite link, trip settings and backups. */
 import { A, actions, changes, render, submits } from './state.js';
-import { AVATARS, AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
+import { AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
+import { AVATARS, avatarArt } from './avatars.js';
 import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
 import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
@@ -78,12 +79,12 @@ export function peopleView(trip) {
 
 /** Pick a color and a small picture. Your own, or anyone's if you're an admin. */
 function avatarBody(trip, id) {
-  const m = trip.members[id], shown = displayColors(trip, AVATAR_COLORS), color = A.avatarEdit.color ?? shown[id], emoji = A.avatarEdit.emoji ?? m.emoji ?? '';
+  const m = trip.members[id], shown = displayColors(trip, AVATAR_COLORS), color = A.avatarEdit.color ?? shown[id], pic = A.avatarEdit.pic ?? m.pic ?? '';
   const taken = new Set(activeMembers(trip).filter(o => o.id !== id).map(o => shown[o.id]));
-  const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, emoji } } };
+  const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, pic } } };
   return `<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
     <span class="flabel">Color</span><p class="tiny muted">Dimmed colors belong to someone else on this trip.</p><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}${taken.has(i + 1) ? ', taken' : ''}" aria-pressed="${color === i + 1}" ${taken.has(i + 1) ? 'disabled' : ''}></button>`).join('')}</div>
-    <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!emoji}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" data-action="pick-pic" data-id="${e}" aria-pressed="${emoji === e}">${e}</button>`).join('')}</div>`;
+    <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!pic}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" style="--pick:var(--m${color})" data-action="pick-pic" data-id="${e}" aria-label="${e}" aria-pressed="${pic === e}">${avatarArt(e)}</button>`).join('')}</div>`;
 }
 actions['edit-avatar'] = el => {
   const t = A.trips[A.route.tripId], id = el.dataset.id;
@@ -98,7 +99,7 @@ function pickAvatar(field, value) {
   send(A.repo.setMemberPayment(t.id, id, field, value, getMe(t)), 'That change');
 }
 actions['pick-color'] = el => pickAvatar('color', +el.dataset.id);
-actions['pick-pic'] = el => pickAvatar('emoji', el.dataset.id);
+actions['pick-pic'] = el => pickAvatar('pic', el.dataset.id);
 
 /** Exchange rates that fill in on new expenses. Anyone with a name on the trip can set them. */
 function ratesSection(trip) {

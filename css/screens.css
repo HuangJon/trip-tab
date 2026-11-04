@@ -157,10 +157,6 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .payer-avas .ava { width:20px; height:20px; font-size:.65rem; box-shadow:0 0 0 2px var(--surface) }
 .payer-avas .ava + .ava { margin-left:-6px }
 /* Choosing a color and picture. */
-.ava.pic { font-size:1.05rem; line-height:1 }
-.ava.lg.pic { font-size:1.7rem }
-.payer-avas .ava.pic { font-size:.72rem }
-.debt.other .ava.pic { font-size:.85rem }
 .ava-btn { background:none; border:0; padding:0; border-radius:50%; flex:none; min-width:30px; min-height:30px }
 .topbar .ava-btn { padding:6px; margin-right:-2px }
 .ava-preview { display:flex; align-items:center; gap:12px }
@@ -168,21 +164,19 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .color-pick { aspect-ratio:1; border-radius:50%; border:0; min-height:0; padding:0 }
 .color-pick[aria-pressed=true] { box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink) }
 .pic-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
-.pic-pick { aspect-ratio:1; border-radius:14px; border:1px solid var(--line); background:var(--surface); font-size:1.5rem; padding:0; min-height:0 }
+.pic-pick { aspect-ratio:1; border-radius:14px; border:1px solid var(--line); background:var(--surface); color:var(--pick,var(--muted)); padding:0; min-height:0; display:grid; place-items:center }
+.pic-pick svg { width:62% ; height:62% }
 .pic-pick.initial { font-size:1rem; font-weight:700; color:var(--muted) }
 .pic-pick[aria-pressed=true] { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) }
 .ava-preview .ava { width:60px; height:60px; font-size:1.5rem }
-.ava-preview .ava.pic { font-size:2rem }
 /* The payer is the biggest thing on an expense row, with the category as a small badge. */
 .payer-mark { position:relative; display:flex; flex:none; width:48px; height:46px; align-items:center }
 .payer-mark .ava { width:44px; height:44px; font-size:1.1rem }
-.payer-mark .ava.pic { font-size:1.5rem }
 .payer-mark.many .ava { width:32px; height:32px; font-size:.85rem; box-shadow:0 0 0 2px var(--surface) }
-.payer-mark.many .ava.pic { font-size:1.05rem }
 .payer-mark.many .ava + .ava { margin-left:-16px; margin-top:12px }
 .payer-mark .tile { position:absolute; right:-2px; bottom:-2px; width:22px; height:22px; border-radius:7px; box-shadow:0 0 0 2px var(--surface) }
 .payer-mark .tile svg { width:13px; height:13px }
-.ava.pic { font-size:.95rem }
 .color-pick[disabled] { opacity:.2 }
 /* A strip in the payer's color down each expense. */
 .payer-strip { box-shadow:inset 5px 0 0 var(--payer) }
+.ava.pic svg { width:68%; height:68%; display:block }

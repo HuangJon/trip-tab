@@ -116,8 +116,8 @@ assert.equal(benAgain.backend.uid(), friend.backend.uid());
 await benAgain.repo.renameMember(trip.id, b, 'Ben N', b);
 
 /* Your own color and picture. */
-await friend.repo.setMemberPayment(trip.id, b, 'emoji', '🐼', b);
-await refused(friend.repo.setMemberPayment(trip.id, a, 'emoji', '🐼', b), "you can't change someone else's picture");
+await friend.repo.setMemberPayment(trip.id, b, 'pic', 'fox', b);
+await refused(friend.repo.setMemberPayment(trip.id, a, 'pic', 'fox', b), "you can't change someone else's picture");
 
 /* An admin frees a name. */
 const lost = await newPhone();
