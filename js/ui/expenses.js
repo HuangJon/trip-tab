@@ -92,7 +92,7 @@ export function expensesView(trip) {
   const damaged = A.skipped[trip.id] || 0;
   return `${A.device.linkUnsaved(trip.id) ? `<section class="notice stack"><span>Keep this trip's link somewhere safe, such as your group chat. If your phone clears this app's storage, the link is how you get back in.</span><button class="btn small" data-action="copy-link">Copy link</button></section>` : ''}
     ${A.device.needsWelcome(trip.id) && getMe(trip) ? `<section class="panel pad stack welcome" id="welcomeCard"><h3>Here's how this trip works</h3>
-      <ul class="plain small"><li>Tap <strong>Add expense</strong> whenever you pay for something, and choose who shares it.</li><li>Balances keeps a running total of who owes whom.</li><li>You can change what you added or paid for. To fix anything else, ask the trip's admin.</li></ul>
+      <ul class="plain small"><li>Tap <strong>Add expense</strong> whenever you pay for something, and choose who shares it.</li><li>Balances keeps a running total of who owes whom.</li><li>You can change what you added or paid for. To fix anything else, ask the trip's admin.</li><li>Press and hold an expense for quick actions.</li></ul>
       <div><button class="btn small" data-action="welcome-dismiss">Got it</button></div></section>` : ''}
     ${damaged ? `<div class="notice">${damaged} ${damaged > 1 ? 'entries' : 'entry'} couldn't be read and ${damaged > 1 ? 'are' : 'is'} left out of the balances. Update the app, or ask whoever added ${damaged > 1 ? 'them' : 'it'} to add ${damaged > 1 ? 'them' : 'it'} again.</div>` : ''}
     ${summaryCard(trip)}

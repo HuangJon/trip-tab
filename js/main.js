@@ -22,6 +22,7 @@ import { importFile, peopleView, settingsView, unavailableView } from './ui/peop
 import { attachReceipt } from './ui/expense-form.js';
 import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
+import { setUpRowMenu } from './ui/row-menu.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
 const storage = createLocalStorage();
@@ -177,6 +178,8 @@ sheetEl.addEventListener('close', () => { if (!sheetEl.open && (A.form || A.deta
 addEventListener('online', () => render());
 addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
+
+setUpRowMenu();
 
 /* ---------- Start ---------- */
 /** The real Firebase code against the local emulators. Only the browser tests reach this. */

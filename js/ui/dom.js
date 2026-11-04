@@ -66,6 +66,7 @@ const parkToast = () => { const t = toastEl(); if (t.parentElement !== document.
 export function openSheet(html) {
   const d = sheet();
   parkToast();
+  d.classList.remove('menu');
   d.innerHTML = html;
   if (!d.open) d.showModal();
 }

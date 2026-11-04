@@ -139,3 +139,14 @@ nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box
 .add-tab span { white-space:nowrap }
 /* Solid blue is kept for Add expense, so the current tab uses a soft pill instead. */
 .tabs button[aria-current="page"] svg { background:var(--accent-soft); color:var(--accent) }
+/* Long-press menu, rising from the bottom of the screen. */
+.tap { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none }
+dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-radius:18px 18px 0 0; background:var(--surface) }
+.menu-sheet { display:grid; padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px)) }
+.menu-title { display:flex; justify-content:space-between; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line) }
+.menu-item { background:none; border:0; border-bottom:1px solid var(--line); padding:15px 18px; text-align:left; font-weight:600; min-height:50px }
+.menu-item:active,.menu-item:hover { background:var(--sunken) }
+.danger-item { color:var(--owe) }
+.cancel-item { border-bottom:0; color:var(--muted) }
+.menu-note { padding:10px 18px; border-bottom:1px solid var(--line) }
+@media (min-width:760px) { dialog.menu { margin:auto; border-radius:18px } }

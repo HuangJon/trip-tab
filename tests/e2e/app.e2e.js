@@ -435,6 +435,12 @@ check('a friend picks or adds their name');
   await pal.reload();
   await pal.waitForSelector('.tap:has-text("Rental car")');
   assert.equal(await pal.locator('#welcomeCard').count(), 0, 'the welcome appears once');
+  await pal.click('.tap:has-text("Rental car")', { button: 'right' });
+  await pal.waitForSelector('#rowMenu');
+  assert.equal(await pal.locator('#rowMenu [data-action=edit-entry]').count(), 0, "the menu won't offer to edit someone else's expense");
+  assert.equal(await pal.locator('#rowMenu [data-action=delete-entry]').count(), 0);
+  await pal.click('#rowMenu [data-action=close-sheet]');
+  await pal.waitForFunction(() => !document.getElementById('dlg').open);
   await pal.click('.tap:has-text("Rental car")');
   await pal.waitForSelector('#dlg .big');
   assert.equal(await pal.locator('#dlg [data-action=edit-entry]').count(), 0, "can't edit an expense someone else added and paid");
@@ -652,6 +658,42 @@ assert.match(await page.textContent('#entryList'), /No matches/);
 await page.click('#filterPanel [data-action=filters-clear]');
 await page.click('[data-action=filters-toggle]');
 check('filter by person, type, date and amount, and sort');
+
+/* Quick actions: right-click and long press */
+await tab(page, 'expenses');
+await page.click('.tap:has-text("Credit test")', { button: 'right' });
+await page.waitForSelector('#rowMenu');
+assert.match(await page.textContent('#rowMenu'), /Edit expense/);
+await page.click('#rowMenu [data-action=edit-entry]');
+assert.equal(await page.inputValue('#fDesc'), 'Credit test');
+await page.click('[data-action=form-cancel]');
+const holdRow = async (ms, moveBy = 0) => page.evaluate(async ([wait, move]) => {
+  const row = [...document.querySelectorAll('.tap')].find(r => /Credit test/.test(r.textContent));
+  const at = { bubbles: true, pointerType: 'touch', clientX: 50, clientY: 50 };
+  row.dispatchEvent(new PointerEvent('pointerdown', at));
+  if (move) row.dispatchEvent(new PointerEvent('pointermove', { ...at, clientY: 50 + move }));
+  await new Promise(r => setTimeout(r, wait));
+  row.dispatchEvent(new PointerEvent('pointerup', at));
+  row.click();
+}, [ms, moveBy]);
+await holdRow(650);
+await page.waitForSelector('#rowMenu');
+assert.equal(await page.locator('#dlg .detail-title').count(), 0, 'lifting your finger does not also open the expense');
+await page.click('#rowMenu [data-action=close-sheet]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await holdRow(650, 40);
+await page.waitForSelector('#dlg .detail-title');
+assert.equal(await page.locator('#rowMenu').count(), 0, 'scrolling never opens the menu');
+await page.click('[data-action=close-sheet]');
+await holdRow(50);
+await page.waitForSelector('#dlg .detail-title');
+await page.click('[data-action=close-sheet]');
+await page.click('.tap:has-text("Credit test")', { button: 'right' });
+await page.click('#rowMenu [data-action=delete-entry]');
+await toastSays(/Deleted/);
+await page.click('#toast [data-action=undo]');
+await page.waitForSelector('.tap:has-text("Credit test")');
+check('long press and right-click offer quick actions; a quick tap and scrolling still behave');
 
 /* Duplicate */
 await page.click('.tap:has-text("Credit test")');
