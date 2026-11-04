@@ -48,8 +48,7 @@ await addExpense(page, 'Aquarium', '7500', async () => {
   assert.match(await page.textContent('#dlg'), /1 TWD = how many JPY/);
   await page.fill('#fRate', '5');
   assert.match(await page.textContent('#fConv'), /NT\$1,500/);
-  await page.click('[data-action=form-more]');
-  await page.selectOption('#fCat', 'activities');
+  await page.click('[data-action=cat-pick][data-id=activities]');
   await page.selectOption('#fPayer', { index: 2 });
 });
 await tab(page, 'balances');
@@ -156,15 +155,39 @@ assert.match(await page.textContent('#dlg .detail-title'), /Rental car/);
 await page.click('[data-action=close-sheet]');
 check('tapping a person explains their balance');
 
+/* Category suggestions */
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+const pressed = () => page.getAttribute('.cat-pick[aria-pressed="true"]', 'data-id');
+const startingCategory = await pressed();
+await page.fill('#fDesc', 'Taxi to the station');
+assert.equal(await pressed(), 'transport');
+assert.match(await page.textContent('#catHint'), /Suggested/);
+await page.fill('#fDesc', 'Beers');
+assert.equal(await pressed(), 'drinks');
+assert.equal(await page.inputValue('#fDesc'), 'Beers', 'typing keeps the text');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'typing keeps the cursor');
+await page.fill('#fDesc', 'Zxqv');
+assert.equal(await pressed(), startingCategory, 'with nothing to go on, it returns to the last category');
+await page.click('.cat-pick[data-id=shopping]');
+await page.fill('#fDesc', 'Hotel');
+assert.equal(await pressed(), 'shopping', 'your own choice is never overridden');
+await page.click('[data-action=form-cancel]');
+await page.click('[data-action=add-expense]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=form-cancel]');
+check('categories are easy to tap, and suggested as you type');
+
 /* Shorter form with recent defaults */
 await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
-assert.equal(await page.isVisible('#fCat'), false, 'details start tucked away');
-assert.match(await page.textContent('.more-toggle'), /Activities · Today/, 'the last category is suggested');
+assert.equal(await page.isVisible('#fDate'), false, 'details start tucked away');
+assert.match(await page.textContent('.more-toggle'), /Today/);
 assert.equal(await page.locator('#fPayer option:checked').textContent(), '小偉', 'the last payer is suggested');
 await page.fill('#fDesc', 'Kept typing');
 await page.click('[data-action=form-more]');
-assert.equal(await page.isVisible('#fCat'), true);
+assert.equal(await page.isVisible('#fDate'), true);
 assert.equal(await page.inputValue('#fDesc'), 'Kept typing');
 await page.click('[data-action=form-cancel]');
 await page.click('[data-action=add-expense]');

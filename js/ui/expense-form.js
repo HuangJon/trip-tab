@@ -1,13 +1,14 @@
 /** Adding and editing an expense. What people type lives in A.form, so nothing they typed is lost on a redraw. */
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
-import { actor, avatar, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
+import { actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
 import { needsRate } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
+import { suggestCategory } from '../core/categorize.js';
 import { shrinkPhoto } from './receipt.js';
 import { goTrip } from './routes.js';
 
@@ -33,7 +34,7 @@ export function openExpenseForm(trip, entry) {
   if (entry) {
     const c = entry.currency;
     A.form = {
-      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : storedToTyped(entry.rate, c, trip.currency),
+      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, categoryPicked: true, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : storedToTyped(entry.rate, c, trip.currency),
       kind: entry.kind, amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(handlersOf(entry)).map(([k, v]) => [k, fromMinor(v, c)])),
       multi: Object.keys(handlersOf(entry)).length > 1, payer: Object.keys(handlersOf(entry))[0],
       split: { inputs: {}, items: [], selected: Object.keys(sharesOf(entry)), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
@@ -43,7 +44,8 @@ export function openExpenseForm(trip, entry) {
   } else {
     const currency = A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
-    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: CATEGORIES[recent.category] ? recent.category : 'food', date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: all.includes(recent.payer) ? recent.payer : me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
+    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: all.includes(recent.payer) ? recent.payer : me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
 }
@@ -98,9 +100,16 @@ function rateWarning(t) {
   return `<div class="check bad stack tight"><span>This rate looks backwards.${m ? ` It would make ${esc(money(m, F.currency))} worth ${esc(money(convert(m, F.currency, t.currency, r), t.currency))}.` : ''} Enter how many ${esc(q.many)} you get for 1 ${esc(q.one)}.</span><div><button type="button" class="btn small" data-action="rate-flip">Flip it</button></div></div>`;
 }
 
+const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button type="button" class="cat-pick" data-action="cat-pick" data-id="${k}" aria-pressed="${F.category === k}"><span class="tile cat-${k}">${catIcon(k)}</span><span>${esc(label)}</span></button>`).join('');
+function drawCats() {
+  const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
+  if (picker) picker.innerHTML = catButtons(F);
+  if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
+}
+
 /** What's tucked under More details, so a glance shows whether the defaults are right. */
 function detailSummary(F) {
-  return [CATEGORIES[F.category] || 'Other', F.date === today() ? 'Today' : F.date, F.receipt ? 'Receipt' : '', F.note ? 'Note' : ''].filter(Boolean).join(' · ');
+  return [F.date === today() ? 'Today' : F.date, F.receipt ? 'Receipt' : '', F.note ? 'Note' : ''].filter(Boolean).join(' · ');
 }
 
 function drawForm() {
@@ -113,7 +122,8 @@ function drawForm() {
     ${F.isDraft ? `<div class="notice row between wrap"><span>Picked up your unsaved expense.</span><button type="button" class="btn small" data-action="draft-discard">${F.discardArmed ? 'Tap again to discard' : 'Discard'}</button></div>` : ''}
     ${F.id ? '' : `<div class="seg" role="group" aria-label="Type"><button type="button" data-action="form-kind" data-id="expense" aria-pressed="${!refund}">Expense</button><button type="button" data-action="form-kind" data-id="refund" aria-pressed="${refund}">Refund</button></div>`}
     ${refund ? '<p class="small muted">Use this when money comes back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
-    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="draft"></label>
+    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
+    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
@@ -123,8 +133,7 @@ function drawForm() {
     <div class="stack"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
     <button type="button" class="more-toggle" data-action="form-more" aria-expanded="${Boolean(F.showMore)}"><span>${F.showMore ? 'Hide details' : 'More details'}</span><span class="small muted wrap-any">${esc(detailSummary(F))}</span></button>
     <div class="stack" id="formMore" ${F.showMore ? '' : 'hidden'}>
-    <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
+    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="draft">${esc(F.note)}</textarea></label>
     </div>
@@ -155,6 +164,23 @@ function refresh() {
 }
 
 inputs.draft = () => keepDraft();
+// Typing suggests a category, until the person picks one themselves.
+inputs.desc = el => {
+  const F = A.form;
+  F.desc = el.value;
+  if (!F.categoryPicked) {
+    const guess = suggestCategory(el.value, Object.values(A.entries[F.tripId] || {}));
+    if (guess) { F.category = guess; F.suggested = true; } else if (F.suggested) { F.category = F.startCategory; F.suggested = false; }
+    drawCats();
+  }
+  keepDraft();
+};
+actions['cat-pick'] = el => {
+  collect();
+  Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false });
+  drawCats();
+  keepDraft();
+};
 inputs.amount = el => { A.form.amount = el.value; refresh(); };
 inputs.rate = el => { A.form.rate = el.value; A.form.backwardsOk = false; refresh(); };
 actions['rate-flip'] = () => {
