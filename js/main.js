@@ -11,22 +11,21 @@ import { createBackup } from './core/backup.js';
 import { isAdminId, isFromNewerApp, liveEntries } from './core/model.js';
 import { A, actions, changes, inputs, render, setRender, submits } from './ui/state.js';
 import { ICON, canWrite, closeSheet, svg, today } from './ui/dom.js';
-import { TABS, readHash } from './ui/routes.js';
+import { MORE_TABS, readHash } from './ui/routes.js';
 import { homeView } from './ui/home.js';
 import { tripHeader } from './ui/trip.js';
 import { expensesView } from './ui/expenses.js';
 import { balancesView } from './ui/balances.js';
 import { insightsView } from './ui/insights.js';
 import { activityView } from './ui/activity.js';
-import { importFile, peopleView, unavailableView } from './ui/people.js';
+import { importFile, peopleView, settingsView, unavailableView } from './ui/people.js';
 import { attachReceipt } from './ui/expense-form.js';
 import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
 const storage = createLocalStorage();
-const VIEWS = { expenses: expensesView, balances: balancesView, insights: insightsView, activity: activityView, people: peopleView };
-const TAB_LABELS = { expenses: ['Expenses', ICON.list], balances: ['Balances', ICON.scale], insights: ['Insights', ICON.chart], activity: ['Activity', ICON.clock], people: ['People', ICON.people] };
+const VIEWS = { expenses: expensesView, balances: balancesView, insights: insightsView, activity: activityView, people: peopleView, settings: settingsView };
 
 /* ---------- Drawing ---------- */
 function draw() {
@@ -57,12 +56,19 @@ function draw() {
     app.innerHTML = unavailableView(A.route.tripId);
   } else {
     const tab = A.route.tab;
-    app.innerHTML = tripHeader(trip) + VIEWS[tab](trip);
+    const inMore = MORE_TABS.includes(tab);
+    const moreNav = inMore ? `<div class="seg" role="group" aria-label="More">${[['people', 'People'], ['activity', 'Activity'], ['settings', 'Settings']].map(([k, l]) => `<button data-action="tab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>` : '';
+    app.innerHTML = tripHeader(trip) + moreNav + VIEWS[tab](trip);
     tabs.hidden = false;
-    tabs.innerHTML = `<div class="tabs-in">${TABS.map(k => `<button data-action="tab" data-tab="${k}" ${tab === k ? 'aria-current="page"' : ''}>${svg(TAB_LABELS[k][1])}${TAB_LABELS[k][0]}</button>`).join('')}</div>`;
-    fab.innerHTML = !canWrite(trip) ? '' : tab === 'balances'
-      ? `<button class="fab" data-action="settle">${svg(ICON.swap)}Settle up</button>`
-      : `<button class="fab" data-action="add-expense">${svg(ICON.plus)}Add expense</button>`;
+    const item = (k, label, icon, current) => `<button data-action="tab" data-tab="${k}" ${current ? 'aria-current="page"' : ''}>${svg(icon)}${label}</button>`;
+    tabs.innerHTML = `<div class="tabs-in">
+      ${item('expenses', 'Expenses', ICON.list, tab === 'expenses')}
+      ${item('balances', 'Balances', ICON.scale, tab === 'balances')}
+      ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" aria-label="Add expense">${svg(ICON.plus)}<span>Add</span></button>` : '<span></span>'}
+      ${item('insights', 'Insights', ICON.chart, tab === 'insights')}
+      <button id="moreTab" data-action="tab" data-tab="people" ${inMore ? 'aria-current="page"' : ''}>${svg(ICON.more)}More</button>
+    </div>`;
+    fab.innerHTML = '';
   }
   // Point out an expense you just saved, as soon as it's on screen.
   if (A.justSaved) {

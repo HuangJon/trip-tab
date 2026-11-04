@@ -3,7 +3,9 @@ import { A, render, actions } from './state.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { EMPTY_FILTERS } from '../core/filters.js';
 
-export const TABS = ['expenses', 'balances', 'insights', 'activity', 'people'];
+export const TABS = ['expenses', 'balances', 'insights', 'activity', 'people', 'settings'];
+/** These three share the More tab. */
+export const MORE_TABS = ['people', 'activity', 'settings'];
 
 function setHash(h, addToHistory) {
   try {

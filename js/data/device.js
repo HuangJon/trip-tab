@@ -42,6 +42,13 @@ export function createDevice(storage, now = () => Date.now()) {
     addFailedChange(text) { storage.trySet('failed-changes', [{ text, at: now() }, ...storage.get('failed-changes', [])].slice(0, 5)); },
     clearFailedChanges: () => storage.remove('failed-changes'),
 
+    /** The category and payer last used on this trip, so repeat expenses take fewer taps. */
+    recent: tripId => storage.get(`recent:${tripId}`, {}),
+    setRecent: (tripId, value) => storage.trySet(`recent:${tripId}`, value),
+    /** A friend's one-time introduction to a trip. */
+    needsWelcome: tripId => storage.get(`welcome:${tripId}`, false),
+    setNeedsWelcome: (tripId, value) => (value ? storage.trySet(`welcome:${tripId}`, true) : storage.remove(`welcome:${tripId}`)),
+
     lastBackup: tripId => storage.get(`backup-at:${tripId}`),
     markBackup: tripId => storage.trySet(`backup-at:${tripId}`, now()),
 

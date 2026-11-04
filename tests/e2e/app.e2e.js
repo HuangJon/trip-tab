@@ -48,6 +48,7 @@ await addExpense(page, 'Aquarium', '7500', async () => {
   assert.match(await page.textContent('#dlg'), /1 TWD = how many JPY/);
   await page.fill('#fRate', '5');
   assert.match(await page.textContent('#fConv'), /NT\$1,500/);
+  await page.click('[data-action=form-more]');
   await page.selectOption('#fCat', 'activities');
   await page.selectOption('#fPayer', { index: 2 });
 });
@@ -141,6 +142,37 @@ await page.click('#fSave');
 await page.waitForSelector('.tap:has-text("Items test")');
 check('typed values survive; by-item split saves');
 
+/* Why someone owes what they owe */
+await tab(page, 'balances');
+const shownBalance = await page.locator('.person-row:has-text("Jonathan") .amt').textContent();
+await page.click('.person-row:has-text("Jonathan")');
+await page.waitForSelector('#ledger');
+assert.match(await page.textContent('#ledger'), /Rental car/);
+assert.match(await page.textContent('#ledger'), /Paid NT\$4,800 · share NT\$1,600/);
+assert.ok(shownBalance.replace(/[+−]/, '').length > 0 && (await page.locator('#ledger .big').textContent()).includes(shownBalance.replace(/[+−]/, '')), 'the total matches the balance');
+await page.click('#ledger .tap:has-text("Rental car")');
+await page.waitForSelector('#dlg [data-action=close-sheet]');
+assert.match(await page.textContent('#dlg .detail-title'), /Rental car/);
+await page.click('[data-action=close-sheet]');
+check('tapping a person explains their balance');
+
+/* Shorter form with recent defaults */
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+assert.equal(await page.isVisible('#fCat'), false, 'details start tucked away');
+assert.match(await page.textContent('.more-toggle'), /Activities · Today/, 'the last category is suggested');
+assert.equal(await page.locator('#fPayer option:checked').textContent(), '小偉', 'the last payer is suggested');
+await page.fill('#fDesc', 'Kept typing');
+await page.click('[data-action=form-more]');
+assert.equal(await page.isVisible('#fCat'), true);
+assert.equal(await page.inputValue('#fDesc'), 'Kept typing');
+await page.click('[data-action=form-cancel]');
+await page.click('[data-action=add-expense]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=form-cancel]');
+check('details are tucked away, and recent choices are suggested');
+
 /* Feedback and navigation */
 await page.click('[data-action=add-expense]');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'a new expense starts in the description');
@@ -159,6 +191,7 @@ await page.click('[data-action=add-expense]');
 await page.fill('#fDesc', 'Shared hotel');
 await page.fill('#fAmt', '1000');
 await page.click('[data-action=toggle-multi]');
+await page.fill('[id^=pay-] >> nth=2', '');
 await page.fill('[id^=pay-] >> nth=1', '400');
 await page.fill('[id^=pay-] >> nth=0', '100');
 await page.click('#fSave');
@@ -264,6 +297,7 @@ writeFileSync('/tmp/receipt-test.png', Buffer.from(pngB64, 'base64'));
 await page.click('[data-action=add-expense]');
 await page.fill('#fDesc', 'With photo');
 await page.fill('#fAmt', '10');
+await page.click('[data-action=form-more]');
 await page.setInputFiles('#fPhoto', '/tmp/receipt-test.png');
 await page.waitForSelector('.tag.good');
 assert.equal(await page.inputValue('#fDesc'), 'With photo');
@@ -366,7 +400,12 @@ check('a friend picks or adds their name');
   assert.match(picker, /tied to your account/);
   await pal.click('[data-action=set-me]:has-text("Mia")');
   await pal.waitForFunction(() => !/Which one is you/.test(document.getElementById('app').textContent));
+  await pal.waitForSelector('#welcomeCard');
+  await pal.click('[data-action=welcome-dismiss]');
+  await pal.waitForFunction(() => !document.getElementById('welcomeCard'));
+  await pal.reload();
   await pal.waitForSelector('.tap:has-text("Rental car")');
+  assert.equal(await pal.locator('#welcomeCard').count(), 0, 'the welcome appears once');
   await pal.click('.tap:has-text("Rental car")');
   await pal.waitForSelector('#dlg .big');
   assert.equal(await pal.locator('#dlg [data-action=edit-entry]').count(), 0, "can't edit an expense someone else added and paid");
@@ -385,11 +424,13 @@ check('a friend picks or adds their name');
   await tab(pal, 'people');
   const peopleScreen = await pal.textContent('#app');
   assert.match(peopleScreen, /Admin/);
+  await tab(pal, 'settings');
   assert.equal(await pal.locator('[data-action=confirm-delete]').count(), 0);
+  assert.equal(await pal.locator('[data-action=backup-paste]').count(), 0);
+  await tab(pal, 'people');
   assert.equal(await pal.locator('[data-action=confirm-replace]').count(), 0);
   assert.equal(await pal.locator('[data-action=release-claim]').count(), 0);
   assert.equal(await pal.locator('#newMember').count(), 0);
-  assert.equal(await pal.locator('[data-action=backup-paste]').count(), 0);
   assert.ok(await pal.locator('input[aria-label="Jonathan\'s name"]').isDisabled());
   assert.ok(!(await pal.locator('input[aria-label="Mia\'s name"]').isDisabled()), 'can rename themselves');
   assert.ok(!(await pal.locator('input[aria-label="Mia\'s Venmo"]').isDisabled()));
@@ -423,7 +464,7 @@ await page.evaluate(() => localStorage.removeItem('triptab:test-hang-writes'));
 check('saving works while a write is still waiting on the network');
 
 /* Backups */
-await tab(page, 'people');
+await tab(page, 'settings');
 await page.click('[data-action=backup-copy]');
 const copied = await page.evaluate(() => navigator.clipboard.readText());
 assert.match(copied, /trip-tab-backup/);
@@ -437,6 +478,7 @@ await toastSays(/Added \d+ entries/);
 check('backup copy and paste; junk refused');
 
 /* Removing someone: only when they appear on nothing */
+await tab(page, 'people');
 await page.fill('#newMember', 'Temp');
 await page.click('form[data-form=add-member] button');
 await page.waitForSelector('[aria-label="Remove Temp"]');
@@ -532,6 +574,7 @@ await page.fill('#fDesc', 'Deposit back');
 await page.fill('#fAmt', '300');
 assert.match(await page.textContent('#dlg'), /Received by/);
 assert.match(await page.textContent('#dlg'), /Shared by/);
+await page.selectOption('#fPayer', { index: 0 });
 await page.click('#fSave');
 await page.waitForSelector('.tap:has-text("Deposit back")');
 assert.match(await page.textContent('.tap:has-text("Deposit back")'), /You received NT\$300/);
@@ -560,9 +603,9 @@ await tab(page, 'balances');
 await tab(page, 'expenses');
 assert.match(await page.textContent('#filterToggle'), /Filters \(1\)/, 'filters stay while moving between tabs');
 await page.selectOption('#fltPerson', { label: 'Everyone' });
-await page.selectOption('#fltType', 'activities');
+await page.selectOption('#fltType', 'kind:refund');
 assert.equal(await page.locator('.tap').count(), 1);
-assert.match(await page.textContent('.tap'), /Aquarium/);
+assert.match(await page.textContent('.tap'), /Deposit back/);
 await page.selectOption('#fltType', '');
 await page.fill('#fltMin', '4000');
 assert.equal(await page.inputValue('#fltMin'), '4000');
@@ -623,14 +666,14 @@ assert.equal(await page.evaluate(() => navigator.clipboard.readText()), handleVa
 check('payment details appear beside debts and copy');
 
 /* Archive */
-await tab(page, 'people');
+await tab(page, 'settings');
 await page.click('[data-action=archive-toggle]');
 await page.waitForSelector('.home-head');
 assert.equal(await page.locator('.tap').count(), 0);
 await page.click('[data-action=toggle-archived]');
 await page.click('.tap');
 await page.waitForSelector('#entryList');
-await tab(page, 'people');
+await tab(page, 'settings');
 await page.click('[data-action=archive-toggle]');
 check('archive moves a trip aside and back');
 
@@ -702,7 +745,7 @@ await page.evaluate(h => { location.hash = h; }, new URL(newInvite).hash);
 await page.waitForSelector('#entryList');
 
 /* Delete for everyone, then restore */
-await tab(page, 'people');
+await tab(page, 'settings');
 await page.click('[data-action=confirm-delete]');
 await page.click('[data-action=delete-yes]');
 await page.waitForSelector('.home-head');
@@ -722,6 +765,27 @@ await page.fill('#joinLink', newInvite);
 await page.click('form[data-form=join-link] button');
 await page.waitForSelector('#entryList');
 check('joining by pasting a link');
+
+/* Settling everything */
+await page.click('[data-action=home]');
+await page.waitForSelector('.home-head');
+await page.click('[data-action=new-trip] >> nth=0');
+await page.fill('#ntName', 'Quick trip');
+await page.fill('#ntPeople', 'Jonathan\nPat');
+await page.selectOption('#ntCur', 'USD');
+await page.click('form[data-form=new-trip] .btn.primary');
+await page.waitForSelector('[data-action=invite-first]');
+await addExpense(page, 'Lunch', '20');
+await tab(page, 'balances');
+await page.click('[data-action=settle] >> nth=0');
+await page.click('form[data-form=settle] .btn.primary');
+await page.waitForSelector('#settledUp');
+assert.match(await page.textContent('#settledUp'), /Everyone is settled up/);
+await page.click('#settledUp [data-action=archive-toggle]');
+await page.waitForSelector('.home-head');
+await page.click('[data-action=toggle-archived]');
+assert.match(await text(page), /Quick trip/);
+check('a settled trip says so, and offers to archive');
 
 /* Bad link */
 await page.evaluate(() => { location.hash = '#join-aaaaaaaaaaaaaaaaaaaaaaaa'; });

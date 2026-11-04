@@ -42,7 +42,8 @@ export function openExpenseForm(trip, entry) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
     const currency = A.device.lastCurrency(trip.id) || trip.currency;
-    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: 'food', date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    const recent = A.device.recent(trip.id);
+    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: CATEGORIES[recent.category] ? recent.category : 'food', date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: all.includes(recent.payer) ? recent.payer : me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
 }
@@ -97,6 +98,11 @@ function rateWarning(t) {
   return `<div class="check bad stack tight"><span>This rate looks backwards.${m ? ` It would make ${esc(money(m, F.currency))} worth ${esc(money(convert(m, F.currency, t.currency, r), t.currency))}.` : ''} Enter how many ${esc(q.many)} you get for 1 ${esc(q.one)}.</span><div><button type="button" class="btn small" data-action="rate-flip">Flip it</button></div></div>`;
 }
 
+/** What's tucked under More details, so a glance shows whether the defaults are right. */
+function detailSummary(F) {
+  return [CATEGORIES[F.category] || 'Other', F.date === today() ? 'Today' : F.date, F.receipt ? 'Receipt' : '', F.note ? 'Note' : ''].filter(Boolean).join(' · ');
+}
+
 function drawForm() {
   const F = A.form, t = tripOf();
   if (!t) return closeSheet();
@@ -111,14 +117,17 @@ function drawForm() {
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
-    <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
     <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
     : `<select id="fPayer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
     <div class="stack"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
+    <button type="button" class="more-toggle" data-action="form-more" aria-expanded="${Boolean(F.showMore)}"><span>${F.showMore ? 'Hide details' : 'More details'}</span><span class="small muted wrap-any">${esc(detailSummary(F))}</span></button>
+    <div class="stack" id="formMore" ${F.showMore ? '' : 'hidden'}>
+    <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="draft">${esc(F.note)}</textarea></label>
+    </div>
     ${F.id ? `<button type="button" class="btn danger" data-action="delete-entry" data-id="${F.id}">Delete ${refund ? 'refund' : 'expense'}</button>` : ''}
   </div></form>`);
   const b = document.querySelector('#dlg .sheet-body');
@@ -168,6 +177,7 @@ changes['form-currency'] = el => {
 };
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
+actions['form-more'] = () => { collect(); A.form.showMore = !A.form.showMore; drawForm(); };
 actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {
   const hadText = A.form && !A.form.id && (document.getElementById('fDesc')?.value || document.getElementById('fAmt')?.value);
@@ -262,6 +272,8 @@ submits.expense = () => {
 function commit(t, entry, current) {
   const isNew = !current;
   A.device.setLastCurrency(t.id, entry.currency);
+  const handlers = Object.keys(handlersOf(entry));
+  A.device.setRecent(t.id, { category: entry.category, payer: handlers.length === 1 ? handlers[0] : null });
   if (isNew) A.device.clearDraft(t.id);
   if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
   closeSheet();

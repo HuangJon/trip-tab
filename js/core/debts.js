@@ -100,3 +100,19 @@ export function spendingBreakdown(entries, base) {
   }
   return { total, count, byCategory, byDay, paid, share };
 }
+
+/**
+ * Every entry behind one person's balance, oldest first. The nets always add up to their balance.
+ * "handled" is what they paid (or received, on a refund) and "share" is their part of the cost.
+ */
+export function personLedger(entries, base, id) {
+  const rows = [];
+  for (const e of countable(entries, base)) {
+    const b = inBase(e, base);
+    const net = (b.paid[id] || 0) - (b.owed[id] || 0);
+    if (!b.paid[id] && !b.owed[id]) continue;
+    const refund = e.kind === 'refund';
+    rows.push({ entry: e, net, handled: (refund ? b.owed[id] : b.paid[id]) || 0, share: (refund ? b.paid[id] : b.owed[id]) || 0 });
+  }
+  return rows.sort((a, b) => (a.entry.date || '').localeCompare(b.entry.date || '') || (a.entry.createdAt || 0) - (b.entry.createdAt || 0));
+}

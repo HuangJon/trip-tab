@@ -39,7 +39,7 @@ function joinedSection(trip, admin, members) {
 }
 
 export function peopleView(trip) {
-  const me = getMe(trip), write = canWrite(trip), admin = amAdmin(trip), rates = Object.entries(trip.rates || {}), entries = A.entries[trip.id];
+  const me = getMe(trip), admin = amAdmin(trip), entries = A.entries[trip.id];
   const members = activeMembers(trip);
   return `<section class="panel pad stack"><h2>Invite friends</h2>
       <p class="small muted">Friends open this link, verify an email or Google account, then pick their name. Share it only with the group.</p>
@@ -65,7 +65,13 @@ export function peopleView(trip) {
   <section class="panel pad stack"><h2>Payment details</h2>
     <p class="small muted">Optional. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
     ${members.map(m => `<div class="stack tight"><strong class="small wrap-any">${esc(m.name)}</strong><div class="pay-grid"><input id="ven-${m.id}" aria-label="${esc(m.name)}'s Venmo" placeholder="Venmo @name" maxlength="60" value="${esc(m.venmo || '')}" data-change="payment" data-field="venmo" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}><input id="zel-${m.id}" aria-label="${esc(m.name)}'s Zelle" placeholder="Zelle phone or email" maxlength="60" value="${esc(m.zelle || '')}" data-change="payment" data-field="zelle" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}></div></div>`).join('')}</section>
-  <section class="panel pad stack"><h2>Trip settings</h2>
+`;
+}
+
+/** The rarely used things, kept apart so the people screen stays short. */
+export function settingsView(trip) {
+  const admin = amAdmin(trip), rates = Object.entries(trip.rates || {});
+  return `  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
     <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="small mono">${esc(rateLabel(r, c, trip.currency))}</div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>

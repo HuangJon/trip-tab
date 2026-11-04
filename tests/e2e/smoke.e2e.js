@@ -34,7 +34,7 @@ for (const v of VIEWPORTS) {
   await noSideScroll(page, `${label} people`);
   await addExpense(page, 'Rental car', '4800');
   assert.ok(await page.isVisible('[data-action=add-expense]'), 'Add expense stays visible');
-  for (const name of ['expenses', 'balances', 'insights', 'activity', 'people']) {
+  for (const name of ['expenses', 'balances', 'insights', 'activity', 'people', 'settings']) {
     await tab(page, name);
     await page.waitForTimeout(30);
     await noSideScroll(page, `${label} ${name}`);

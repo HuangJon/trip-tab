@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { inBase, needsRate, netBalances, pairwise, simplify, spendingBreakdown } from '../../js/core/debts.js';
+import { inBase, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown } from '../../js/core/debts.js';
 const es = [
   { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 900, paid: { a: 900 }, owed: { a: 300, b: 300, c: 300 } },
   { kind: 'expense', category: 'fun', date: '2026-01-02', currency: 'JPY', rate: 0.21, total: 3333, paid: { b: 3333 }, owed: { a: 1111, b: 1111, c: 1111 } },
@@ -76,4 +76,22 @@ test('an expense with no rate stays out of every total until it has one', () => 
   assert.equal(spendingBreakdown([rated, waiting], 'TWD').total, 100);
   const fixed = netBalances([rated, { ...waiting, rate: 0.2 }], 'TWD');
   assert.deepEqual(fixed, { a: -450, b: 450 });
+});
+
+test("a person's lines always add up to their balance", () => {
+  for (const id of ['a', 'b', 'c']) {
+    const rows = personLedger(es, 'TWD', id);
+    assert.equal(rows.reduce((s, r) => s + r.net, 0), netBalances(es, 'TWD')[id]);
+  }
+  assert.deepEqual(personLedger(es, 'TWD', 'nobody'), []);
+});
+test('the breakdown reads the right way round for a refund, and skips unrated entries', () => {
+  const refund = { kind: 'refund', date: '2026-01-02', currency: 'T', total: 30, paid: { a: 15, b: 15 }, owed: { a: 30 } };
+  const [r] = personLedger([refund], 'T', 'a');
+  assert.equal(r.handled, 30); assert.equal(r.share, 15); assert.equal(r.net, -15);
+  assert.deepEqual(personLedger([{ ...refund, currency: 'JPY', rate: null }], 'T', 'a'), []);
+});
+test('the breakdown runs oldest first', () => {
+  const dates = personLedger(es, 'TWD', 'a').map(r => r.entry.date);
+  assert.deepEqual(dates, [...dates].sort());
 });

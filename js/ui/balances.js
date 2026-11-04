@@ -1,9 +1,9 @@
 /** Who pays whom, each person's balance, and recording payments. */
 import { A, actions, submits } from './state.js';
 import { LIMITS } from '../config/app.js';
-import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
+import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
-import { needsRate, netBalances, pairwise, simplify } from '../core/debts.js';
+import { needsRate, netBalances, pairwise, personLedger, simplify } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { summaryCard } from './trip.js';
@@ -13,6 +13,14 @@ const unratedCount = trip => liveEntries(A.entries[trip.id]).filter(e => needsRa
 export function debtsFor(trip) {
   const list = liveEntries(A.entries[trip.id]);
   return trip.simplify === false ? pairwise(list, trip.currency) : simplify(netBalances(list, trip.currency));
+}
+
+/** A small moment once a trip with real expenses reaches zero. */
+function settledHtml(trip) {
+  const has = liveEntries(A.entries[trip.id]).length > 0;
+  if (!has) return '<div class="empty"><h3>Nothing to settle yet</h3><p class="muted small">Balances appear after the first expense.</p></div>';
+  const shelved = A.device.archived().includes(trip.id);
+  return `<div class="empty settled" id="settledUp"><span class="settled-mark" aria-hidden="true">✓</span><h3>Everyone is settled up</h3><p class="muted small">Nobody owes anything on this trip. Nice work.</p>${shelved ? '' : '<button class="btn small" data-action="archive-toggle">Archive this trip</button>'}</div>`;
 }
 
 /** Foreign expenses still waiting for a rate. They need one before the group settles up. */
@@ -38,21 +46,21 @@ export function balancesView(trip) {
   const max = Math.max(1, ...Object.values(net).map(Math.abs));
   const debts = debtsFor(trip), write = canWrite(trip), admin = amAdmin(trip);
   return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
-    <div class="pad stack"><div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
+    <div class="pad stack">${write && debts.length ? '<button class="btn primary" data-action="settle">Settle up</button>' : ''}<div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
     <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. The amount each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p></div>
     <div class="tear" aria-hidden="true"></div>
     ${debts.length ? `<div class="list">${debts.map(d => `<div class="debt">${avatar(trip, d.from)}<span class="names"><strong>${esc(who(trip, d.from))}</strong> ${d.from === me ? 'pay' : 'pays'} <strong>${esc(who(trip, d.to))}</strong><br><span class="amt ${d.from === me ? 'owe' : d.to === me ? 'owed' : ''}">${money(d.amount, c)}</span></span>
       ${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">Record payment</button>` : ''}${handles(trip, d.to)}</div>`).join('')}</div>
       <div class="tear" aria-hidden="true"></div><div class="pad"><button class="btn small" data-action="share-summary">Share this summary</button></div>`
-    : '<div class="empty"><h3>Everyone is settled up</h3><p class="muted small">New expenses will show here.</p></div>'}
+    : settledHtml(trip)}
   </section>
   <section class="panel pad stack"><h2>Each person's balance</h2>
     ${members.map(m => {
       const v = net[m.id] || 0, w = (Math.abs(v) / max) * 100;
-      return `<div class="stack tight"><div class="row between"><span class="row gap8">${avatar(trip, m.id)}<span>${esc(m.name)}</span>${m.id === me ? '<span class="tag you">you</span>' : ''}</span><span class="amt ${v > 0 ? 'owed' : v < 0 ? 'owe' : 'muted'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}</span></div>
-        <div class="diverge" role="img" aria-label="${esc(m.name)} ${v >= 0 ? 'is owed' : 'owes'} ${money(Math.abs(v), c)}"><div>${v < 0 ? `<i class="bar-owe" style="width:${w}%"></i>` : ''}</div><div>${v > 0 ? `<i class="bar-owed" style="width:${w}%"></i>` : ''}</div></div></div>`;
+      return `<button type="button" class="person-row stack tight" data-action="person-ledger" data-id="${m.id}"><div class="row between"><span class="row gap8">${avatar(trip, m.id)}<span>${esc(m.name)}</span>${m.id === me ? '<span class="tag you">you</span>' : ''}</span><span class="amt ${v > 0 ? 'owed' : v < 0 ? 'owe' : 'muted'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}</span></div>
+        <div class="diverge" role="img" aria-label="${esc(m.name)} ${v >= 0 ? 'is owed' : 'owes'} ${money(Math.abs(v), c)}"><div>${v < 0 ? `<i class="bar-owe" style="width:${w}%"></i>` : ''}</div><div>${v > 0 ? `<i class="bar-owed" style="width:${w}%"></i>` : ''}</div></div></button>`;
     }).join('')}
-    <p class="tiny muted">Left of center owes money. Right of center is owed money.</p></section>`;
+    <p class="tiny muted">Left of center owes money. Right of center is owed money. Tap a person to see why.</p></section>`;
 }
 
 actions.simplify = el => { const t = A.trips[A.route.tripId]; send(A.repo.updateTrip(t.id, { simplify: el.checked }, getMe(t))); };
@@ -96,4 +104,24 @@ submits.settle = () => {
   send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), actorId: getMe(trip), label: `recorded that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, trip.currency)}` }), 'A payment');
   toast('Payment recorded');
   return undefined;
+};
+
+/** Why someone's balance is what it is, line by line. */
+actions['person-ledger'] = el => {
+  const trip = A.trips[A.route.tripId], id = el.dataset.id, c = trip.currency;
+  const all = liveEntries(A.entries[trip.id]), rows = personLedger(all, c, id), balance = rows.reduce((s, r) => s + r.net, 0);
+  const missing = all.filter(e => needsRate(e, c) && (e.paid[id] || e.owed[id])).length;
+  const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}`;
+  const tone = v => (v > 0 ? 'owed' : v < 0 ? 'owe' : 'muted');
+  const describe = r => {
+    if (r.entry.kind === 'payment') return r.net > 0 ? `Paid ${esc(memberName(trip, Object.keys(r.entry.owed)[0]))}` : `Received from ${esc(memberName(trip, Object.keys(r.entry.paid)[0]))}`;
+    const verb = r.entry.kind === 'refund' ? 'Received' : 'Paid';
+    return `${verb} ${money(r.handled, c)} · share ${money(r.share, c)}`;
+  };
+  openSheet(`<div class="sheet">${sheetHead(`${memberName(trip, id)}'s balance`, '', 'Close')}<div class="sheet-body" id="ledger">
+    <section class="panel pad stack tight"><span class="label">${balance > 0 ? 'Is owed' : balance < 0 ? 'Owes' : 'Balance'}</span><div class="big ${tone(balance)}">${balance === 0 ? 'Settled up' : money(Math.abs(balance), c)}</div>
+    <p class="small muted">Each line shows what they paid minus their share. Added together, the lines make this balance.</p></section>
+    ${missing ? `<div class="notice">${missing} expense${missing > 1 ? 's are' : ' is'} left out until ${missing > 1 ? 'they have' : 'it has'} an exchange rate.</div>` : ''}
+    ${rows.length ? `<section class="panel"><div class="list">${rows.map(r => `<button class="tap" data-action="open-entry" data-id="${r.entry.id}"><span class="grow"><strong class="block wrap-any">${esc(r.entry.kind === 'payment' ? 'Settlement' : r.entry.desc)}</strong><span class="small muted">${describe(r)}</span><span class="tiny muted block">${fmtDate(r.entry.date)}</span></span><span class="right amt ${tone(r.net)}">${signed(r.net)}</span></button>`).join('')}</div></section>` : '<p class="muted">Nothing here yet.</p>'}
+  </div></div>`);
 };

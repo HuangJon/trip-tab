@@ -33,7 +33,10 @@ export async function createTrip(page, name = 'Okinawa', people = 'Jonathan\nMia
   await tab(page, 'people');
   await page.waitForSelector('#inviteLink');
 }
-export async function tab(page, name) { await page.click(`[data-tab=${name}]`); }
+export async function tab(page, name) {
+  if (!await page.locator(`[data-tab=${name}]`).count()) await page.click('#moreTab');
+  await page.click(`[data-tab=${name}]`);
+}
 export async function addExpense(page, desc, amount, during) {
   await tab(page, 'expenses');
   await page.click('[data-action=add-expense]');

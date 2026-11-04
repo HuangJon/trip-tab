@@ -36,6 +36,7 @@ actions['set-me'] = async el => {
   try {
     await A.repo.claimMember(tripId, memberId);
     A.device.setMe(tripId, memberId);
+    A.device.setNeedsWelcome(tripId, true);
     render();
     toast(`You're in as ${A.trips[tripId]?.members?.[memberId]?.name || 'yourself'}`);
   } catch (e) {
@@ -51,6 +52,7 @@ submits['join-self'] = async () => {
   try {
     const { memberId } = await A.repo.joinAs(trip, name);
     A.device.setMe(trip.id, memberId);
+    A.device.setNeedsWelcome(trip.id, true);
     render();
     toast(`Welcome, ${name}`);
   } catch { toast("You weren't added. Check your connection and try again."); }

@@ -1,7 +1,7 @@
 * { box-sizing:border-box }
 html,body { min-height:100% }
 body { margin:0; background:linear-gradient(var(--wash),var(--ground) 260px) no-repeat var(--ground); color:var(--ink); font:400 16px/1.45 var(--body);
-  padding-block:env(safe-area-inset-top,0px) calc(150px + env(safe-area-inset-bottom,0px));
+  padding-block:env(safe-area-inset-top,0px) calc(96px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)) }
 body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--ground) }
 #app { max-width:680px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:18px; padding-top:16px }
@@ -51,7 +51,7 @@ label.f>span:first-child,.flabel { font-size:.84rem; font-weight:600; color:var(
 .tag.you { background:var(--accent-soft); color:var(--accent) } .tag.good { background:var(--owed-soft); color:var(--owed) }
 .ava { width:30px; height:30px; border-radius:50%; display:inline-grid; place-items:center; font-size:.8rem; font-weight:600; color:#fff; flex:none }
 .x { border:0; background:none; width:36px; height:36px; font-size:1.2rem; color:var(--muted); flex:none }
-#toast { position:fixed; z-index:50; left:50%; transform:translateX(-50%); bottom:calc(136px + env(safe-area-inset-bottom,0px)); background:var(--ink); color:var(--ground); padding:10px 14px; border-radius:10px; display:flex; gap:14px; align-items:center; font-size:.9rem; max-width:calc(100vw - 32px); width:max-content }
+#toast { position:fixed; z-index:50; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom,0px)); background:var(--ink); color:var(--ground); padding:10px 14px; border-radius:10px; display:flex; gap:14px; align-items:center; font-size:.9rem; max-width:calc(100vw - 32px); width:max-content }
 #toast button { background:none; border:0; color:inherit; text-decoration:underline; font-weight:600 }
 .update { position:sticky; top:env(safe-area-inset-top,0px); z-index:8; max-width:680px; margin:8px auto 0; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 12px; background:var(--accent-soft); border-radius:10px; font-size:.9rem }
 @media (prefers-reduced-motion: no-preference) { .fill,.diverge i { transition:width .25s ease } }
@@ -61,12 +61,13 @@ button { -webkit-tap-highlight-color:transparent }
 .busy { opacity:.6; pointer-events:none }
 button:disabled { opacity:.55 }
 @media (prefers-reduced-motion: no-preference) {
-  .btn,.chip,.fab,.tap,.seg button,.tabs button { transition:transform .12s ease,background-color .15s ease,border-color .15s ease }
-  .btn:active,.chip:active,.fab:active { transform:scale(.97) }
+  .btn,.chip,.add-tab svg,.tap,.seg button,.tabs button { transition:transform .12s ease,background-color .15s ease,border-color .15s ease }
+  .btn:active,.chip:active,.add-tab:active svg { transform:scale(.97) }
   dialog[open] { animation:sheet-in .22s cubic-bezier(.2,.8,.2,1) }
   dialog::backdrop { animation:fade-in .2s ease }
   #toast:not([hidden]) { animation:toast-in .18s ease }
   .fresh { animation:fresh 1.8s ease }
+  .settled-mark { animation:pop .45s cubic-bezier(.2,1.4,.4,1) }
 }
 .tap:active { background:var(--sunken) }
 .fresh { background:var(--accent-soft) }
@@ -74,3 +75,4 @@ button:disabled { opacity:.55 }
 @keyframes fade-in { from { opacity:0 } }
 @keyframes toast-in { from { transform:translate(-50%,8px); opacity:0 } }
 @keyframes fresh { from { background:var(--accent-soft) } to { background:transparent } }
+@keyframes pop { from { transform:scale(.4); opacity:0 } }

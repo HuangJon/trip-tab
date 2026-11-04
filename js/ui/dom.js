@@ -11,6 +11,7 @@ export const ICON = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
   scale: '<path d="M12 3v18M7 21h10M4 7h16M6.5 7L3 14a3.5 3.5 0 0 0 7 0zM17.500 7L14 14a3.500 3.500 0 0 0 7 0z"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  more: '<circle cx="5" cy="12" r="1.400"/><circle cx="12" cy="12" r="1.400"/><circle cx="19" cy="12" r="1.400"/>',
   people: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.800 3.500-5.500 7-5.500s6.200 1.700 7 5.500"/>', swap: '<path d="M4 8h14l-4-4M20 16H6l4 4"/>',
 };
 export const CAT_ICON = {
