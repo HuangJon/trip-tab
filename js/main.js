@@ -64,7 +64,7 @@ function draw() {
     tabs.innerHTML = `<div class="tabs-in">
       ${item('expenses', 'Expenses', ICON.list, tab === 'expenses')}
       ${item('balances', 'Balances', ICON.scale, tab === 'balances')}
-      ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" aria-label="Add expense">${svg(ICON.plus)}<span>Add</span></button>` : '<span></span>'}
+      ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" >${svg(ICON.plus)}<span>Add expense</span></button>` : '<span></span>'}
       ${item('insights', 'Insights', ICON.chart, tab === 'insights')}
       <button id="moreTab" data-action="tab" data-tab="people" ${inMore ? 'aria-current="page"' : ''}>${svg(ICON.more)}More</button>
     </div>`;

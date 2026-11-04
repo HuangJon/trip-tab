@@ -135,3 +135,5 @@ nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box
 .debt-end { display:flex; align-items:center; gap:10px; margin-left:auto }
 .debt.other { font-size:.9rem }
 .debt.other .ava { width:24px; height:24px; font-size:.7rem }
+.tabs-in { grid-template-columns:1fr 1fr minmax(76px,1.3fr) 1fr 1fr }
+.add-tab span { white-space:nowrap }
