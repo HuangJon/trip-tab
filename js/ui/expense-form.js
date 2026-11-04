@@ -7,7 +7,7 @@ import { needsRate } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
-import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
+import { looksBackwards, rateQuestion, roughUsd, storedToTyped, typedToStored } from '../core/rates.js';
 import { suggestCategory } from '../core/categorize.js';
 import { shrinkPhoto } from './receipt.js';
 import { goTrip } from './routes.js';
@@ -92,6 +92,14 @@ function rateNote(t) {
   const F = A.form, r = typedToStored(F.rate, F.currency, t.currency), m = toMinor(F.amount, F.currency);
   return r && m ? `${money(m, F.currency)} ≈ ${money(convert(m, F.currency, t.currency, r), t.currency)}` : "Leave this blank if you don't know it yet. The expense stays out of balances until it has a rate. Use the rate you actually paid.";
 }
+/** A rough dollar figure under the amount. A USD trip with a rate already shows the real one just below. */
+function usdHint(t) {
+  const F = A.form;
+  if (t.currency === 'USD' && typedToStored(F.rate, F.currency, t.currency)) return '';
+  const usd = roughUsd(toMinor(F.amount, F.currency), F.currency);
+  return usd ? `Roughly ${usd}` : '';
+}
+
 /** Warns right away when a rate looks upside down, showing the amount it would produce. */
 function rateWarning(t) {
   const F = A.form, r = typedToStored(F.rate, F.currency, t.currency), m = toMinor(F.amount, F.currency);
@@ -126,6 +134,7 @@ function drawForm() {
     <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
+    <span class="conv mono" id="fUsd">${usdHint(t)}</span>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
@@ -156,6 +165,8 @@ function refresh() {
   }
   const pc = document.getElementById('payCheck');
   if (pc) pc.innerHTML = payCheck(t);
+  const us = document.getElementById('fUsd');
+  if (us) us.textContent = usdHint(t);
   const cv = document.getElementById('fConv');
   if (cv) cv.textContent = rateNote(t);
   const rw = document.getElementById('fRateWarn');

@@ -659,6 +659,18 @@ await page.click('#filterPanel [data-action=filters-clear]');
 await page.click('[data-action=filters-toggle]');
 check('filter by person, type, date and amount, and sort');
 
+/* A rough dollar figure while typing a foreign amount */
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+await page.selectOption('#fCur', 'THB');
+await page.fill('#fAmt', '3500');
+await page.waitForFunction(() => /Roughly \$100/.test(document.getElementById('fUsd').textContent));
+await page.fill('#fAmt', '');
+await page.waitForFunction(() => document.getElementById('fUsd').textContent === '');
+await page.click('[data-action=form-cancel]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+check('typing a foreign amount shows roughly how much it is in dollars');
+
 /* Quick actions: right-click and long press */
 await tab(page, 'expenses');
 await page.click('.tap:has-text("Credit test")', { button: 'right' });

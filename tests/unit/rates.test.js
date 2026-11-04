@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { asksInverse, looksBackwards, rateLabel, rateQuestion, storedToTyped, typedToStored } from '../../js/core/rates.js';
+import { asksInverse, looksBackwards, rateLabel, rateQuestion, roughUsd, storedToTyped, typedToStored } from '../../js/core/rates.js';
 import { convert } from '../../js/core/money.js';
 
 test('the form asks in the direction that gives a number of 1 or more', () => {
@@ -41,4 +41,13 @@ test("similar currencies, and ones not listed, are never flagged", () => {
 test('labels read naturally', () => {
   assert.equal(rateLabel(1 / 33, 'TWD', 'USD'), '1 USD = 33 TWD');
   assert.equal(rateLabel(33, 'USD', 'TWD'), '1 USD = 33 TWD');
+});
+
+test('a rough dollar figure for a foreign amount', () => {
+  assert.equal(roughUsd(2800, 'TWD'), '$88');
+  assert.equal(roughUsd(32, 'TWD'), '$1.00');
+  assert.equal(roughUsd(100000, 'JPY'), '$667');
+  assert.equal(roughUsd(5000, 'USD'), '');
+  assert.equal(roughUsd(0, 'TWD'), '');
+  assert.equal(roughUsd(5000, 'XXX'), '');
 });

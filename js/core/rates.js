@@ -1,3 +1,5 @@
+import { decimals } from './money.js';
+
 /**
  * Exchange rates are stored one way: how many units of the trip's currency one unit of the expense's
  * currency buys. People think of them the other way when that number would be tiny: they say
@@ -17,6 +19,18 @@ export function roughRate(from, to) {
   const a = ROUGH_PER_USD[from], b = ROUGH_PER_USD[to];
   return a && b ? b / a : null;
 }
+/**
+ * A ballpark in US dollars while someone types a foreign amount, or '' when there's nothing to show.
+ * It uses ROUGH_PER_USD, so it's only ever display text and never goes into an amount.
+ */
+export function roughUsd(minor, currency) {
+  const rate = roughRate(currency, 'USD');
+  if (currency === 'USD' || !rate || !(minor > 0)) return '';
+  const dollars = (minor / 10 ** decimals(currency)) * rate;
+  const small = dollars < 10;
+  return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD', minimumFractionDigits: small ? 2 : 0, maximumFractionDigits: small ? 2 : 0 }).format(dollars);
+}
+
 /** True when the form should ask "1 trip currency = how many expense currency". */
 export const asksInverse = (from, to) => (roughRate(from, to) ?? 1) < 1;
 

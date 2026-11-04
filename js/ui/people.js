@@ -38,6 +38,12 @@ function joinedSection(trip, admin, members) {
     <p class="tiny muted">Only admins see this list and these emails. Removing someone stops them opening the trip. Their expenses stay.</p></section>`;
 }
 
+/** Why a name can't be removed yet. Deleted expenses count, because they can be brought back. */
+function usedOn(entries, id) {
+  const on = Object.values(entries || {}).filter(e => e.paid?.[id] || e.owed?.[id]), gone = on.filter(e => e.deleted).length;
+  return `On ${on.length} ${on.length === 1 ? 'entry' : 'entries'}${gone ? `, ${gone} deleted` : ''}. Take this name off ${on.length === 1 ? 'it' : 'them'} to remove it.`;
+}
+
 export function peopleView(trip) {
   const me = getMe(trip), admin = amAdmin(trip), entries = A.entries[trip.id];
   const members = activeMembers(trip);
@@ -54,13 +60,15 @@ export function peopleView(trip) {
       const self = me === m.id;
       return `<div class="stack tight"><div class="row">${avatar(trip, m.id)}<input id="mem-${m.id}" aria-label="${esc(m.name)}'s name" value="${esc(m.name)}" maxlength="${LIMITS.personName}" data-change="rename" data-id="${m.id}" ${admin || self ? '' : 'disabled'}>
         ${self ? '<span class="tag you">you</span>' : ''}
-        ${admin && !isInUse(entries, m.id) && !m.claimed && members.length > 1 ? `<button class="x" data-action="remove-member" data-id="${m.id}" aria-label="Remove ${esc(m.name)}">×</button>` : ''}</div>
+</div>
         <div class="person-actions"><span class="tag ${m.claimed ? 'good' : ''}">${m.claimed ? 'Claimed' : 'Not claimed yet'}</span>${isAdminId(trip, m.id) ? '<span class="tag you">Admin</span>' : ''}
         ${admin && !self && m.claimed ? `<button class="link small" data-action="release-claim" data-id="${m.id}">Free this name</button>` : ''}
+        ${admin && !m.claimed && !isInUse(entries, m.id) && members.length > 1 ? `<button class="link small" data-action="remove-member" data-id="${m.id}" aria-label="Remove ${esc(m.name)}">Remove name</button>` : ''}
+        ${admin && !m.claimed && isInUse(entries, m.id) ? `<span class="tiny muted">${usedOn(entries, m.id)}</span>` : ''}
 </div></div>`;
     }).join('')}
     ${admin ? `<form class="row" data-form="add-member"><input id="newMember" placeholder="Add a name" aria-label="New person's name" required maxlength="${LIMITS.personName}"><button class="btn">Add</button></form>` : ''}
-    <p class="tiny muted">A name belongs to the account that claimed it. Free a name if someone took the wrong one.</p>
+    <p class="tiny muted">A name belongs to the account that claimed it. Free a name if someone took the wrong one, and remove a name nobody needs.</p>
     <p class="tiny muted">People who appear on an expense can't be removed, because the balances would stop adding up.</p></section>
   <section class="panel pad stack"><h2>Payment details</h2>
     <p class="small muted">Optional. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
@@ -162,7 +170,7 @@ actions['replace-yes'] = async () => {
   goTrip(copy.id, 'people');
   toast('New link ready. Send it to the group.');
 };
-actions['remove-member'] = el => { send(A.repo.removeMember(A.route.tripId, el.dataset.id, getMe(A.trips[A.route.tripId]))); };
+actions['remove-member'] = el => { send(A.repo.removeMember(A.route.tripId, el.dataset.id, getMe(A.trips[A.route.tripId]))); toast('Name removed'); };
 submits['add-member'] = () => {
   const t = A.trips[A.route.tripId], name = val('newMember').trim().slice(0, LIMITS.personName);
   if (!name) return;
