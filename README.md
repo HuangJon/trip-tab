@@ -62,13 +62,17 @@ Open the link in Safari, tap Share, then Add to Home Screen, and open the app fr
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com) and create a project. Stay on the free Spark plan and don't add a card.
 2. Build → Firestore Database → Create database, in production mode.
-3. In the Rules tab, paste the contents of `firestore.rules` and publish.
+3. In the Rules tab, paste the contents of `firestore.rules` and publish. This first time is optional if automatic publishing is set up (below).
 4. Build → Authentication → Get started → Sign-in method, and turn on **Google** and **Email/Password**. Leave the email link option off. Under Settings → Authorized domains, add your GitHub Pages address, such as `huangjon.github.io`.
 5. Project settings → Your apps → Web, register an app, and copy its `firebaseConfig`.
 6. Put those values in `js/config/firebase.js`.
 7. Optional, after the app works: Build → App Check → register the web app with reCAPTCHA v3, then put the site key in `appCheckSiteKey`. Check the App Check metrics, and only then turn on enforcement for Firestore and Authentication.
 
 The free limits are 20,000 writes and 50,000 reads a day. If they run out, the database stops until they reset, and nothing is charged.
+
+## Publishing the rules automatically
+
+Every push to `main` runs all the tests. If they pass, GitHub publishes `firestore.rules` to Firebase. It needs a repository secret called `FIREBASE_DEPLOY_KEY` holding a Google Cloud service account key with only the **Firebase Rules Admin** and **Service Usage Consumer** roles. Without the secret, the step does nothing. Never commit that key or paste it anywhere else. To stop publishing, delete the secret. To undo a bad version, roll back under Firestore Database → Rules.
 
 ## Development
 

@@ -20,3 +20,26 @@ jobs:
       - run: npm run test:smoke
       - run: npm run test:e2e
       - run: npx --yes firebase-tools@15 emulators:exec --only firestore,auth --project demo-trip-tab "node tests/emulator/firestore.emulator.js && node tests/emulator/browser.emulator.js"
+
+  # Publishes firestore.rules to Firebase, only from main and only after every test above has passed.
+  publish-rules:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish the database rules
+        env:
+          FIREBASE_DEPLOY_KEY: ${{ secrets.FIREBASE_DEPLOY_KEY }}
+        run: |
+          if [ -z "$FIREBASE_DEPLOY_KEY" ]; then
+            echo "::notice::FIREBASE_DEPLOY_KEY isn't set, so the rules were not published."
+            exit 0
+          fi
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s' "$FIREBASE_DEPLOY_KEY" > "$KEY_FILE"
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY_FILE" npx --yes firebase-tools@15 deploy --only firestore:rules --project trip-tab-c19f4 --non-interactive
