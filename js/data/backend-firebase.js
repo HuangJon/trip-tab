@@ -5,7 +5,20 @@
  * Offline: the SDK keeps a copy on the device and queues writes. A write's promise does not
  * finish until the server has it, so the app never waits on one before moving on.
  */
-export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = null } = {}) {
+/**
+ * Tries a refused write again shortly. When writes overlap, the rules can read a document another
+ * write is changing and refuse by mistake. A true refusal is refused every time, so it's only delayed.
+ */
+export async function retryRefusal(write, waits = [300, 1000]) {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await write(); } catch (e) {
+      if (e?.code !== 'permission-denied' || attempt >= waits.length) throw e;
+      await new Promise(r => setTimeout(r, waits[attempt]));
+    }
+  }
+}
+
+export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = null, retryWaits } = {}) {
   const app = sdk.initializeApp(config);
   // App Check has to start before anything talks to the database, or those first requests have no proof.
   if (appCheckSiteKey) {
@@ -62,8 +75,8 @@ export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = nul
     firebaseAuth,
     auth,
     uid: () => firebaseAuth.currentUser?.uid || '',
-    set: (path, value) => sdk.setDoc(sdk.doc(db, path), value),
-    update: (path, fields) => sdk.updateDoc(sdk.doc(db, path), fields),
+    set: (path, value) => retryRefusal(() => sdk.setDoc(sdk.doc(db, path), value), retryWaits),
+    update: (path, fields) => retryRefusal(() => sdk.updateDoc(sdk.doc(db, path), fields), retryWaits),
     remove: path => sdk.deleteDoc(sdk.doc(db, path)),
     get: async path => {
       const snap = await sdk.getDoc(sdk.doc(db, path));

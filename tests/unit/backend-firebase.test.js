@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { createFirebaseBackend } from '../../js/data/backend-firebase.js';
+import { createFirebaseBackend, retryRefusal } from '../../js/data/backend-firebase.js';
 
 /** A stand-in for the Firebase SDK that records the order of calls. */
 function fakeSdk({ user = null, signInWorks = true } = {}) {
@@ -100,4 +100,17 @@ test('collections report which documents are still waiting to sync', async () =>
   sdk.snaps[0].next({ docs: [doc('e1', true), doc('e2', false)] });
   assert.deepEqual(got.meta.pending, ['e1']);
   assert.equal(got.list.length, 2);
+});
+test('a refused write is tried again and can succeed', async () => {
+  let tries = 0;
+  const result = await retryRefusal(async () => { tries += 1; if (tries < 3) throw { code: 'permission-denied' }; return 'saved'; }, [1, 1]);
+  assert.equal(result, 'saved'); assert.equal(tries, 3);
+});
+test('a lasting refusal still fails, and other errors fail at once', async () => {
+  let tries = 0;
+  await assert.rejects(retryRefusal(async () => { tries += 1; throw { code: 'permission-denied' }; }, [1, 1]), e => e.code === 'permission-denied');
+  assert.equal(tries, 3);
+  tries = 0;
+  await assert.rejects(retryRefusal(async () => { tries += 1; throw { code: 'unavailable' }; }, [1, 1]));
+  assert.equal(tries, 1);
 });
