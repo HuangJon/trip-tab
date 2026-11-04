@@ -31,8 +31,8 @@ function line(trip, e) {
     else if (lent < 0) side = `<div class="tiny muted">your share</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
     else side = `<div class="tiny muted">${b.owed[me] ? 'you covered yours' : 'not involved'}</div>`;
   }
-  return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span>
-    <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="payer-line"><span class="payer-avas">${handlers.slice(0, 3).map(h => avatar(trip, h)).join('')}</span><span class="small"><b>${esc(payer)}</b> ${refund ? 'received' : 'paid'} <b>${money(e.total, e.currency)}</b></span></span>
+  return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="payer-mark ${handlers.length > 1 ? 'many' : ''}">${handlers.slice(0, 2).map(h => avatar(trip, h)).join('')}<span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span></span>
+    <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="payer-line"><span class="small"><b>${esc(payer)}</b> ${refund ? 'received' : 'paid'} <b>${money(e.total, e.currency)}</b></span></span>
     ${e.receipt || commentCount ? `<span class="tiny muted block">${[e.receipt ? 'Receipt' : '', commentCount ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ')}</span>` : ''}
     <span class="tiny muted credit">${creditLine(trip, e)}</span></span>
     <span class="right">${side}</span></button>`;
