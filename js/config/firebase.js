@@ -3,6 +3,8 @@
  * These values are safe to publish: they identify the project, and firestore.rules controls access.
  * Previews and local test servers use a stand-in database, so testing never touches real trips.
  */
+/** Shows a label on anything that isn't the real app. The staging build replaces this file. */
+export const environment = 'live';
 export const firebaseConfig = {
   apiKey: 'AIzaSyDDscSOw0nIfsoRZIIDmG3m9HeU7l-xXeE',
   authDomain: 'trip-tab-c19f4.firebaseapp.com',

@@ -5,11 +5,13 @@ import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from '
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
+import { environment } from '../config/firebase.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { isIos, shouldSuggestInstall } from '../core/platform.js';
 import { goTrip } from './routes.js';
 
 export function modeNotice() {
+  if (environment === 'staging') return '<div class="notice">Staging site: test data only. Anything here can be deleted at any time.</div>';
   if (A.preview) return '<div class="notice">Preview: everything is saved in this browser only. The real app shares trips through their invite links.</div>';
   if (A.repo?.kind === 'local') return '<div class="notice">Saving on this device only. Trips can be shared once the online database is connected.</div>';
   return '';

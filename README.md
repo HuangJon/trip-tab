@@ -74,6 +74,10 @@ The free limits are 20,000 writes and 50,000 reads a day. If they run out, the d
 
 Every push to `main` runs all the tests. If they pass, GitHub publishes `firestore.rules` to Firebase. It needs a repository secret called `FIREBASE_DEPLOY_KEY` holding a Google Cloud service account key with only the **Firebase Rules Admin** and **Service Usage Consumer** roles. Without the secret, the step does nothing. Never commit that key or paste it anywhere else. To stop publishing, delete the secret. To undo a bad version, roll back under Firestore Database → Rules.
 
+## Staging
+
+The `test` branch is the rehearsal for `main`. Each push runs every test, publishes the site and rules to a separate Firebase project at [trip-tab-staging.web.app](https://trip-tab-staging.web.app), then runs `tests/staging/staging.e2e.js` against it with real sign-in, rules and database. It needs a repository secret called `STAGING_DEPLOY_KEY`. The script deletes what it creates, and refuses to run against any other project. Google sign-in, real email delivery and real phones still need a person to try.
+
 ## Development
 
 Vanilla ES modules with no build step, served from GitHub Pages.

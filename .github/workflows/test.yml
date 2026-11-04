@@ -43,3 +43,46 @@ jobs:
           trap 'rm -f "$KEY_FILE"' EXIT
           printf '%s' "$FIREBASE_DEPLOY_KEY" > "$KEY_FILE"
           GOOGLE_APPLICATION_CREDENTIALS="$KEY_FILE" npx --yes firebase-tools@15 deploy --only firestore:rules --project trip-tab-c19f4 --non-interactive
+
+  # Publishes the test branch to the staging project after the tests pass, then tries it for real.
+  publish-staging:
+    needs: test
+    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/staging-key.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Prepare the staging key
+        env:
+          STAGING_DEPLOY_KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
+        run: |
+          if [ -z "$STAGING_DEPLOY_KEY" ]; then
+            echo "::error::STAGING_DEPLOY_KEY isn't set."
+            exit 1
+          fi
+          printf '%s' "$STAGING_DEPLOY_KEY" > "$GOOGLE_APPLICATION_CREDENTIALS"
+      - name: Build the staging site
+        run: |
+          cp config/firebase.staging.js js/config/firebase.js
+          mkdir _site
+          cp -r index.html manifest.webmanifest sw.js css js icons _site/
+      - name: Publish to staging
+        run: npx --yes firebase-tools@15 deploy --only firestore:rules,hosting --project trip-tab-staging --non-interactive
+      - run: npx playwright install --with-deps chromium
+      - name: Try the published site
+        run: node tests/staging/staging.e2e.js
+      - name: Keep a screenshot of any failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-failure
+          path: staging-failure.png
+          if-no-files-found: ignore
+      - name: Remove the key
+        if: always()
+        run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
