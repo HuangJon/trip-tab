@@ -382,7 +382,10 @@ await friend.fill('#joinName', 'Rui');
 await friend.click('form[data-form=join-self] button');
 await friend.waitForFunction(() => !/Which one is you/.test(document.getElementById('app').textContent));
 await tab(friend, 'people');
-assert.ok(await friend.inputValue('input[value="Rui"]'));
+await friend.waitForSelector('input[value="Rui"]', { timeout: 8000 }).catch(async e => {
+  console.log('Friend sees:', friend.url(), (await text(friend)).slice(0, 700));
+  throw e;
+});
 assert.deepEqual(friend.errors, []);
 await fresh.close();
 check('a friend picks or adds their name');
