@@ -1,10 +1,11 @@
 /** The main list: every expense and settlement, newest first. */
-import { A, actions, inputs, render } from './state.js';
+import { A, actions, changes, inputs, render } from './state.js';
 import { CATEGORIES } from '../config/app.js';
 import { ICON, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
 import { money } from '../core/money.js';
 import { inBase, needsRate } from '../core/debts.js';
-import { byNewest, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
+import { activeMembers, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
+import { EMPTY_FILTERS, activeFilterCount, applyFilters, filteredTotal } from '../core/filters.js';
 import { summaryCard } from './trip.js';
 import { goTrip } from './routes.js';
 
@@ -44,43 +45,66 @@ function creditLine(trip, e) {
 }
 const waiting = (trip, e) => (A.pending[trip.id]?.includes(e.id) ? ' <span class="tag">Waiting to sync</span>' : '');
 
-function matches(trip) {
-  const q = A.search.trim().toLowerCase();
-  return liveEntries(A.entries[trip.id]).filter(e => {
-    if (A.filterCat && (e.kind === 'payment' || e.category !== A.filterCat)) return false;
-    if (!q) return true;
-    const people = [...Object.keys(e.paid), ...Object.keys(e.owed)].map(i => memberName(trip, i)).join(' ');
-    return `${e.desc || ''} ${e.note || ''} ${people}`.toLowerCase().includes(q);
-  }).sort(byNewest);
-}
-
 function listHtml(trip) {
-  const list = matches(trip);
+  const all = liveEntries(A.entries[trip.id]);
+  const list = applyFilters(all, trip, A.search, A.filters);
   if (!list.length) {
-    const none = !liveEntries(A.entries[trip.id]).length;
-    return `<section class="panel empty"><h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something, or invite your friends first.' : 'Try another word or clear the category.'}</p>${none ? '<button class="btn" data-action="invite-first">Invite friends</button>' : ''}</section>`;
+    const none = !all.length;
+    return `<section class="panel empty">${none ? '<div class="scene small" aria-hidden="true"></div>' : ''}<h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something, or invite your friends first.' : 'Try another word, or clear the filters.'}</p>${none ? '<button class="btn" data-action="invite-first">Invite friends</button>' : '<button class="btn" data-action="filters-clear">Clear filters</button>'}</section>`;
+  }
+  const filtered = A.search.trim() || activeFilterCount(A.filters);
+  const summary = filtered ? `<p class="small muted" id="filterSummary">${list.length} of ${all.length} · ${money(filteredTotal(list, trip.currency), trip.currency)} total</p>` : '';
+  // Sorting by amount cuts across days, so date headings only appear in date order.
+  if (A.filters.sort === 'largest' || A.filters.sort === 'smallest') {
+    return `${summary}<section class="panel"><div class="list">${list.map(e => line(trip, e)).join('')}</div></section>`;
   }
   const days = new Map();
   for (const e of list) { if (!days.has(e.date)) days.set(e.date, []); days.get(e.date).push(e); }
-  return [...days].map(([d, es]) => `<div class="label date-head">${fmtDate(d)}</div><section class="panel"><div class="list">${es.map(e => line(trip, e)).join('')}</div></section>`).join('');
+  return summary + [...days].map(([d, es]) => `<div class="label date-head">${fmtDate(d)}</div><section class="panel"><div class="list">${es.map(e => line(trip, e)).join('')}</div></section>`).join('');
 }
+
+function filtersHtml(trip, all) {
+  const f = A.filters, cats = [...new Set(all.filter(e => e.kind !== 'payment').map(e => e.category))];
+  const option = (value, label, current) => `<option value="${esc(value)}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
+  return `<section class="panel pad filters" id="filterPanel">
+    <div class="grid2">
+      <label class="f"><span>Person</span><select id="fltPerson" data-change="filter" data-key="person">${option('', 'Everyone', f.person)}${activeMembers(trip).map(m => option(m.id, m.name, f.person)).join('')}</select></label>
+      <label class="f"><span>Type</span><select id="fltType" data-change="filter" data-key="type">${option('', 'All types', f.type)}${cats.map(c => option(c, CATEGORIES[c] || 'Other', f.type)).join('')}${option('kind:refund', 'Refunds', f.type)}${option('kind:payment', 'Settlements', f.type)}</select></label>
+      <label class="f"><span>From date</span><input id="fltFrom" type="date" value="${esc(f.from)}" data-change="filter" data-key="from"></label>
+      <label class="f"><span>To date</span><input id="fltTo" type="date" value="${esc(f.to)}" data-change="filter" data-key="to"></label>
+      <label class="f"><span>Minimum (${esc(trip.currency)})</span><input id="fltMin" inputmode="decimal" placeholder="Any" value="${esc(f.min)}" data-input="filter" data-key="min"></label>
+      <label class="f"><span>Maximum (${esc(trip.currency)})</span><input id="fltMax" inputmode="decimal" placeholder="Any" value="${esc(f.max)}" data-input="filter" data-key="max"></label>
+    </div>
+    <div class="row between wrap"><label class="f sort"><span>Sort by</span><select id="fltSort" data-change="filter" data-key="sort">${option('newest', 'Newest first', f.sort)}${option('oldest', 'Oldest first', f.sort)}${option('largest', 'Largest first', f.sort)}${option('smallest', 'Smallest first', f.sort)}</select></label>
+    <button type="button" class="link small" data-action="filters-clear">Clear all</button></div>
+  </section>`;
+}
+
+const filterButtonLabel = () => {
+  const n = activeFilterCount(A.filters);
+  return `Filters${n ? ` (${n})` : ''}`;
+};
 
 export function expensesView(trip) {
   const all = liveEntries(A.entries[trip.id]);
-  const cats = [...new Set(all.filter(e => e.kind !== 'payment').map(e => e.category))];
   const damaged = A.skipped[trip.id] || 0;
   return `${A.device.linkUnsaved(trip.id) ? `<section class="notice stack"><span>Keep this trip's link somewhere safe, such as your group chat. If your phone clears this app's storage, the link is how you get back in.</span><button class="btn small" data-action="copy-link">Copy link</button></section>` : ''}
     ${damaged ? `<div class="notice">${damaged} ${damaged > 1 ? 'entries' : 'entry'} couldn't be read and ${damaged > 1 ? 'are' : 'is'} left out of the balances. Update the app, or ask whoever added ${damaged > 1 ? 'them' : 'it'} to add ${damaged > 1 ? 'them' : 'it'} again.</div>` : ''}
     ${summaryCard(trip)}
-    ${all.length ? `<div class="stack"><input id="search" type="search" placeholder="Search expenses or people" aria-label="Search expenses" value="${esc(A.search)}" data-input="search">
-    ${cats.length > 1 ? `<div class="chips"><button class="chip" data-action="filter-cat" data-id="" aria-pressed="${!A.filterCat}">All</button>${cats.map(c => `<button class="chip" data-action="filter-cat" data-id="${esc(c)}" aria-pressed="${A.filterCat === c}">${esc(CATEGORIES[c] || 'Other')}</button>`).join('')}</div>` : ''}</div>` : ''}
+    ${all.length ? `<div class="row"><input id="search" class="grow" type="search" placeholder="Search expenses or people" aria-label="Search expenses" value="${esc(A.search)}" data-input="search"><button class="btn ${activeFilterCount(A.filters) ? 'on' : ''}" id="filterToggle" data-action="filters-toggle" aria-expanded="${Boolean(A.showFilters)}">${filterButtonLabel()}</button></div>
+    ${A.showFilters ? filtersHtml(trip, all) : ''}` : ''}
     <div class="stack entries" id="entryList">${listHtml(trip)}</div>`;
 }
 
 actions['invite-first'] = () => goTrip(A.route.tripId, 'people');
-actions['filter-cat'] = el => { A.filterCat = el.dataset.id; render(); };
-inputs.search = el => {
-  A.search = el.value;
-  const list = document.getElementById('entryList');
-  if (list) list.innerHTML = listHtml(A.trips[A.route.tripId]);
-};
+function refreshList() {
+  const trip = A.trips[A.route.tripId], list = document.getElementById('entryList'), toggle = document.getElementById('filterToggle');
+  if (list) list.innerHTML = listHtml(trip);
+  if (toggle) { toggle.textContent = filterButtonLabel(); toggle.classList.toggle('on', activeFilterCount(A.filters) > 0); }
+}
+actions['filters-toggle'] = () => { A.showFilters = !A.showFilters; render(); };
+actions['filters-clear'] = () => { A.filters = { ...EMPTY_FILTERS }; A.search = ''; render(); };
+// Amounts redraw only the list as you type, so the box keeps your cursor.
+inputs.filter = el => { A.filters[el.dataset.key] = el.value; refreshList(); };
+changes.filter = el => { A.filters[el.dataset.key] = el.value; refreshList(); };
+inputs.search = el => { A.search = el.value; refreshList(); };

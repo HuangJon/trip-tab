@@ -547,6 +547,40 @@ await page.click('#fSave');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 check('refunds add, change balances and edit correctly');
 
+/* Filters */
+await tab(page, 'expenses');
+await page.click('[data-action=filters-toggle]');
+await page.waitForSelector('#filterPanel');
+const everything = await page.locator('.tap').count();
+await page.selectOption('#fltPerson', { label: '小偉' });
+await page.waitForSelector('#filterSummary');
+assert.ok(await page.locator('.tap').count() < everything);
+assert.match(await page.textContent('#filterToggle'), /Filters \(1\)/);
+await tab(page, 'balances');
+await tab(page, 'expenses');
+assert.match(await page.textContent('#filterToggle'), /Filters \(1\)/, 'filters stay while moving between tabs');
+await page.selectOption('#fltPerson', { label: 'Everyone' });
+await page.selectOption('#fltType', 'activities');
+assert.equal(await page.locator('.tap').count(), 1);
+assert.match(await page.textContent('.tap'), /Aquarium/);
+await page.selectOption('#fltType', '');
+await page.fill('#fltMin', '4000');
+assert.equal(await page.inputValue('#fltMin'), '4000');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'fltMin', 'typing keeps the cursor in the box');
+assert.equal(await page.locator('.tap').count(), 1);
+await page.fill('#fltMax', '1');
+assert.match(await page.textContent('#entryList'), /No matches/);
+await page.click('#entryList [data-action=filters-clear]');
+assert.equal(await page.locator('.tap').count(), everything);
+await page.selectOption('#fltSort', 'largest');
+assert.equal(await page.locator('.date-head').count(), 0);
+assert.match(await page.locator('.tap').first().textContent(), /Rental car/);
+await page.fill('#fltFrom', '2099-01-01');
+assert.match(await page.textContent('#entryList'), /No matches/);
+await page.click('#filterPanel [data-action=filters-clear]');
+await page.click('[data-action=filters-toggle]');
+check('filter by person, type, date and amount, and sort');
+
 /* Duplicate */
 await page.click('.tap:has-text("Credit test")');
 await page.click('[data-action=duplicate-entry]');

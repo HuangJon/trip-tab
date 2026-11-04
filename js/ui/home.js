@@ -66,7 +66,7 @@ export function homeView() {
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
-    : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They verify an email or Google account, then pick their name.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
+    : '<section class="panel empty"><div class="scene small" aria-hidden="true"></div><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They verify an email or Google account, then pick their name.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
     <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
     ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}`;
 }

@@ -1,6 +1,6 @@
 * { box-sizing:border-box }
 html,body { min-height:100% }
-body { margin:0; background:var(--ground); color:var(--ink); font:400 16px/1.45 var(--body);
+body { margin:0; background:linear-gradient(var(--wash),var(--ground) 260px) no-repeat var(--ground); color:var(--ink); font:400 16px/1.45 var(--body);
   padding-block:env(safe-area-inset-top,0px) calc(150px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)) }
 body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--ground) }

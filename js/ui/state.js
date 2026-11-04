@@ -1,3 +1,5 @@
+import { EMPTY_FILTERS } from '../core/filters.js';
+
 /** The screen's shared state and the services every screen uses, filled in by main.js. */
 export const A = {
   repo: null, device: null, preview: false,
@@ -12,7 +14,7 @@ export const A = {
   skipped: {},              // tripId -> entries too damaged to show
   activity: {},             // tripId -> [items]
   route: { name: 'home' },
-  search: '', filterCat: '', confirm: null,
+  search: '', filters: { ...EMPTY_FILTERS }, showFilters: false, confirm: null,
   form: null, detail: null, undo: null,
 };
 let renderFn = () => {};

@@ -1,6 +1,7 @@
 /** Hash addresses: #t-<id>-<tab> for a screen, #join-<id> for an invite link. */
 import { A, render, actions } from './state.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
+import { EMPTY_FILTERS } from '../core/filters.js';
 
 export const TABS = ['expenses', 'balances', 'insights', 'activity', 'people'];
 
@@ -12,7 +13,7 @@ function setHash(h, addToHistory) {
 }
 export function goHome() {
   A.route = { name: 'home' };
-  A.search = ''; A.filterCat = ''; A.confirm = null;
+  A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; A.confirm = null;
   setHash('');
   render();
   scrollTo(0, 0);
@@ -20,8 +21,11 @@ export function goHome() {
 export function goTrip(id, tab = 'expenses') {
   // Opening a trip adds a history step, so the phone's back button returns to the list of trips.
   const fromHome = A.route.name !== 'trip';
+  const sameTrip = !fromHome && A.route.tripId === id;
   A.route = { name: 'trip', tripId: id, tab };
-  A.search = ''; A.filterCat = ''; A.confirm = null;
+  A.confirm = null;
+  // Filters stay while you move between tabs on a trip, and reset on a different one.
+  if (!sameTrip) { A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; }
   setHash(`#t-${id}-${tab}`, fromHome);
   A.watchActivity?.(id);
   A.watchJoined?.(id);
