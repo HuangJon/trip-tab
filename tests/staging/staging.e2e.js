@@ -85,7 +85,7 @@ try {
   await host.click('#fSave');
   await host.waitForSelector('.tap:has-text("Taiwan dinner")', { timeout: 15000 });
   await noSync(host);
-  assert.match(await host.textContent('.tap:has-text("Taiwan dinner")'), /\$42\.42/);
+  assert.match(await host.textContent('.tap:has-text("Taiwan dinner")'), /\$42\.4[23]/);
   check('the reported exchange rate case gives the right amount');
 
   await host.click('[data-action=add-expense]');

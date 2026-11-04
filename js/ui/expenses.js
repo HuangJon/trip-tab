@@ -39,7 +39,9 @@ function line(trip, e) {
 
 /** Everyone sees who added an expense and who shares it, right in the list. */
 function creditLine(trip, e) {
-  const names = Object.keys(sharesOf(e)).map(i => (i === getMe(trip) ? 'you' : memberName(trip, i)));
+  // The database returns names in its own order, so put them back in trip order.
+  const order = i => trip.members[i]?.order ?? 999;
+  const names = Object.keys(sharesOf(e)).sort((x, y) => order(x) - order(y)).map(i => (i === getMe(trip) ? 'you' : memberName(trip, i)));
   const adder = e.createdById ? who(trip, e.createdById) : e.updatedBy;
   return `${adder ? `Added by ${esc(adder)} · ` : ''}Split among ${esc(names.join(', '))}`;
 }
