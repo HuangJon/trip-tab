@@ -50,7 +50,7 @@ jobs:
     if: github.ref == 'refs/heads/test' && github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
-      GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/staging-key.json
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/staging-key.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
