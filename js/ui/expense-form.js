@@ -7,6 +7,7 @@ import { needsRate } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
+import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { shrinkPhoto } from './receipt.js';
 import { goTrip } from './routes.js';
 
@@ -32,7 +33,7 @@ export function openExpenseForm(trip, entry) {
   if (entry) {
     const c = entry.currency;
     A.form = {
-      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency || !entry.rate ? '' : String(entry.rate),
+      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : storedToTyped(entry.rate, c, trip.currency),
       kind: entry.kind, amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(handlersOf(entry)).map(([k, v]) => [k, fromMinor(v, c)])),
       multi: Object.keys(handlersOf(entry)).length > 1, payer: Object.keys(handlersOf(entry))[0],
       split: { inputs: {}, items: [], selected: Object.keys(sharesOf(entry)), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
@@ -41,7 +42,7 @@ export function openExpenseForm(trip, entry) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
     const currency = A.device.lastCurrency(trip.id) || trip.currency;
-    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: 'food', date: today(), currency, rate: currency === trip.currency ? '' : String(trip.rates?.[currency] ?? ''), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { tripId: trip.id, kind: 'expense', desc: '', category: 'food', date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
 }
@@ -85,8 +86,15 @@ const payCheck = t => {
   return `<div class="check ${s === total ? 'ok' : 'bad'}">${s === total ? `Payments add up to ${money(total, F.currency)}` : `Payments add up to ${money(s, F.currency)}. They need to reach ${money(total, F.currency)}.`}</div>`;
 };
 function rateNote(t) {
-  const F = A.form, r = parseFloat(F.rate), m = toMinor(F.amount, F.currency);
-  return r > 0 && m ? `${money(m, F.currency)} ≈ ${money(convert(m, F.currency, t.currency, r), t.currency)}` : "Leave this blank if you don't know it yet. The expense stays out of balances until it has a rate. Use the rate you actually paid.";
+  const F = A.form, r = typedToStored(F.rate, F.currency, t.currency), m = toMinor(F.amount, F.currency);
+  return r && m ? `${money(m, F.currency)} ≈ ${money(convert(m, F.currency, t.currency, r), t.currency)}` : "Leave this blank if you don't know it yet. The expense stays out of balances until it has a rate. Use the rate you actually paid.";
+}
+/** Warns right away when a rate looks upside down, showing the amount it would produce. */
+function rateWarning(t) {
+  const F = A.form, r = typedToStored(F.rate, F.currency, t.currency), m = toMinor(F.amount, F.currency);
+  if (!r || !looksBackwards(r, F.currency, t.currency)) return '';
+  const q = rateQuestion(F.currency, t.currency);
+  return `<div class="check bad stack tight"><span>This rate looks backwards.${m ? ` It would make ${esc(money(m, F.currency))} worth ${esc(money(convert(m, F.currency, t.currency, r), t.currency))}.` : ''} Enter how many ${esc(q.many)} you get for 1 ${esc(q.one)}.</span><div><button type="button" class="btn small" data-action="rate-flip">Flip it</button></div></div>`;
 }
 
 function drawForm() {
@@ -102,7 +110,7 @@ function drawForm() {
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="draft"></label>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
-    ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(F.currency)} = how many ${esc(t.currency)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="tiny muted" id="fConv">${esc(rateNote(t))}</span></label>` : ''}
+    ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
     <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
@@ -132,12 +140,20 @@ function refresh() {
   if (pc) pc.innerHTML = payCheck(t);
   const cv = document.getElementById('fConv');
   if (cv) cv.textContent = rateNote(t);
+  const rw = document.getElementById('fRateWarn');
+  if (rw) rw.innerHTML = rateWarning(t);
   keepDraft();
 }
 
 inputs.draft = () => keepDraft();
 inputs.amount = el => { A.form.amount = el.value; refresh(); };
-inputs.rate = el => { A.form.rate = el.value; refresh(); };
+inputs.rate = el => { A.form.rate = el.value; A.form.backwardsOk = false; refresh(); };
+actions['rate-flip'] = () => {
+  collect();
+  const n = parseFloat(A.form.rate);
+  if (n > 0) A.form.rate = String(Number((1 / n).toPrecision(6)));
+  drawForm();
+};
 inputs.split = el => { A.form.split.inputs[el.dataset.id] = el.value; refresh(); };
 inputs.payer = el => { A.form.payers[el.dataset.id] = el.value; refresh(); };
 inputs['item-name'] = el => { A.form.split.items[+el.dataset.i].name = el.value; keepDraft(); };
@@ -146,7 +162,8 @@ changes['form-currency'] = el => {
   collect();
   const F = A.form, t = tripOf();
   F.currency = el.value;
-  F.rate = String(t.rates?.[el.value] ?? '');
+  F.rate = el.value === t.currency ? '' : storedToTyped(t.rates?.[el.value], el.value, t.currency);
+  F.backwardsOk = false;
   drawForm();
 };
 
@@ -216,8 +233,12 @@ submits.expense = () => {
   if ((F.date || today()) > today()) return toast("Expenses can't be dated in the future.");
   let rate = 1;
   if (F.currency !== t.currency) {
-    rate = F.rate.trim() === '' ? null : parseFloat(F.rate);
-    if (rate !== null && !(rate > 0)) return toast("That exchange rate isn't a number above zero. Fix it, or leave it blank for now.");
+    rate = F.rate.trim() === '' ? null : typedToStored(F.rate, F.currency, t.currency);
+    if (F.rate.trim() !== '' && rate === null) return toast("That exchange rate isn't a number above zero. Fix it, or leave it blank for now.");
+    if (rate && looksBackwards(rate, F.currency, t.currency) && !F.backwardsOk) {
+      F.backwardsOk = true;
+      return toast('This rate looks backwards. Fix it, or tap Save again to keep it.');
+    }
   }
   const res = computeSplit(total, F.currency, F.split, everyone);
   if (res.error) return toast(res.error);

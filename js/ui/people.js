@@ -4,6 +4,7 @@ import { LIMITS } from '../config/app.js';
 import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
 import { activeMembers, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
+import { rateLabel } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
 
 const inviteUrl = id => `${location.origin}${location.pathname}#join-${id}`;
@@ -67,7 +68,7 @@ export function peopleView(trip) {
   <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
-    <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="row between small"><span class="mono">1 ${esc(c)}</span><span class="mono">${esc(r)} ${esc(trip.currency)}</span></div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>
+    <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="small mono">${esc(rateLabel(r, c, trip.currency))}</div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
   ${backupSection(trip)}
   <section class="panel pad stack"><h2>Archive, leave or delete</h2>

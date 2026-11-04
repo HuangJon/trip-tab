@@ -45,16 +45,17 @@ await addExpense(page, 'Izakaya', '3100', async () => {
 });
 await addExpense(page, 'Aquarium', '7500', async () => {
   await page.selectOption('#fCur', 'JPY');
-  await page.fill('#fRate', '0.21');
-  assert.match(await page.textContent('#fConv'), /NT\$1,575/);
+  assert.match(await page.textContent('#dlg'), /1 TWD = how many JPY/);
+  await page.fill('#fRate', '5');
+  assert.match(await page.textContent('#fConv'), /NT\$1,500/);
   await page.selectOption('#fCat', 'activities');
   await page.selectOption('#fPayer', { index: 2 });
 });
 await tab(page, 'balances');
 let t = await text(page);
-assert.match(t, /You are owed\s*NT\$1,125/);
-assert.match(t, /小偉 pays You\s*NT\$1,125/);
-assert.match(t, /小偉 pays Mia\s*NT\$200/);
+assert.match(t, /You are owed\s*NT\$1,150/);
+assert.match(t, /小偉 pays You\s*NT\$1,150/);
+assert.match(t, /小偉 pays Mia\s*NT\$225/);
 check('splits, currency and simplified debts add up');
 
 await page.uncheck('#simp');
@@ -62,6 +63,31 @@ await page.waitForFunction(() => /each expense/.test(document.getElementById('ap
 assert.match(await text(page), /Who pays whom/);
 await page.check('#simp');
 check('simplify toggle');
+
+/* A backwards rate gets caught */
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+await page.fill('#fDesc', 'Backwards rate');
+await page.fill('#fAmt', '100');
+await page.selectOption('#fCur', 'USD');
+assert.match(await page.textContent('#dlg'), /1 USD = how many TWD/);
+await page.fill('#fRate', '0.03');
+await page.waitForSelector('#fRateWarn .check.bad');
+assert.match(await page.textContent('#fRateWarn'), /looks backwards/);
+await page.click('#fSave');
+await toastSays(/looks backwards/);
+assert.equal(await page.evaluate(() => document.getElementById('dlg').open), true, 'the first Save stops');
+await page.click('[data-action=rate-flip]');
+assert.equal(await page.inputValue('#fRate'), '33.3333');
+assert.equal(await page.locator('#fRateWarn .check.bad').count(), 0);
+assert.equal(await page.inputValue('#fDesc'), 'Backwards rate', 'flipping keeps what was typed');
+await page.click('[data-action=form-cancel]');
+await page.click('[data-action=add-expense]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=draft-discard]');
+await page.click('[data-action=form-cancel]');
+await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('triptab:currency:')) localStorage.removeItem(k); });
+check('a backwards exchange rate is caught and can be flipped');
 
 /* An exchange rate can wait */
 await tab(page, 'balances');
@@ -86,7 +112,7 @@ await page.click('[data-action=settle] >> nth=0');
 assert.match(await page.textContent('#dlg'), /waiting for an exchange rate/);
 await page.click('[data-action=close-sheet]');
 await page.click('#unrated [data-action=edit-entry]');
-await page.fill('#fRate', '0.024');
+await page.fill('#fRate', '42');
 await page.click('#fSave');
 await page.waitForFunction(() => !document.getElementById('unrated'));
 assert.ok(!/Leaves out/.test(await page.textContent('.hero')));

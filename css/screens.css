@@ -85,6 +85,8 @@ dialog::backdrop { background:var(--scrim) }
 .split-row:first-child { border-top:0 } .split-row>.grow { flex:1 1 80px }
 .split-row input:not([type=checkbox]) { width:88px; flex:none; text-align:right; font-family:var(--mono) }
 .split-row .res { min-width:76px; text-align:right; flex:none; font-size:.84rem; margin-left:auto }
+.conv { font-size:.9rem; font-weight:600; color:var(--ink); overflow-wrap:anywhere }
+#fRateWarn:empty { display:none }
 .check { padding:8px 12px; border-radius:10px; font-size:.875rem; font-family:var(--mono) }
 .check.ok { background:var(--owed-soft); color:var(--owed) } .check.bad { background:var(--owe-soft); color:var(--owe) }
 .item { display:grid; gap:8px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface) }
