@@ -33,6 +33,7 @@ export function openDetail(id, { keepTyped } = {}) {
     <p class="small muted">${fmtDate(e.date)}${pay ? '' : ` · ${esc(CATEGORIES[e.category] || 'Other')}`}</p></div>
     <p class="small muted wrap-any">${credit(t, e)}</p>
     ${A.pending[t.id]?.includes(id) ? '<p><span class="tag">Waiting to sync</span> <span class="small muted">Friends can\'t see this until your phone is back online.</span></p>' : ''}
+    ${pay && e.method ? `<p class="small muted">Paid ${({ venmo: 'by Venmo', zelle: 'by Zelle', cash: 'in cash' })[e.method] || 'another way'}</p>` : ''}
     ${e.note ? `<p class="wrap-any">${esc(e.note)}</p>` : ''}
     ${e.receipt ? '<div id="receiptSlot" class="small muted">Loading the receipt photo…</div>' : ''}
     ${pay ? '' : `<section class="panel pad stack"><h3>${refund ? 'Received by' : 'Paid by'}</h3>${rowsOf(t, e, handlersOf(e))}</section><section class="panel pad stack"><h3>${refund ? 'Shared by' : 'Split among'}</h3>${rowsOf(t, e, sharesOf(e))}</section>`}

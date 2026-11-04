@@ -15,7 +15,7 @@ function line(trip, e) {
   if (e.kind === 'payment') {
     const from = Object.keys(e.paid)[0], to = Object.keys(e.owed)[0];
     return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile pay">${svg(ICON.swap)}</span>
-      <span class="grow"><strong class="block">${esc(who(trip, from))} paid ${esc(who(trip, to))}${waiting(trip, e)}</strong><span class="small muted block">Settlement${e.createdById ? ` · recorded by ${esc(who(trip, e.createdById))}` : ''}${e.note ? ` · ${esc(e.note)}` : ''}</span></span>
+      <span class="grow"><strong class="block">${esc(who(trip, from))} paid ${esc(who(trip, to))}${waiting(trip, e)}</strong><span class="small muted block">Settlement${({ venmo: ' by Venmo', zelle: ' by Zelle', cash: ' in cash' })[e.method] || ''}${e.createdById ? ` · marked by ${esc(who(trip, e.createdById))}` : ''}${e.note ? ` · ${esc(e.note)}` : ''}</span></span>
       <span class="right amt owed">${money(e.total, e.currency)}</span></button>`;
   }
   const refund = e.kind === 'refund';

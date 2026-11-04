@@ -124,6 +124,26 @@ try {
   await host.waitForSelector('.tap:has-text("From friend")', { timeout: 20000 });
   check("a friend's expense appears live, and they can't edit yours");
 
+  // Settling up, with real payment details and real rules.
+  await tab(host, 'people');
+  await host.fill('input[aria-label="Host\'s Zelle"]', 'host-zelle@example.com');
+  await host.press('input[aria-label="Host\'s Zelle"]', 'Tab');
+  await tab(friend, 'balances');
+  await friend.waitForSelector('.debt .handle:has-text("host-zelle@example.com")', { timeout: 20000 });
+  await friend.click('[data-action=settle][data-from] >> nth=0');
+  await friend.waitForSelector('#settlePay');
+  assert.match(await friend.textContent('#settlePay'), /Zelle: host-zelle@example\.com/);
+  assert.equal(await friend.getAttribute('#settleMethods [data-id=zelle]', 'aria-pressed'), 'true');
+  await friend.click('#settleSave');
+  await tab(friend, 'expenses');
+  await friend.waitForSelector('.tap:has-text("Settlement by Zelle")', { timeout: 15000 });
+  await noSync(friend);
+  await noFailures(friend);
+  await tab(host, 'expenses');
+  await host.waitForSelector('.tap:has-text("Settlement by Zelle")', { timeout: 20000 });
+  await noFailures(host);
+  check('settling up shows the payment details, and marking it paid reaches everyone');
+
   // Go straight at the database, as someone bypassing the app would.
   const tripId = [...tripIds][0];
   const forged = await friend.evaluate(async id => {
