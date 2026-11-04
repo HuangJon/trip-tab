@@ -53,14 +53,17 @@ await addExpense(page, 'Aquarium', '7500', async () => {
 });
 await tab(page, 'balances');
 let t = await text(page);
-assert.match(t, /You are owed\s*NT\$1,150/);
-assert.match(t, /小偉 pays You\s*NT\$1,150/);
-assert.match(t, /小偉 pays Mia\s*NT\$225/);
+assert.match(t, /You receive\s*NT\$1,150/);
+assert.match(t, /小偉\s*→[^N]*You\s*NT\$1,150/);
+assert.match(t, /小偉\s*→[^N]*Mia\s*NT\$225/);
 check('splits, currency and simplified debts add up');
 
 await page.uncheck('#simp');
 await page.waitForFunction(() => /each expense/.test(document.getElementById('app').textContent));
 assert.match(await text(page), /Who pays whom/);
+assert.match(await text(page), /You receive/);
+assert.match(await text(page), /Between others/);
+assert.equal(await page.locator('.debt.get [data-action=settle]').first().textContent(), 'Mark received');
 await page.check('#simp');
 check('simplify toggle');
 
@@ -275,7 +278,7 @@ check('edit history restores an earlier version and keeps comments');
 /* Settling */
 await tab(page, 'balances');
 const before = await text(page);
-assert.match(before, /You are owed/);
+assert.match(before, /You receive/);
 await page.click('[data-action=settle][data-from] >> nth=0');
 await page.click('form[data-form=settle] .btn.primary');
 await page.waitForFunction(() => document.getElementById('app').textContent !== '');

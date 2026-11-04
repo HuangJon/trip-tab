@@ -119,3 +119,19 @@ nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box
 .tabs button[aria-current="page"] { color:var(--accent); font-weight:700 }
 .tabs button[aria-current="page"] svg { background:var(--accent); color:var(--accent-ink) }
 .tabs .add-tab { color:var(--accent); font-weight:700 }
+/* Who pays whom: your own payments first, in plain rows with an arrow. */
+.hero-row { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap }
+.hero-line { display:flex; align-items:center; gap:10px; padding-top:8px; margin-top:4px; border-top:1px solid var(--hero-tear) }
+.hero-line>:first-child { flex:1; min-width:0 }
+.hero-btn { background:var(--hero-ink); color:var(--hero); border:0; border-radius:12px; padding:9px 20px; font-weight:700; min-height:42px }
+.hero-line .hero-btn { padding:5px 16px; min-height:36px }
+.hero section+.label,.hero .big+.label { margin-top:12px }
+.debt-group { padding-top:14px }
+.group-title { display:block; padding:0 16px 6px }
+.group-note { padding:0 16px 6px }
+.debt { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 16px }
+.debt-who { display:flex; align-items:center; gap:7px; flex:1 1 190px; min-width:0; flex-wrap:wrap }
+.arrow { font-size:1.15rem; color:var(--muted); line-height:1 }
+.debt-end { display:flex; align-items:center; gap:10px; margin-left:auto }
+.debt.other { font-size:.9rem }
+.debt.other .ava { width:24px; height:24px; font-size:.7rem }

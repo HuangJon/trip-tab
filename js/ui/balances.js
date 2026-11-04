@@ -5,7 +5,7 @@ import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../c
 import { coveredBy, exactRate, sendFor } from '../core/settle.js';
 import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
-import { needsRate, netBalances, pairwise, personLedger, simplify } from '../core/debts.js';
+import { myPayments, needsRate, netBalances, personLedger, tripDebts } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { summaryCard } from './trip.js';
@@ -13,8 +13,7 @@ import { summaryCard } from './trip.js';
 const unratedCount = trip => liveEntries(A.entries[trip.id]).filter(e => needsRate(e, trip.currency)).length;
 
 export function debtsFor(trip) {
-  const list = liveEntries(A.entries[trip.id]);
-  return trip.simplify === false ? pairwise(list, trip.currency) : simplify(netBalances(list, trip.currency));
+  return tripDebts(liveEntries(A.entries[trip.id]), trip.currency, trip.simplify !== false);
 }
 
 /** A small moment once a trip with real expenses reaches zero. */
@@ -47,16 +46,22 @@ export function balancesView(trip) {
   const net = netBalances(liveEntries(A.entries[trip.id]), c, members.map(m => m.id));
   const max = Math.max(1, ...Object.values(net).map(Math.abs));
   const debts = debtsFor(trip), write = canWrite(trip), admin = amAdmin(trip);
+  const mine = me ? myPayments(liveEntries(A.entries[trip.id]), c, me, trip.simplify !== false) : { pays: [], gets: [], others: debts, alsoOwed: [], alsoOwing: [] };
+  const names = ids => ids.map(i => esc(memberName(trip, i))).join(' and ');
+  const row = (d, kind) => `<div class="debt ${kind}"><div class="debt-who">${avatar(trip, d.from)}<span class="wrap-any"><strong>${esc(who(trip, d.from))}</strong></span><span class="arrow" aria-label="pays">→</span>${avatar(trip, d.to)}<span class="wrap-any"><strong>${esc(who(trip, d.to))}</strong></span></div>
+      <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small ${kind === 'pay' ? 'primary' : ''}" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
+      ${d.to !== me ? handles(trip, d.to) : ''}</div>`;
+  const group = (title, rows, kind, note) => (rows.length ? `<div class="debt-group"><span class="label group-title">${title}</span>${note ? `<p class="small muted group-note">${note}</p>` : ''}<div class="list">${rows.map(d => row(d, kind)).join('')}</div></div>` : '');
   return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
-    <div class="pad stack">${write && debts.length ? '<button class="btn primary" data-action="settle">Settle up</button>' : ''}<div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
-    <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. The amount each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p></div>
-    <div class="tear" aria-hidden="true"></div>
-    ${debts.length ? `<div class="list">${debts.map(d => `<div class="debt">${avatar(trip, d.from)}<span class="names"><strong>${esc(who(trip, d.from))}</strong> ${d.from === me ? 'pay' : 'pays'} <strong>${esc(who(trip, d.to))}</strong><br><span class="amt ${d.from === me ? 'owe' : d.to === me ? 'owed' : ''}">${money(d.amount, c)}</span></span>
-      ${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${d.from === me ? 'Pay' : 'Settle'}</button>` : ''}${handles(trip, d.to)}</div>`).join('')}</div>
-      <div class="tear" aria-hidden="true"></div><div class="pad"><button class="btn small" data-action="share-summary">Share this summary</button></div>`
-    : settledHtml(trip)}
+    ${debts.length ? `${group('You pay', mine.pays, 'pay', mine.alsoOwed.length ? `This also covers what you owe ${names(mine.alsoOwed)}.` : '')}
+      ${group('You receive', mine.gets, 'get', mine.alsoOwing.length ? `This also covers what ${names(mine.alsoOwing)} ${mine.alsoOwing.length > 1 ? 'owe' : 'owes'} you.` : '')}
+      ${group(me ? 'Between others' : 'Who pays whom', mine.others, 'other')}
+      <div class="tear" aria-hidden="true"></div>` : `${settledHtml(trip)}<div class="tear" aria-hidden="true"></div>`}
+    <div class="pad stack"><div class="row between wrap"><h3>Who pays whom</h3><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
+    <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. What each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p>
+    ${debts.length ? '<div><button class="btn small" data-action="share-summary">Share this summary</button></div>' : ''}</div>
   </section>
-  <section class="panel pad stack"><h2>Each person's balance</h2>
+  <section class="panel pad stack"><h2>Everyone's balance</h2>
     ${members.map(m => {
       const v = net[m.id] || 0, w = (Math.abs(v) / max) * 100;
       return `<button type="button" class="person-row stack tight" data-action="person-ledger" data-id="${m.id}"><div class="row between"><span class="row gap8">${avatar(trip, m.id)}<span>${esc(m.name)}</span>${m.id === me ? '<span class="tag you">you</span>' : ''}</span><span class="amt ${v > 0 ? 'owed' : v < 0 ? 'owe' : 'muted'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}</span></div>

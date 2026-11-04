@@ -47,8 +47,8 @@ export function homeView() {
       const v = net[me] || 0;
       totals[t.currency] = (totals[t.currency] || 0) + v;
       status = v === 0 ? '<span class="muted small">Settled up</span>'
-        : v > 0 ? `<div class="tiny muted">you are owed</div><div class="amt owed">${money(v, t.currency)}</div>`
-        : `<div class="tiny muted">you owe</div><div class="amt owe">${money(-v, t.currency)}</div>`;
+        : v > 0 ? `<div class="tiny muted">you receive</div><div class="amt owed">${money(v, t.currency)}</div>`
+        : `<div class="tiny muted">you pay</div><div class="amt owe">${money(-v, t.currency)}</div>`;
     } else status = `<span class="muted small">${settled ? 'Settled up' : 'Pick who you are'}</span>`;
     return `<button class="tap" data-action="open-trip" data-id="${t.id}">
       <span class="grow"><strong class="block wrap-any">${esc(t.name)}</strong><span class="small muted">${activeMembers(t).length} people · ${money(total, t.currency)} spent</span></span>

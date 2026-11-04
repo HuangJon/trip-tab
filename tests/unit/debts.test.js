@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { inBase, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown } from '../../js/core/debts.js';
+import { inBase, myPayments, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown, tripDebts } from '../../js/core/debts.js';
 const es = [
   { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 900, paid: { a: 900 }, owed: { a: 300, b: 300, c: 300 } },
   { kind: 'expense', category: 'fun', date: '2026-01-02', currency: 'JPY', rate: 0.21, total: 3333, paid: { b: 3333 }, owed: { a: 1111, b: 1111, c: 1111 } },
@@ -94,4 +94,25 @@ test('the breakdown reads the right way round for a refund, and skips unrated en
 test('the breakdown runs oldest first', () => {
   const dates = personLedger(es, 'TWD', 'a').map(r => r.entry.date);
   assert.deepEqual(dates, [...dates].sort());
+});
+
+const chain = [{ currency: 'T', total: 10, paid: { b: 10 }, owed: { a: 10 } }, { currency: 'T', total: 10, paid: { c: 10 }, owed: { b: 10 } }];
+test("my payments are split from everyone else's", () => {
+  const list = [{ currency: 'T', total: 30, paid: { a: 30 }, owed: { a: 10, b: 10, c: 10 } }];
+  const a = myPayments(list, 'T', 'a');
+  assert.deepEqual(a.gets.map(d => d.amount).sort(), [10, 10]); assert.deepEqual(a.pays, []); assert.deepEqual(a.others, []);
+  const b = myPayments(list, 'T', 'b');
+  assert.equal(b.pays[0].to, 'a'); assert.equal(b.others[0].from, 'c');
+});
+test('a simplified payment says who else it covers', () => {
+  // a owes b, b owes c: simplified, a pays c directly, a person a never shared anything with.
+  const a = myPayments(chain, 'T', 'a');
+  assert.equal(a.pays[0].to, 'c'); assert.deepEqual(a.alsoOwed, ['b']);
+  const c = myPayments(chain, 'T', 'c');
+  assert.equal(c.gets[0].from, 'a'); assert.deepEqual(c.alsoOwing, ['b']);
+  assert.deepEqual(myPayments(chain, 'T', 'a', false).alsoOwed, [], 'nothing extra when not simplifying');
+});
+test('debts follow the simplify setting', () => {
+  assert.equal(tripDebts(chain, 'T', true).length, 1);
+  assert.equal(tripDebts(chain, 'T', false).length, 2);
 });

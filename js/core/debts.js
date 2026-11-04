@@ -116,3 +116,24 @@ export function personLedger(entries, base, id) {
   }
   return rows.sort((a, b) => (a.entry.date || '').localeCompare(b.entry.date || '') || (a.entry.createdAt || 0) - (b.entry.createdAt || 0));
 }
+
+/** The payments the group should make, simplified or expense by expense. */
+export const tripDebts = (entries, base, simplified = true) => (simplified ? simplify(netBalances(entries, base)) : pairwise(entries, base));
+
+/**
+ * What one person does: who they pay and who pays them, split from everyone else's payments.
+ * "covers" names the people a simplified payment also takes care of, because after simplifying
+ * someone may pay a person they never shared an expense with.
+ */
+export function myPayments(entries, base, id, simplified = true) {
+  const debts = tripDebts(entries, base, simplified);
+  const pays = debts.filter(d => d.from === id), gets = debts.filter(d => d.to === id);
+  const others = debts.filter(d => d.from !== id && d.to !== id);
+  const real = simplified ? pairwise(entries, base) : debts;
+  const paysTo = new Set(pays.map(d => d.to)), getsFrom = new Set(gets.map(d => d.from));
+  return {
+    pays, gets, others,
+    alsoOwed: real.filter(d => d.from === id && !paysTo.has(d.to)).map(d => d.to),
+    alsoOwing: real.filter(d => d.to === id && !getsFrom.has(d.from)).map(d => d.from),
+  };
+}

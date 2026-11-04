@@ -1,10 +1,10 @@
 /** The frame around a trip's screens: title, "which one is you", and the people picker. */
 import { A, actions, submits, render } from './state.js';
 import { LIMITS } from '../config/app.js';
-import { ICON, avatar, esc, getMe, svg, toast, val } from './dom.js';
+import { ICON, avatar, canWrite, esc, getMe, svg, toast, val } from './dom.js';
 import { money } from '../core/money.js';
-import { needsRate, netBalances } from '../core/debts.js';
-import { activeMembers, liveEntries } from '../core/model.js';
+import { myPayments, needsRate } from '../core/debts.js';
+import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { alerts } from './home.js';
 
 export function tripHeader(trip) {
@@ -17,16 +17,31 @@ export function tripHeader(trip) {
       <form class="row" data-form="join-self"><input id="joinName" aria-label="Your name" value="${esc(A.user?.displayName || '')}" placeholder="Not listed? Enter your name" maxlength="${LIMITS.personName}" required><button class="btn">Join</button></form></section>`}`;
 }
 
+/** Answers "what do I do, and how much?" before anything else. */
 export function summaryCard(trip) {
   const me = getMe(trip);
   if (!me) return '';
-  const list = liveEntries(A.entries[trip.id]);
-  const v = netBalances(list, trip.currency)[me] || 0;
-  const unrated = list.filter(e => needsRate(e, trip.currency)).length;
-  return `<section class="hero ${v > 0 ? 'is-owed' : v < 0 ? 'is-owing' : ''}"><span class="label">${v === 0 ? 'Your balance' : v > 0 ? 'You are owed' : 'You owe'}</span>
-    <div class="big">${v === 0 ? 'Settled up' : money(Math.abs(v), trip.currency)}</div>
+  const c = trip.currency, list = liveEntries(A.entries[trip.id]);
+  const { pays, gets } = myPayments(list, c, me, trip.simplify !== false);
+  const unrated = list.filter(e => needsRate(e, c)).length, waiting = A.pending[trip.id]?.length;
+  const sum = rows => rows.reduce((s, d) => s + d.amount, 0);
+  const write = canWrite(trip);
+  const payButton = d => (write ? `<button class="hero-btn" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">Pay</button>` : '');
+  const name = id => esc(memberName(trip, id));
+  let main;
+  if (pays.length === 1 && !gets.length) {
+    main = `<span class="label">You pay ${name(pays[0].to)}</span><div class="hero-row"><div class="big">${money(pays[0].amount, c)}</div>${payButton(pays[0])}</div>`;
+  } else if (pays.length) {
+    main = `<span class="label">You pay</span><div class="big">${money(sum(pays), c)}</div>
+      ${pays.map(d => `<div class="hero-line"><span class="wrap-any">${name(d.to)}</span><span class="amt">${money(d.amount, c)}</span>${payButton(d)}</div>`).join('')}`;
+  }
+  const receive = gets.length ? `<span class="label">You receive</span><div class="big">${money(sum(gets), c)}</div>
+    ${gets.map(d => `<div class="hero-line"><span class="wrap-any">${name(d.from)} pays you</span><span class="amt">${money(d.amount, c)}</span></div>`).join('')}` : '';
+  const settled = !pays.length && !gets.length ? `<span class="label">Your balance</span><div class="big">${list.length ? "You're all settled" : 'Nothing yet'}</div>` : '';
+  const tone = pays.length ? 'is-owing' : gets.length ? 'is-owed' : '';
+  return `<section class="hero ${tone}">${main || ''}${receive}${settled}
     ${unrated ? `<p class="small">Leaves out ${unrated} expense${unrated > 1 ? 's' : ''} waiting for an exchange rate.</p>` : ''}
-    ${A.pending[trip.id]?.length ? `<p class="small">Includes ${A.pending[trip.id].length} change${A.pending[trip.id].length > 1 ? 's' : ''} your friends can't see yet.</p>` : ''}</section>`;
+    ${waiting ? `<p class="small">Includes ${waiting} change${waiting > 1 ? 's' : ''} your friends can't see yet.</p>` : ''}</section>`;
 }
 
 actions['set-me'] = async el => {

@@ -27,9 +27,9 @@ function line(trip, e) {
   if (missing) side = '<span class="tag warn">Needs rate</span>';
   else if (me) {
     const lent = (b.paid[me] || 0) - (b.owed[me] || 0);
-    if (lent > 0) side = `<div class="tiny muted">${refund ? 'you get back' : 'you lent'}</div><div class="amt owed">${money(lent, trip.currency)}</div>`;
-    else if (lent < 0) side = `<div class="tiny muted">you owe</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
-    else side = `<div class="tiny muted">${b.owed[me] ? 'you paid your share' : 'not involved'}</div>`;
+    if (lent > 0) side = `<div class="tiny muted">you get back</div><div class="amt owed">${money(lent, trip.currency)}</div>`;
+    else if (lent < 0) side = `<div class="tiny muted">your share</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
+    else side = `<div class="tiny muted">${b.owed[me] ? 'you covered yours' : 'not involved'}</div>`;
   }
   return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span>
     <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="small muted">${esc(payer)} ${refund ? 'received' : 'paid'} ${money(e.total, e.currency)}${e.receipt ? ' · receipt' : ''}${commentCount ? ` · ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}</span>
