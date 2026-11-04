@@ -3,7 +3,7 @@
  * keeps its own offline copy. Network first, so updates arrive; saved copy when offline.
  * When you add a file under css/ or js/, add it to APP_FILES (a unit test checks this).
  */
-const CACHE = 'triptab-v20';
+const CACHE = 'triptab-v21';
 const APP_FILES = [
   './', './index.html', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
@@ -12,7 +12,7 @@ const APP_FILES = [
   './js/config/app.js', './js/config/firebase.js',
   './js/core/backup.js', './js/core/categorize.js', './js/core/debts.js', './js/core/filters.js', './js/core/ids.js', './js/core/model.js', './js/core/money.js', './js/core/platform.js', './js/core/rates.js', './js/core/settle.js', './js/core/split.js',
   './js/data/backend-firebase.js', './js/data/backend-local.js', './js/data/device.js', './js/data/example.js', './js/data/repository.js', './js/data/resilient.js', './js/data/storage.js',
-  './js/ui/account.js', './js/ui/activity.js', './js/ui/balances.js', './js/ui/detail.js', './js/ui/dom.js', './js/ui/expense-form.js', './js/ui/expenses.js', './js/ui/home.js', './js/ui/insights.js', './js/ui/people.js', './js/ui/receipt.js', './js/ui/avatars.js', './js/ui/routes.js', './js/ui/row-menu.js', './js/ui/state.js', './js/ui/trip.js',
+  './js/ui/account.js', './js/ui/activity.js', './js/ui/balances.js', './js/ui/detail.js', './js/ui/dom.js', './js/ui/expense-form.js', './js/ui/expenses.js', './js/ui/home.js', './js/ui/insights.js', './js/ui/people.js', './js/ui/receipt.js', './js/ui/avatars.js', './js/ui/routes.js', './js/ui/updates.js', './js/ui/row-menu.js', './js/ui/state.js', './js/ui/trip.js',
 ];
 /** The database code and fonts come from Google and have to work offline too. */
 const isCdn = url => (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/'))

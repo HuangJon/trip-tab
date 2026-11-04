@@ -23,6 +23,7 @@ import { attachReceipt } from './ui/expense-form.js';
 import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
+import { watchForUpdates } from './ui/updates.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
 const storage = createLocalStorage();
@@ -264,15 +265,7 @@ async function boot() {
 
 function registerUpdates() {
   if (PREVIEW || !('serviceWorker' in navigator) || location.protocol === 'file:') return;
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    reg.addEventListener('updatefound', () => {
-      const incoming = reg.installing;
-      if (!navigator.serviceWorker.controller) return; // first install: nothing to update
-      incoming?.addEventListener('statechange', () => {
-        if (incoming.state === 'installed') document.getElementById('updateBanner').hidden = false;
-      });
-    });
-  }).catch(() => {});
+  watchForUpdates({ sw: navigator.serviceWorker, doc: document, win: window, onUpdate: () => { document.getElementById('updateBanner').hidden = false; } });
 }
 actions['apply-update'] = () => location.reload();
 
