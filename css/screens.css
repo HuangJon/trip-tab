@@ -137,3 +137,5 @@ nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box
 .debt.other .ava { width:24px; height:24px; font-size:.7rem }
 .tabs-in { grid-template-columns:1fr 1fr minmax(76px,1.3fr) 1fr 1fr }
 .add-tab span { white-space:nowrap }
+/* Solid blue is kept for Add expense, so the current tab uses a soft pill instead. */
+.tabs button[aria-current="page"] svg { background:var(--accent-soft); color:var(--accent) }
