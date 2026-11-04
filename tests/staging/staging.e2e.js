@@ -172,6 +172,7 @@ try {
   check('an admin can remove an unused name on the real rules');
 
   await host.reload();
+  await tab(host, 'expenses');
   await host.waitForSelector('.tap:has-text("From friend")', { timeout: 20000 });
   assert.deepEqual(host.errors, []);
   assert.deepEqual(friend.errors, []);

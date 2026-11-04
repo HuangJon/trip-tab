@@ -55,6 +55,9 @@ export function canEditEntry(trip, e, id) {
 export const memberName = (trip, id) => trip.members[id]?.name ?? 'Former member';
 export const liveEntries = entries => Object.values(entries || {}).filter(e => !e.deleted);
 export const byNewest = (a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0);
+/** Whether a name is on an expense that counts. Deleted ones don't; restoring one brings the name back. */
 export function isInUse(entries, id) {
-  return Object.values(entries || {}).some(e => e.paid?.[id] || e.owed?.[id]);
+  return Object.values(entries || {}).some(e => !e.deleted && (e.paid?.[id] || e.owed?.[id]));
 }
+/** Names on this expense that have since been removed from the trip. */
+export const removedNames = (trip, e) => [...new Set([...Object.keys(e.paid || {}), ...Object.keys(e.owed || {})])].filter(id => trip.members[id]?.removed);

@@ -1,6 +1,6 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { activeMembers, handlersOf, sharesOf, isFromNewerApp, isInUse, isValidEntry, migrateTrip } from '../../js/core/model.js';
+import { activeMembers, handlersOf, sharesOf, isFromNewerApp, isInUse, isValidEntry, removedNames, migrateTrip } from '../../js/core/model.js';
 import { backupFilename, createBackup, csvFor, parseBackup } from '../../js/core/backup.js';
 import { SCHEMA_VERSION } from '../../js/config/app.js';
 
@@ -80,4 +80,11 @@ test('a missing rate is valid, a bad one is not, and CSV flags it', () => {
   assert.ok(!isValidEntry({ ...e, rate: 0 }));
   assert.ok(!isValidEntry({ ...e, rate: 'x' }));
   assert.ok(csvFor(trip, { x: e }).includes('"needs rate"'));
+});
+
+test('a name on only deleted expenses is free to remove, and restoring finds it', () => {
+  const e = { paid: { a: 100 }, owed: { a: 50, b: 50 }, deleted: true };
+  assert.ok(!isInUse({ e }, 'b'));
+  assert.ok(isInUse({ e: { ...e, deleted: false } }, 'b'));
+  assert.deepEqual(removedNames({ members: { a: {}, b: { removed: true } } }, e), ['b']);
 });

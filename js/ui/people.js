@@ -38,10 +38,10 @@ function joinedSection(trip, admin, members) {
     <p class="tiny muted">Only admins see this list and these emails. Removing someone stops them opening the trip. Their expenses stay.</p></section>`;
 }
 
-/** Why a name can't be removed yet. Deleted expenses count, because they can be brought back. */
+/** Why a name can't be removed yet. */
 function usedOn(entries, id) {
-  const on = Object.values(entries || {}).filter(e => e.paid?.[id] || e.owed?.[id]), gone = on.filter(e => e.deleted).length;
-  return `On ${on.length} ${on.length === 1 ? 'entry' : 'entries'}${gone ? `, ${gone} deleted` : ''}. Take this name off ${on.length === 1 ? 'it' : 'them'} to remove it.`;
+  const on = Object.values(entries || {}).filter(e => !e.deleted && (e.paid?.[id] || e.owed?.[id])).length;
+  return `On ${on} ${on === 1 ? 'entry' : 'entries'}. Take this name off ${on === 1 ? 'it' : 'them'} to remove it.`;
 }
 
 export function peopleView(trip) {

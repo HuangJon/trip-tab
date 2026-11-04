@@ -520,6 +520,36 @@ await page.waitForSelector('[aria-label="Remove Temp"]');
 await page.click('[aria-label="Remove Temp"]');
 await page.waitForFunction(() => !document.querySelector('[aria-label="Remove Temp"]'));
 assert.equal(await page.locator('[aria-label="Remove Mia"]').count(), 0);
+/* A name only on a deleted expense can go, and restoring the expense brings it back */
+await page.fill('#newMember', 'Ghost');
+await page.click('form[data-form=add-member] button');
+await page.waitForSelector('[aria-label="Remove Ghost"]');
+await page.click('[data-action=add-expense]');
+await page.fill('#fDesc', 'Ghost lunch');
+await page.fill('#fAmt', '40');
+await page.click('#fSave');
+await tab(page, 'people');
+await page.waitForSelector('input[value="Ghost"]');
+assert.equal(await page.locator('[aria-label="Remove Ghost"]').count(), 0);
+assert.match(await page.textContent('.stack:has(> .row input[value="Ghost"])'), /On 1 entry/);
+await tab(page, 'expenses');
+await page.click('.tap:has-text("Ghost lunch")', { button: 'right' });
+await page.click('#rowMenu [data-action=delete-entry]');
+await tab(page, 'people');
+await page.click('[aria-label="Remove Ghost"]');
+await page.waitForFunction(() => !document.querySelector('input[value="Ghost"]'));
+await tab(page, 'activity');
+await page.click('[data-action=open-entry]:has-text("Ghost lunch"), .row:has-text("Ghost lunch") [data-action=restore-entry]');
+if (await page.locator('#dlg [data-action=restore-entry]').count()) await page.click('#dlg [data-action=restore-entry]');
+await page.waitForFunction(() => /Ghost is back on the trip/.test(document.getElementById('toast').textContent));
+await tab(page, 'people');
+await page.waitForSelector('input[value="Ghost"]');
+await tab(page, 'expenses');
+await page.click('.tap:has-text("Ghost lunch")', { button: 'right' });
+await page.click('#rowMenu [data-action=delete-entry]');
+await tab(page, 'people');
+await page.click('[aria-label="Remove Ghost"]');
+await page.waitForFunction(() => !document.querySelector('input[value="Ghost"]'));
 check('only unused people can be removed');
 
 /* Rename everywhere */

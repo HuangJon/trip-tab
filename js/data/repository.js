@@ -9,7 +9,7 @@
  */
 import { SCHEMA_VERSION, LIMITS } from '../config/app.js';
 import { randomId, tripId as newTripId } from '../core/ids.js';
-import { activeMembers, isValidEntry, isValidTrip, migrateTrip } from '../core/model.js';
+import { activeMembers, removedNames, isValidEntry, isValidTrip, migrateTrip } from '../core/model.js';
 
 const tripPath = id => `trips/${id}`;
 const col = (id, name) => `trips/${id}/${name}`;
@@ -195,6 +195,10 @@ export function createRepository(backend, now = () => Date.now()) {
     async importBackup(trip, backup, actor = 'Someone', actorId) {
       const members = {};
       for (const [id, m] of Object.entries(backup.trip.members)) if (!trip.members[id]) members[`members.${id}`] = { ...m, claimed: false };
+      // A live expense from the backup can include a name removed since, so that name comes back.
+      for (const e of backup.entries) {
+        if (!e.deleted) for (const id of removedNames(trip, e)) members[`members.${id}.removed`] = false;
+      }
       const writes = Object.keys(members).length ? [backend.update(tripPath(trip.id), { ...members, ...stamp(actorId, 'changedBy') })] : [];
       let changed = 0;
       for (const e of backup.entries) {

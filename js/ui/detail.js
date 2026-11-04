@@ -1,11 +1,11 @@
 /** One expense or payment: its details, comments, edit and delete. */
 import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
-import { actor, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
+import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
 import { inBase, needsRate } from '../core/debts.js';
 import { rateLabel } from '../core/rates.js';
-import { handlersOf, memberName, sharesOf } from '../core/model.js';
+import { handlersOf, memberName, removedNames, sharesOf } from '../core/model.js';
 import { duplicateExpense, openExpenseForm } from './expense-form.js';
 
 const rowsOf = (t, e, map) => Object.keys(map).map(i => `<div class="row between">${avatar(t, i)}<span class="grow wrap-any">${esc(memberName(t, i))}</span><span class="amt">${money(map[i], e.currency)}</span></div>`).join('');
@@ -67,12 +67,25 @@ async function loadHistory(t, id) {
       : '<p class="small muted">This expense hasn\'t been edited.</p>';
   } catch { const el = slot(); if (el) el.textContent = 'Earlier versions need a connection to load.'; }
 }
+/**
+ * Restoring an expense that includes a removed name puts that name back on the trip, so the balances
+ * still add up. Only an admin can do that, so anyone else is asked to get an admin to restore it.
+ */
+function bringBackNames(t, e) {
+  const gone = removedNames(t, e);
+  if (!gone.length) return true;
+  const names = gone.map(id => memberName(t, id)).join(', ');
+  if (!amAdmin(t)) { toast(`This includes ${names}, who was removed from the trip. Ask the trip's admin to restore it.`); return false; }
+  send(A.repo.updateTrip(t.id, Object.fromEntries(gone.map(id => [`members.${id}.removed`, false])), getMe(t)), 'Bringing that name back');
+  return names;
+}
 actions['history-show'] = el => loadHistory(A.trips[A.route.tripId], el.dataset.id);
 actions['history-restore'] = el => {
   const t = A.trips[A.route.tripId], rev = revisions[+el.dataset.i];
   if (!rev) return;
   const current = A.entries[t.id][rev.entryId], name = actor(t);
   const entry = { ...rev.entry, deleted: false, updatedAt: Date.now(), updatedBy: name };
+  if (!bringBackNames(t, entry)) return;
   closeSheet();
   A.historyFor = null;
   send(A.repo.saveEntry(t, entry, { isNew: false, previous: current, actor: name, actorId: getMe(t), label: `restored an earlier version of "${entry.desc}"` }));
@@ -94,9 +107,11 @@ async function loadReceipt(tripId, e) {
 function setDeleted(id, deleted) {
   const t = A.trips[A.route.tripId], e = A.entries[t.id][id];
   const name = e.kind === 'payment' ? 'a settlement' : `"${e.desc}"`;
+  const back = deleted || bringBackNames(t, e);
+  if (!back) return;
   closeSheet();
   send(A.repo.setEntryDeleted(t, id, deleted, actor(t), name, getMe(t)));
-  toast(deleted ? 'Deleted' : 'Restored', deleted ? () => setDeleted(id, false) : null);
+  toast(deleted ? 'Deleted' : typeof back === 'string' ? `Restored. ${back} is back on the trip.` : 'Restored', deleted ? () => setDeleted(id, false) : null);
 }
 actions['open-entry'] = el => openDetail(el.dataset.id);
 actions['edit-entry'] = el => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t, A.entries[t.id][el.dataset.id]); };
