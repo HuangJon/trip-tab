@@ -169,6 +169,8 @@ await admin.repo.keepOldLink(trip.id, a);
 const rebuilt = await lost.repo.createFromBackup({ trip: { ...current, id: 'rebuilttriprebuilttrip01' }, entries: [] }, b, lost.profile);
 assert.ok(rebuilt.claim);
 
+/* An exchange rate can wait, but a bad one is refused. */
+await save(admin, { ...entryFor('entry00000000006', a), currency: 'JPY', rate: null }, { isNew: true, actorId: a });
 /* Things nobody can do. */
 const { db } = admin.backend, sdk = store;
 const entryPath = `trips/${trip.id}/entries/${anaEntry.id}`;

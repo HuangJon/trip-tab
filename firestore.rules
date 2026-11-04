@@ -50,7 +50,7 @@ service cloud.firestore {
         && d.kind in ['expense', 'payment', 'refund']
         && d.total is int && d.total > 0 && d.total <= 1000000000000
         && d.currency.matches('^[A-Z]{3}$')
-        && d.rate is number && d.rate > 0
+        && (d.rate == null || (d.rate is number && d.rate > 0))
         && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && short(d.desc, 80) && d.desc.size() > 0
         && short(d.note, 500)

@@ -3,9 +3,10 @@ import { A, actions, inputs, render } from './state.js';
 import { CATEGORIES } from '../config/app.js';
 import { ICON, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
 import { money } from '../core/money.js';
-import { inBase } from '../core/debts.js';
+import { inBase, needsRate } from '../core/debts.js';
 import { byNewest, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
 import { summaryCard } from './trip.js';
+import { goTrip } from './routes.js';
 
 function line(trip, e) {
   const me = getMe(trip);
@@ -19,15 +20,17 @@ function line(trip, e) {
   const refund = e.kind === 'refund';
   const handlers = Object.keys(handlersOf(e));
   const payer = handlers.length > 1 ? `${handlers.length} people` : who(trip, handlers[0]);
-  const b = inBase(e, trip.currency);
+  const missing = needsRate(e, trip.currency);
+  const b = missing ? { paid: {}, owed: {} } : inBase(e, trip.currency);
   let side = '';
-  if (me) {
+  if (missing) side = '<span class="tag warn">Needs rate</span>';
+  else if (me) {
     const lent = (b.paid[me] || 0) - (b.owed[me] || 0);
     if (lent > 0) side = `<div class="tiny muted">${refund ? 'you get back' : 'you lent'}</div><div class="amt owed">${money(lent, trip.currency)}</div>`;
     else if (lent < 0) side = `<div class="tiny muted">you owe</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
     else side = `<div class="tiny muted">${b.owed[me] ? 'you paid your share' : 'not involved'}</div>`;
   }
-  return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile ${refund ? 'pay' : ''}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span>
+  return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span>
     <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="small muted">${esc(payer)} ${refund ? 'received' : 'paid'} ${money(e.total, e.currency)}${e.receipt ? ' · receipt' : ''}${commentCount ? ` · ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}</span>
     <span class="tiny muted credit">${creditLine(trip, e)}</span></span>
     <span class="right">${side}</span></button>`;
@@ -55,7 +58,7 @@ function listHtml(trip) {
   const list = matches(trip);
   if (!list.length) {
     const none = !liveEntries(A.entries[trip.id]).length;
-    return `<section class="panel empty"><h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something.' : 'Try another word or clear the category.'}</p></section>`;
+    return `<section class="panel empty"><h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something, or invite your friends first.' : 'Try another word or clear the category.'}</p>${none ? '<button class="btn" data-action="invite-first">Invite friends</button>' : ''}</section>`;
   }
   const days = new Map();
   for (const e of list) { if (!days.has(e.date)) days.set(e.date, []); days.get(e.date).push(e); }
@@ -74,6 +77,7 @@ export function expensesView(trip) {
     <div class="stack entries" id="entryList">${listHtml(trip)}</div>`;
 }
 
+actions['invite-first'] = () => goTrip(A.route.tripId, 'people');
 actions['filter-cat'] = el => { A.filterCat = el.dataset.id; render(); };
 inputs.search = el => {
   A.search = el.value;

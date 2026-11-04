@@ -3,7 +3,7 @@ import { A, actions } from './state.js';
 import { CATEGORIES } from '../config/app.js';
 import { esc, getMe, saveFile } from './dom.js';
 import { money } from '../core/money.js';
-import { spendingBreakdown } from '../core/debts.js';
+import { needsRate, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
 import { backupFilename, csvFor } from '../core/backup.js';
 
@@ -18,8 +18,9 @@ export function insightsView(trip) {
   if (!s.count) return '<section class="panel empty"><h2>Nothing to chart yet</h2><p class="muted">Spending breakdowns appear after the first expense.</p></section>';
   const me = getMe(trip), days = Object.keys(s.byDay).sort();
   const max = Math.max(1, ...members.flatMap(m => [s.paid[m.id] || 0, s.share[m.id] || 0]));
-  return `<section class="panel summary"><span class="label">Total trip spending</span><div class="big">${f(s.total)}</div>
-    <p class="small muted">${s.count} expense${s.count > 1 ? 's' : ''} over ${days.length} day${days.length > 1 ? 's' : ''} · ${f(Math.round(s.total / Math.max(1, members.length)))} per person${me ? ` · your share ${f(s.share[me] || 0)}` : ''}</p></section>
+  const unrated = liveEntries(A.entries[trip.id]).filter(e => needsRate(e, c)).length;
+  return `${unrated ? `<div class="notice">Leaves out ${unrated} expense${unrated > 1 ? 's' : ''} waiting for an exchange rate.</div>` : ''}<section class="hero"><span class="label">Total trip spending</span><div class="big">${f(s.total)}</div>
+    <p class="small">${s.count} expense${s.count > 1 ? 's' : ''} over ${days.length} day${days.length > 1 ? 's' : ''} · ${f(Math.round(s.total / Math.max(1, members.length)))} per person${me ? ` · your share ${f(s.share[me] || 0)}` : ''}</p></section>
   <section class="panel pad stack"><h2>By category</h2>${bars(Object.entries(s.byCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ k: CATEGORIES[k] || 'Other', v })), f)}</section>
   <section class="panel pad stack"><h2>Paid compared with share</h2>
     <div class="row small muted"><span class="row gap6"><span class="key"></span>Paid, after refunds</span><span class="row gap6"><span class="key alt"></span>Share</span></div>

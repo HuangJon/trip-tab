@@ -29,6 +29,8 @@ export async function createTrip(page, name = 'Okinawa', people = 'Jonathan\nMia
   await page.fill('#ntPeople', people);
   await page.selectOption('#ntCur', 'TWD');
   await page.click('form[data-form=new-trip] .btn.primary');
+  await page.waitForSelector('[data-action=invite-first]');
+  await tab(page, 'people');
   await page.waitForSelector('#inviteLink');
 }
 export async function tab(page, name) { await page.click(`[data-tab=${name}]`); }

@@ -4,7 +4,7 @@ body { margin:0; background:var(--ground); color:var(--ink); font:400 16px/1.45 
   padding-block:env(safe-area-inset-top,0px) calc(150px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)) }
 body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--ground) }
-#app { max-width:680px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:20px; padding-top:16px }
+#app { max-width:680px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:18px; padding-top:16px }
 [hidden] { display:none!important }
 h1,h2,h3 { font-family:var(--display); margin:0; text-wrap:balance; line-height:1.12 }
 h1 { font-size:2rem; font-weight:700; letter-spacing:-.015em } h2 { font-size:1.25rem; font-weight:700 } h3 { font-size:1rem; font-weight:700 }
@@ -20,7 +20,7 @@ button { cursor:pointer } label[for] { cursor:pointer }
 .stack { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; min-width:0 } .tight { gap:4px } .entries { gap:16px }
 .row { display:flex; align-items:center; gap:12px; min-width:0 } .between { justify-content:space-between } .wrap { flex-wrap:wrap } .gap8 { gap:8px } .gap6 { gap:6px }
 .grow { flex:1; min-width:0 }
-.btn { display:inline-grid; place-items:center; border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:9px 14px; font-weight:600; min-height:44px }
+.btn { display:inline-grid; place-items:center; border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:9px 14px; font-weight:600; min-height:44px }
 .btn:hover { border-color:var(--ink) }
 .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }
 .btn.danger { color:var(--owe); border-color:var(--owe) }
@@ -28,9 +28,9 @@ button { cursor:pointer } label[for] { cursor:pointer }
 .link { background:none; border:0; padding:0; color:var(--accent); font-weight:600; text-align:left }
 .icon-btn { width:44px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; flex:none }
 .icon-btn svg { width:20px; height:20px }
-.panel { background:var(--surface); border:1px solid var(--line); border-radius:14px }
+.panel { background:var(--surface); border:1px solid var(--card-line); border-radius:16px; box-shadow:var(--card-shadow) }
 .pad { padding:16px }
-.notice { padding:10px 14px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:.875rem }
+.notice { padding:12px 14px; border-radius:14px; background:var(--warn-soft); color:var(--warn); font-size:.875rem }
 .note-row { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap }
 .note-row>span { flex:1 1 200px; min-width:0 }
 .nudge { color:var(--warn); font-weight:600 }
@@ -46,6 +46,8 @@ label.f>span:first-child,.flabel { font-size:.84rem; font-weight:600; color:var(
 .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:5px 12px; font-size:.875rem; font-weight:500; display:inline-flex; align-items:center; gap:6px; min-height:36px; overflow-wrap:anywhere }
 .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }
 .tag { font-size:.72rem; font-weight:600; padding:2px 7px; border-radius:5px; background:var(--sunken); color:var(--muted); flex:none }
+.tag.warn { background:var(--warn-soft); color:var(--warn) }
+.optional { font-weight:500; opacity:.8 }
 .tag.you { background:var(--accent-soft); color:var(--accent) } .tag.good { background:var(--owed-soft); color:var(--owed) }
 .ava { width:30px; height:30px; border-radius:50%; display:inline-grid; place-items:center; font-size:.8rem; font-weight:600; color:#fff; flex:none }
 .x { border:0; background:none; width:36px; height:36px; font-size:1.2rem; color:var(--muted); flex:none }
@@ -53,3 +55,22 @@ label.f>span:first-child,.flabel { font-size:.84rem; font-weight:600; color:var(
 #toast button { background:none; border:0; color:inherit; text-decoration:underline; font-weight:600 }
 .update { position:sticky; top:env(safe-area-inset-top,0px); z-index:8; max-width:680px; margin:8px auto 0; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 12px; background:var(--accent-soft); border-radius:10px; font-size:.9rem }
 @media (prefers-reduced-motion: no-preference) { .fill,.diverge i { transition:width .25s ease } }
+
+/* Touch feedback and movement. Everything here is optional polish. */
+button { -webkit-tap-highlight-color:transparent }
+.busy { opacity:.6; pointer-events:none }
+button:disabled { opacity:.55 }
+@media (prefers-reduced-motion: no-preference) {
+  .btn,.chip,.fab,.tap,.seg button,.tabs button { transition:transform .12s ease,background-color .15s ease,border-color .15s ease }
+  .btn:active,.chip:active,.fab:active { transform:scale(.97) }
+  dialog[open] { animation:sheet-in .22s cubic-bezier(.2,.8,.2,1) }
+  dialog::backdrop { animation:fade-in .2s ease }
+  #toast:not([hidden]) { animation:toast-in .18s ease }
+  .fresh { animation:fresh 1.8s ease }
+}
+.tap:active { background:var(--sunken) }
+.fresh { background:var(--accent-soft) }
+@keyframes sheet-in { from { transform:translateY(24px); opacity:0 } }
+@keyframes fade-in { from { opacity:0 } }
+@keyframes toast-in { from { transform:translate(-50%,8px); opacity:0 } }
+@keyframes fresh { from { background:var(--accent-soft) } to { background:transparent } }

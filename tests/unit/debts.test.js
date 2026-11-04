@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { inBase, netBalances, pairwise, simplify, spendingBreakdown } from '../../js/core/debts.js';
+import { inBase, needsRate, netBalances, pairwise, simplify, spendingBreakdown } from '../../js/core/debts.js';
 const es = [
   { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 900, paid: { a: 900 }, owed: { a: 300, b: 300, c: 300 } },
   { kind: 'expense', category: 'fun', date: '2026-01-02', currency: 'JPY', rate: 0.21, total: 3333, paid: { b: 3333 }, owed: { a: 1111, b: 1111, c: 1111 } },
@@ -64,4 +64,16 @@ test('a refund gives the sharers credit and the receiver the debt', () => {
   const s = spendingBreakdown([spent, half], 'T');
   assert.equal(s.total, 150); assert.equal(s.byCategory.lodging, 150); assert.equal(s.count, 1);
   assert.equal(s.paid.a, 150); assert.equal(s.share.b, 50);
+});
+
+test('an expense with no rate stays out of every total until it has one', () => {
+  const rated = { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 100, paid: { a: 100 }, owed: { a: 50, b: 50 } };
+  const waiting = { kind: 'expense', category: 'fun', date: '2026-01-01', currency: 'JPY', rate: null, total: 5000, paid: { b: 5000 }, owed: { a: 2500, b: 2500 } };
+  assert.ok(needsRate(waiting, 'TWD')); assert.ok(!needsRate(rated, 'TWD'));
+  assert.ok(!needsRate({ currency: 'TWD' }, 'TWD'), 'the trip currency never needs a rate');
+  assert.deepEqual(netBalances([rated, waiting], 'TWD'), { a: 50, b: -50 });
+  assert.deepEqual(pairwise([rated, waiting], 'TWD'), [{ from: 'b', to: 'a', amount: 50 }]);
+  assert.equal(spendingBreakdown([rated, waiting], 'TWD').total, 100);
+  const fixed = netBalances([rated, { ...waiting, rate: 0.2 }], 'TWD');
+  assert.deepEqual(fixed, { a: -450, b: 450 });
 });

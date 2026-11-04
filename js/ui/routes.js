@@ -4,8 +4,11 @@ import { TRIP_ID_PATTERN } from '../core/ids.js';
 
 export const TABS = ['expenses', 'balances', 'insights', 'activity', 'people'];
 
-function setHash(h) {
-  try { if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch { /* the address bar is optional */ }
+function setHash(h, addToHistory) {
+  try {
+    if (location.hash === h) return;
+    history[addToHistory ? 'pushState' : 'replaceState'](null, '', h || location.pathname + location.search);
+  } catch { /* the address bar is optional */ }
 }
 export function goHome() {
   A.route = { name: 'home' };
@@ -15,9 +18,11 @@ export function goHome() {
   scrollTo(0, 0);
 }
 export function goTrip(id, tab = 'expenses') {
+  // Opening a trip adds a history step, so the phone's back button returns to the list of trips.
+  const fromHome = A.route.name !== 'trip';
   A.route = { name: 'trip', tripId: id, tab };
   A.search = ''; A.filterCat = ''; A.confirm = null;
-  setHash(`#t-${id}-${tab}`);
+  setHash(`#t-${id}-${tab}`, fromHome);
   A.watchActivity?.(id);
   A.watchJoined?.(id);
   render();

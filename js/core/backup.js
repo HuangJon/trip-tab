@@ -1,7 +1,7 @@
 /** Backup files and CSV export. Pure text in, pure data out. */
 import { SCHEMA_VERSION } from '../config/app.js';
 import { fromMinor } from './money.js';
-import { inBase } from './debts.js';
+import { inBase, needsRate } from './debts.js';
 import { activeMembers, byNewest, isValidEntry, isValidTrip, liveEntries, memberName, migrateTrip } from './model.js';
 import { CATEGORIES } from '../config/app.js';
 
@@ -39,13 +39,14 @@ export function csvFor(trip, entries) {
   const everyone = activeMembers(trip);
   const rows = [['Date', 'Type', 'Description', 'Category', 'Amount', 'Currency', 'Rate', `Amount in ${base}`, ...everyone.flatMap(m => [`${m.name} paid`, `${m.name} share`])]];
   for (const e of liveEntries(entries).sort(byNewest).reverse()) {
-    const b = inBase(e, base);
+    const missing = needsRate(e, base);
+    const b = missing ? { total: 0, paid: {}, owed: {} } : inBase(e, base);
     const pay = e.kind === 'payment', refund = e.kind === 'refund';
     const sign = refund ? -1 : 1, handled = refund ? b.owed : b.paid, shares = refund ? b.paid : b.owed;
     rows.push([
       e.date, pay ? 'Settlement' : refund ? 'Refund' : 'Expense',
       pay ? `${memberName(trip, Object.keys(e.paid)[0])} paid ${memberName(trip, Object.keys(e.owed)[0])}` : e.desc,
-      pay ? '' : CATEGORIES[e.category] || 'Other', fromMinor(sign * e.total, e.currency), e.currency, e.rate ?? 1, fromMinor(sign * b.total, base),
+      pay ? '' : CATEGORIES[e.category] || 'Other', fromMinor(sign * e.total, e.currency), e.currency, missing ? 'needs rate' : e.rate ?? 1, missing ? '' : fromMinor(sign * b.total, base),
       ...everyone.flatMap(m => [fromMinor(sign * (handled[m.id] || 0), base), fromMinor(sign * (shares[m.id] || 0), base)]),
     ]);
   }

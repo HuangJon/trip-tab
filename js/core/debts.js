@@ -1,17 +1,21 @@
 /** Balances and who-pays-whom. Every result is in the trip's currency, in whole minor units. */
 import { allocate, convert } from './money.js';
 
+/** A foreign amount with no exchange rate yet can't be counted, so it stays out of all totals until it has one. */
+export const needsRate = (entry, base) => entry.currency !== base && !(entry.rate > 0);
+export const countable = (entries, base) => entries.filter(e => !needsRate(e, base));
+
 /** One entry converted to the trip's currency. The parts are re-allocated so they stay exact. */
 export function inBase(entry, base) {
   if (entry.currency === base) return { total: entry.total, paid: entry.paid, owed: entry.owed };
-  const total = convert(entry.total, entry.currency, base, entry.rate || 1);
+  const total = convert(entry.total, entry.currency, base, entry.rate);
   return { total, paid: allocate(total, entry.paid), owed: allocate(total, entry.owed) };
 }
 
 /** Positive means the person is owed money; negative means they owe. Always sums to zero. */
 export function netBalances(entries, base, memberIds = []) {
   const net = Object.fromEntries(memberIds.map(i => [i, 0]));
-  for (const e of entries) {
+  for (const e of countable(entries, base)) {
     const b = inBase(e, base);
     for (const i in b.paid) net[i] = (net[i] || 0) + b.paid[i];
     for (const i in b.owed) net[i] = (net[i] || 0) - b.owed[i];
@@ -46,7 +50,7 @@ export function simplify(net) {
 export function pairwise(entries, base) {
   const matrix = new Map();
   const add = (a, b, v) => matrix.set(`${a}|${b}`, (matrix.get(`${a}|${b}`) || 0) + v);
-  for (const e of entries) {
+  for (const e of countable(entries, base)) {
     const b = inBase(e, base), n = {};
     for (const i in b.paid) n[i] = (n[i] || 0) + b.paid[i];
     for (const i in b.owed) n[i] = (n[i] || 0) - b.owed[i];
@@ -82,7 +86,7 @@ export function pairwise(entries, base) {
 export function spendingBreakdown(entries, base) {
   const byCategory = {}, byDay = {}, paid = {}, share = {};
   let total = 0, count = 0;
-  for (const e of entries) {
+  for (const e of countable(entries, base)) {
     if (e.kind === 'payment') continue;
     const b = inBase(e, base);
     const refund = e.kind === 'refund', sign = refund ? -1 : 1;

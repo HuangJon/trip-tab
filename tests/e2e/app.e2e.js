@@ -63,6 +63,37 @@ assert.match(await text(page), /Who pays whom/);
 await page.check('#simp');
 check('simplify toggle');
 
+/* An exchange rate can wait */
+await tab(page, 'balances');
+const beforeUnrated = await page.textContent('.hero');
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+await page.fill('#fDesc', 'Taxi no rate');
+await page.fill('#fAmt', '3000');
+await page.selectOption('#fCur', 'KRW');
+await page.fill('#fRate', 'abc');
+await page.click('#fSave');
+await toastSays(/isn't a number/);
+await page.fill('#fRate', '');
+await page.click('#fSave');
+await page.waitForSelector('.tap:has-text("Taxi no rate") .tag.warn');
+await tab(page, 'balances');
+await page.waitForSelector('#unrated');
+assert.match(await page.textContent('#unrated'), /1 expense needs an exchange rate/);
+assert.match(await page.textContent('.hero'), /Leaves out 1 expense/);
+assert.ok((await page.textContent('.hero')).startsWith(beforeUnrated.trim().slice(0, 12)), 'the balance is unchanged');
+await page.click('[data-action=settle] >> nth=0');
+assert.match(await page.textContent('#dlg'), /waiting for an exchange rate/);
+await page.click('[data-action=close-sheet]');
+await page.click('#unrated [data-action=edit-entry]');
+await page.fill('#fRate', '0.024');
+await page.click('#fSave');
+await page.waitForFunction(() => !document.getElementById('unrated'));
+assert.ok(!/Leaves out/.test(await page.textContent('.hero')));
+check('an expense can wait for its exchange rate, and is counted once it has one');
+await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('triptab:currency:')) localStorage.removeItem(k); });
+await tab(page, 'expenses');
+
 /* Typed values survive changing the split */
 await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
@@ -76,13 +107,26 @@ await page.fill('#it-n-0', 'Beer');
 await page.fill('#it-a-0', '1000');
 await page.click('[data-action=item-person] >> nth=0');
 assert.equal(await page.inputValue('#it-a-0'), '1000', 'price kept after tapping a person');
-assert.match(await page.textContent('#splitArea'), /extra of ¥100/);
+assert.match(await page.textContent('#splitArea'), /extra of NT\$100/);
 await page.click('[data-action=split-mode][data-id=items]');
 assert.equal(await page.getAttribute('[data-action=split-mode][data-id=items]', 'aria-pressed'), 'true', 'tapping the selected mode keeps it');
 assert.equal(await page.inputValue('#it-n-0'), 'Beer');
 await page.click('#fSave');
 await page.waitForSelector('.tap:has-text("Items test")');
 check('typed values survive; by-item split saves');
+
+/* Feedback and navigation */
+await page.click('[data-action=add-expense]');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'a new expense starts in the description');
+await page.fill('#fDesc', 'Fresh row');
+await page.fill('#fAmt', '20');
+await page.click('#fSave');
+await page.waitForSelector('.tap.fresh:has-text("Fresh row")');
+await page.goBack();
+await page.waitForSelector('.home-head');
+await page.goForward();
+await page.waitForSelector('#entryList');
+check('saving highlights the new row; the phone back button returns to your trips');
 
 /* Multiple payers, validation */
 await page.click('[data-action=add-expense]');

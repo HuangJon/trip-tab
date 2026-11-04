@@ -3,7 +3,7 @@ import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
 import { actor, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
-import { inBase } from '../core/debts.js';
+import { inBase, needsRate } from '../core/debts.js';
 import { handlersOf, memberName, sharesOf } from '../core/model.js';
 import { duplicateExpense, openExpenseForm } from './expense-form.js';
 
@@ -28,7 +28,7 @@ export function openDetail(id, { keepTyped } = {}) {
   openSheet(`<div class="sheet">${sheetHead(pay ? 'Payment' : refund ? 'Refund' : 'Expense', editable && !pay && !e.deleted ? `<button type="button" class="btn small" data-action="edit-entry" data-id="${id}">Edit</button>` : '', 'Close')}
   <div class="sheet-body">
     <div class="stack tight"><h1 class="detail-title">${esc(pay ? `${memberName(t, Object.keys(e.paid)[0])} paid ${memberName(t, Object.keys(e.owed)[0])}` : e.desc)}</h1><div class="big">${money(e.total, e.currency)}</div>
-    ${foreign ? `<p class="small muted mono">≈ ${money(inBase(e, t.currency).total, t.currency)} at ${esc(e.rate)}</p>` : ''}
+    ${foreign ? (needsRate(e, t.currency) ? `<p><span class="tag warn">Needs an exchange rate</span> <span class="small muted">Not in balances yet.</span></p>` : `<p class="small muted mono">≈ ${money(inBase(e, t.currency).total, t.currency)} at ${esc(e.rate)}</p>`) : ''}
     <p class="small muted">${fmtDate(e.date)}${pay ? '' : ` · ${esc(CATEGORIES[e.category] || 'Other')}`}</p></div>
     <p class="small muted wrap-any">${credit(t, e)}</p>
     ${A.pending[t.id]?.includes(id) ? '<p><span class="tag">Waiting to sync</span> <span class="small muted">Friends can\'t see this until your phone is back online.</span></p>' : ''}

@@ -1,16 +1,27 @@
 /** Who pays whom, each person's balance, and recording payments. */
 import { A, actions, submits } from './state.js';
 import { LIMITS } from '../config/app.js';
-import { actor, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
+import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
-import { netBalances, pairwise, simplify } from '../core/debts.js';
+import { needsRate, netBalances, pairwise, simplify } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { summaryCard } from './trip.js';
 
+const unratedCount = trip => liveEntries(A.entries[trip.id]).filter(e => needsRate(e, trip.currency)).length;
+
 export function debtsFor(trip) {
   const list = liveEntries(A.entries[trip.id]);
   return trip.simplify === false ? pairwise(list, trip.currency) : simplify(netBalances(list, trip.currency));
+}
+
+/** Foreign expenses still waiting for a rate. They need one before the group settles up. */
+function unratedNotice(trip) {
+  const list = liveEntries(A.entries[trip.id]).filter(e => needsRate(e, trip.currency));
+  if (!list.length) return '';
+  return `<section class="notice stack" id="unrated"><strong>${list.length} expense${list.length > 1 ? 's need' : ' needs'} an exchange rate</strong>
+    <span>These aren't in the balances yet, so add the rates before you settle up.</span>
+    ${list.map(e => `<div class="row between wrap"><span class="grow wrap-any">${esc(e.desc)} · <span class="amt">${money(e.total, e.currency)}</span></span>${canEdit(trip, e) ? `<button class="btn small" data-action="edit-entry" data-id="${e.id}">Add rate</button>` : `<span class="small">Ask ${esc(memberName(trip, e.createdById))} to add it</span>`}</div>`).join('')}</section>`;
 }
 
 /** Someone's payment details with copy buttons. */
@@ -26,7 +37,7 @@ export function balancesView(trip) {
   const net = netBalances(liveEntries(A.entries[trip.id]), c, members.map(m => m.id));
   const max = Math.max(1, ...Object.values(net).map(Math.abs));
   const debts = debtsFor(trip), write = canWrite(trip), admin = amAdmin(trip);
-  return `${summaryCard(trip)}<section class="panel ticket">
+  return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
     <div class="pad stack"><div class="row between wrap"><h2>Who pays whom</h2><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
     <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. The amount each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p></div>
     <div class="tear" aria-hidden="true"></div>
@@ -64,6 +75,7 @@ actions.settle = el => {
     : debts.find(x => x.from === me || x.to === me) || debts[0] || { from: members[0].id, to: (members[1] || members[0]).id, amount: 0 };
   const opts = sel => members.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   openSheet(`<form class="sheet" data-form="settle">${sheetHead('Settle up', '<button class="btn small primary">Save</button>')}<div class="sheet-body">
+    ${unratedCount(trip) ? `<div class="notice">${unratedCount(trip)} expense${unratedCount(trip) > 1 ? 's are' : ' is'} waiting for an exchange rate and not counted yet. These amounts may change once ${unratedCount(trip) > 1 ? 'they have rates' : 'it has a rate'}.</div>` : ''}
     <p class="small muted">This records a payment you made outside the app, such as cash or a bank transfer. No money moves here.</p>
     <div class="grid2"><label class="f"><span>Who paid</span><select id="sFrom">${opts(d.from)}</select></label><label class="f"><span>Who received it</span><select id="sTo">${opts(d.to)}</select></label></div>
     <label class="f"><span>Amount in ${trip.currency}</span><input id="sAmt" class="amount-input" inputmode="decimal" required value="${d.amount ? fromMinor(d.amount, trip.currency) : ''}"></label>

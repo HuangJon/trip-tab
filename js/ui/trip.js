@@ -3,7 +3,7 @@ import { A, actions, submits, render } from './state.js';
 import { LIMITS } from '../config/app.js';
 import { ICON, avatar, esc, getMe, svg, toast, val } from './dom.js';
 import { money } from '../core/money.js';
-import { netBalances } from '../core/debts.js';
+import { needsRate, netBalances } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
 import { alerts } from './home.js';
 
@@ -20,20 +20,26 @@ export function tripHeader(trip) {
 export function summaryCard(trip) {
   const me = getMe(trip);
   if (!me) return '';
-  const v = netBalances(liveEntries(A.entries[trip.id]), trip.currency)[me] || 0;
-  return `<section class="panel summary"><span class="label">${v === 0 ? 'Your balance' : v > 0 ? 'You are owed' : 'You owe'}</span>
-    <div class="big ${v > 0 ? 'owed' : v < 0 ? 'owe' : ''}">${v === 0 ? 'Settled up' : money(Math.abs(v), trip.currency)}</div>
-    ${A.pending[trip.id]?.length ? `<p class="small muted">Includes ${A.pending[trip.id].length} change${A.pending[trip.id].length > 1 ? 's' : ''} your friends can't see yet.</p>` : ''}</section>`;
+  const list = liveEntries(A.entries[trip.id]);
+  const v = netBalances(list, trip.currency)[me] || 0;
+  const unrated = list.filter(e => needsRate(e, trip.currency)).length;
+  return `<section class="hero ${v > 0 ? 'is-owed' : v < 0 ? 'is-owing' : ''}"><span class="label">${v === 0 ? 'Your balance' : v > 0 ? 'You are owed' : 'You owe'}</span>
+    <div class="big">${v === 0 ? 'Settled up' : money(Math.abs(v), trip.currency)}</div>
+    ${unrated ? `<p class="small">Leaves out ${unrated} expense${unrated > 1 ? 's' : ''} waiting for an exchange rate.</p>` : ''}
+    ${A.pending[trip.id]?.length ? `<p class="small">Includes ${A.pending[trip.id].length} change${A.pending[trip.id].length > 1 ? 's' : ''} your friends can't see yet.</p>` : ''}</section>`;
 }
 
 actions['set-me'] = async el => {
   const tripId = A.route.tripId, memberId = el.dataset.id;
   if (navigator.onLine === false) { toast('Claiming your name needs a connection.'); return; }
+  el.disabled = true;
   try {
     await A.repo.claimMember(tripId, memberId);
     A.device.setMe(tripId, memberId);
     render();
+    toast(`You're in as ${A.trips[tripId]?.members?.[memberId]?.name || 'yourself'}`);
   } catch (e) {
+    el.disabled = false;
     toast(e?.code === 'taken' ? 'Someone just took that name. Ask the trip admin if it should be yours.' : "Your name wasn't saved. Check your connection and try again.");
   }
 };

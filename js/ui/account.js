@@ -20,8 +20,7 @@ const friendly = code => ({
 export function signInView() {
   const mode = A.authMode || 'in', joining = /#join-/.test(location.hash);
   const title = joining ? 'Sign in to join this trip' : 'Sign in to The Trip Tab';
-  return `<div class="airmail" aria-hidden="true"></div>
-  <header class="stack tight"><h1>${title}</h1><p class="muted">Every person verifies an email or Google account, so names on a trip can be trusted. Your trips follow your account to any phone or browser.</p></header>
+  return `<header class="brand tall"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${title}</h1><p class="muted">Every person verifies an email or Google account, so names on a trip can be trusted. Your trips follow your account to any phone or browser.</p></div></header>
   ${A.repo.auth.simulated ? '<div class="notice">Preview: this sign-in is simulated, and nothing is emailed. Use any email and a password of 6 or more characters.</div>' : ''}
   <section class="panel pad stack">
     <button class="btn primary" data-action="auth-google">Continue with Google</button>
@@ -38,8 +37,7 @@ export function signInView() {
 }
 
 export function verifyView(user) {
-  return `<div class="airmail" aria-hidden="true"></div>
-  <header class="stack tight"><h1>Check your email</h1><p class="muted">We sent a link to <strong class="wrap-any">${esc(user.email)}</strong>. Tap it to verify your account, then come back here. It may be in your spam folder.</p></header>
+  return `<header class="brand tall"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>Check your email</h1><p class="muted">We sent a link to <strong class="wrap-any">${esc(user.email)}</strong>. Tap it to verify your account, then come back here. It may be in your spam folder.</p></div></header>
   <section class="panel pad stack">
     <button class="btn primary" data-action="auth-check">I tapped the link</button>
     ${A.repo.auth.simulated ? '<button class="btn" data-action="auth-simulate">Preview: pretend I tapped the link</button>' : ''}
@@ -50,7 +48,10 @@ export function verifyView(user) {
 
 /** Runs a sign-in step and turns failure into a plain message. */
 async function attempt(step) {
+  const app = document.getElementById('app');
+  app.classList.add('busy');
   try { await step(); } catch (e) { toast(friendly(e?.code)); }
+  app.classList.remove('busy');
 }
 actions['auth-mode'] = el => { A.authEmail = val('authEmail'); A.authMode = el.dataset.id; render(); };
 actions['auth-google'] = () => attempt(async () => A.onUser(await A.repo.auth.google()));
@@ -60,6 +61,7 @@ actions['auth-check'] = () => attempt(async () => {
   const user = await A.repo.auth.refresh();
   A.onUser(user);
   if (!user?.verified) toast("It isn't verified yet. Tap the link in the email, then try again.");
+  else toast("You're verified. Welcome!");
 });
 actions['auth-simulate'] = () => attempt(async () => { await A.repo.auth.simulateVerify(); A.onUser(await A.repo.auth.refresh()); });
 actions['auth-resend'] = () => attempt(async () => { await A.repo.auth.sendVerification(); toast('Sent. Check your email.'); });

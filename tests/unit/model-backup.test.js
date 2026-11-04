@@ -73,3 +73,11 @@ test('refunds are valid, read the right way round and export as negatives', () =
   const row = csvFor(trip, { r }).split('\n')[1];
   assert.ok(row.includes('"Refund"')); assert.ok(row.includes('"-100"')); assert.ok(row.includes('"-50"'));
 });
+
+test('a missing rate is valid, a bad one is not, and CSV flags it', () => {
+  const e = { ...parsed.entries[0], rate: null };
+  assert.ok(isValidEntry(e));
+  assert.ok(!isValidEntry({ ...e, rate: 0 }));
+  assert.ok(!isValidEntry({ ...e, rate: 'x' }));
+  assert.ok(csvFor(trip, { x: e }).includes('"needs rate"'));
+});

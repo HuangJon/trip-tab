@@ -5,6 +5,7 @@ import { createLocalBackend } from './data/backend-local.js';
 import { createFirebaseBackend, loadFirebaseSdk } from './data/backend-firebase.js';
 import { createRepository } from './data/repository.js';
 import { createDevice } from './data/device.js';
+import { resilient } from './data/resilient.js';
 import { seedExample } from './data/example.js';
 import { createBackup } from './core/backup.js';
 import { isAdminId, isFromNewerApp, liveEntries } from './core/model.js';
@@ -63,6 +64,18 @@ function draw() {
       ? `<button class="fab" data-action="settle">${svg(ICON.swap)}Settle up</button>`
       : `<button class="fab" data-action="add-expense">${svg(ICON.plus)}Add expense</button>`;
   }
+  // Point out an expense you just saved, as soon as it's on screen.
+  if (A.justSaved) {
+    const row = app.querySelector(`[data-action=open-entry][data-id="${A.justSaved}"]`);
+    if (row) {
+      row.classList.add('fresh');
+      if (!A.justSavedShown) {
+        A.justSavedShown = true;
+        row.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        setTimeout(() => { A.justSaved = null; A.justSavedShown = false; }, 2000);
+      }
+    }
+  }
   if (typing) {
     const n = document.getElementById(typing.id);
     if (n) { n.value = typing.value; n.focus(); try { n.setSelectionRange(typing.at, typing.at); } catch { /* date boxes */ } }
@@ -84,31 +97,33 @@ A.watchTrip = id => {
   if (watching.has(id)) return;
   watching.add(id);
   const answered = () => { A.loaded[id] = true; render(); };
-  const refused = e => { if (e?.code === 'permission-denied') A.denied[id] = true; answered(); };
-  A.repo.watchMyJoin(id, joined => {
+  resilient((ok, fail) => A.repo.watchMyJoin(id, joined => {
+    ok();
     A.denied[id] = Boolean(joined?.removed);
     if (joined) A.device.setMe(id, joined.memberId || null);
     A.watchJoined(id);
     render();
-  }, () => {});
-  A.repo.watchTrip(id, t => {
+  }, fail));
+  resilient((ok, fail) => A.repo.watchTrip(id, t => {
+    ok();
     A.trips[id] = t ? { ...t, fromNewerApp: isFromNewerApp(t) } : null;
     if (t && isAdminId(t, A.device.me(id))) A.watchJoined(id);
     answered();
-  }, refused);
-  A.repo.watchEntries(id, (entries, skipped, pending) => {
+  }, fail), answered);
+  resilient((ok, fail) => A.repo.watchEntries(id, (entries, skipped, pending) => {
+    ok();
     A.entries[id] = entries;
     A.skipped[id] = skipped;
     A.pending[id] = pending;
     render();
     if (A.detail && !A.form && A.route.tripId === id && document.getElementById('dlg').open) openDetail(A.detail, { keepTyped: true });
     saveSnapshot(id);
-  }, () => {});
+  }, fail));
 };
 A.watchActivity = id => {
   if (watchingActivity.has(id)) return;
   watchingActivity.add(id);
-  A.repo.watchActivity(id, list => { A.activity[id] = list; if (A.route.tab === 'activity') render(); }, () => {});
+  resilient((ok, fail) => A.repo.watchActivity(id, list => { ok(); A.activity[id] = list; if (A.route.tab === 'activity') render(); }, fail));
 };
 const watchingJoined = new Set();
 A.watchJoined = id => {
@@ -116,7 +131,7 @@ A.watchJoined = id => {
   const t = A.trips[id];
   if (!t || !isAdminId(t, A.device.me(id))) return; // the rules only let admins read this list
   watchingJoined.add(id);
-  A.repo.watchJoined(id, list => { A.joined[id] = list; if (A.route.tab === 'people') render(); }, () => {});
+  resilient((ok, fail) => A.repo.watchJoined(id, list => { ok(); A.joined[id] = list; if (A.route.tab === 'people') render(); }, fail));
 };
 /** Opens a trip from a link. A new account is recorded first, because the rules require that before reading. */
 const entered = new Set();
@@ -158,8 +173,27 @@ addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
 
 /* ---------- Start ---------- */
+/** The real Firebase code against the local emulators. Only the browser tests reach this. */
+async function createEmulatorBackend() {
+  const sdk = await loadFirebaseSdk(FIREBASE_VERSION);
+  return createFirebaseBackend({ projectId: 'demo-trip-tab', apiKey: 'test', authDomain: 'localhost' }, {
+    ...sdk,
+    initializeFirestore(app, options) {
+      const db = sdk.initializeFirestore(app, options);
+      sdk.connectFirestoreEmulator(db, '127.0.0.1', 8181);
+      return db;
+    },
+    getAuth(app) {
+      const auth = sdk.getAuth(app);
+      if (!auth.emulatorConfig) sdk.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      return auth;
+    },
+  });
+}
+
 async function chooseBackend() {
   const onTestServer = ['localhost', '127.0.0.1'].includes(location.hostname) || location.protocol === 'file:';
+  if (onTestServer && storage.get('test-emulator')) return createEmulatorBackend();
   if (firebaseConfig && !PREVIEW && !onTestServer) return createFirebaseBackend(firebaseConfig, await loadFirebaseSdk(FIREBASE_VERSION, { appCheck: Boolean(appCheckSiteKey) }), { appCheckSiteKey });
   return createLocalBackend({ hangWrites: () => storage.get('test-hang-writes', false) });
 }

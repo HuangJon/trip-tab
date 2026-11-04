@@ -8,7 +8,7 @@
     "test": "node --test \"tests/unit/*.test.js\"",
     "test:smoke": "node tests/e2e/smoke.e2e.js",
     "test:e2e": "node tests/e2e/app.e2e.js",
-    "test:rules": "npx --yes firebase-tools@15 emulators:exec --only firestore,auth --project demo-trip-tab \"node tests/emulator/firestore.emulator.js\"",
+    "test:rules": "npx --yes firebase-tools@15 emulators:exec --only firestore,auth --project demo-trip-tab \"node tests/emulator/firestore.emulator.js && node tests/emulator/browser.emulator.js\"",
     "preview": "node tools/build-preview.mjs . preview.html"
   },
   "devDependencies": {

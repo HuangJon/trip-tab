@@ -55,11 +55,10 @@ export function homeView() {
   const rows = trips.map(rowFor).join('');
   const shelvedRows = shelved.map(rowFor).join('');
   const sums = Object.entries(totals).filter(([, v]) => v !== 0);
-  const summary = !all.length ? '' : `<section class="panel summary"><span class="label">Your overall balance</span>
-    ${sums.length ? sums.map(([c, v]) => `<div class="big ${v > 0 ? 'owed' : 'owe'}">${v > 0 ? '+' : '−'}${money(Math.abs(v), c)}</div>`).join('') : '<div class="big">All square</div>'}
-    <p class="small muted">Counts the trips where you've chosen your name.</p></section>`;
-  return `<div class="airmail" aria-hidden="true"></div>
-    <header class="home-head"><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div>
+  const summary = !all.length ? '' : `<section class="hero"><span class="label">Your overall balance</span>
+    ${sums.length ? sums.map(([c, v]) => `<div class="big ${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : '−'}${money(Math.abs(v), c)}</div>`).join('') : '<div class="big">All square</div>'}
+    <p class="small">Counts the trips where you've chosen your name.</p></section>`;
+  return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
     <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>
     ${modeNotice()}${alerts()}${summary}
@@ -95,10 +94,11 @@ submits['new-trip'] = () => {
   A.device.setLinkUnsaved(trip.id, true);
   A.trips[trip.id] = trip;
   A.loaded[trip.id] = true;
-  A.watchTrip(trip.id);
   send(written);
-  goTrip(trip.id, 'people');
-  toast('Trip created. Send friends the invite link.');
+  // Give the join record a moment to arrive first. Offline it won't, so don't wait for long.
+  Promise.race([written.catch(() => {}), new Promise(r => setTimeout(r, 2500))]).then(() => A.watchTrip(trip.id));
+  goTrip(trip.id, 'expenses');
+  toast('Trip created');
   return undefined;
 };
 submits['join-link'] = () => {

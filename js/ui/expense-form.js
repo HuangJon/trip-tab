@@ -3,10 +3,12 @@ import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
 import { actor, avatar, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
+import { needsRate } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { shrinkPhoto } from './receipt.js';
+import { goTrip } from './routes.js';
 
 const clone = o => JSON.parse(JSON.stringify(o));
 const tripOf = () => A.trips[A.form.tripId];
@@ -30,7 +32,7 @@ export function openExpenseForm(trip, entry) {
   if (entry) {
     const c = entry.currency;
     A.form = {
-      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency ? '' : String(entry.rate),
+      tripId: trip.id, id: entry.id, baseUpdatedAt: entry.updatedAt, desc: entry.desc, category: entry.category, date: entry.date, currency: c, rate: c === trip.currency || !entry.rate ? '' : String(entry.rate),
       kind: entry.kind, amount: fromMinor(entry.total, c), payers: Object.fromEntries(Object.entries(handlersOf(entry)).map(([k, v]) => [k, fromMinor(v, c)])),
       multi: Object.keys(handlersOf(entry)).length > 1, payer: Object.keys(handlersOf(entry))[0],
       split: { inputs: {}, items: [], selected: Object.keys(sharesOf(entry)), mode: 'equal', ...clone(entry.split || {}) }, note: entry.note || '', receipt: entry.receipt || '',
@@ -84,7 +86,7 @@ const payCheck = t => {
 };
 function rateNote(t) {
   const F = A.form, r = parseFloat(F.rate), m = toMinor(F.amount, F.currency);
-  return r > 0 && m ? `${money(m, F.currency)} ≈ ${money(convert(m, F.currency, t.currency, r), t.currency)}` : 'Use the rate you actually paid. It is saved for the next expense in this currency.';
+  return r > 0 && m ? `${money(m, F.currency)} ≈ ${money(convert(m, F.currency, t.currency, r), t.currency)}` : "Leave this blank if you don't know it yet. The expense stays out of balances until it has a rate. Use the rate you actually paid.";
 }
 
 function drawForm() {
@@ -100,7 +102,7 @@ function drawForm() {
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="draft"></label>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
-    ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(F.currency)} = how many ${esc(t.currency)}?</span><input id="fRate" class="mono" inputmode="decimal" required value="${esc(F.rate)}" data-input="rate"><span class="tiny muted" id="fConv">${esc(rateNote(t))}</span></label>` : ''}
+    ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(F.currency)} = how many ${esc(t.currency)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="tiny muted" id="fConv">${esc(rateNote(t))}</span></label>` : ''}
     <div class="grid2"><label class="f"><span>Category</span><select id="fCat">${Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}" ${F.category === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label></div>
     <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
@@ -113,6 +115,7 @@ function drawForm() {
   </div></form>`);
   const b = document.querySelector('#dlg .sheet-body');
   if (b) b.scrollTop = scroll;
+  if (!F.id && !F.focused && !F.desc) { F.focused = true; document.getElementById('fDesc')?.focus(); }
   return undefined;
 }
 
@@ -213,8 +216,8 @@ submits.expense = () => {
   if ((F.date || today()) > today()) return toast("Expenses can't be dated in the future.");
   let rate = 1;
   if (F.currency !== t.currency) {
-    rate = parseFloat(F.rate);
-    if (!(rate > 0)) return toast(`Enter the exchange rate for ${F.currency}.`);
+    rate = F.rate.trim() === '' ? null : parseFloat(F.rate);
+    if (rate !== null && !(rate > 0)) return toast("That exchange rate isn't a number above zero. Fix it, or leave it blank for now.");
   }
   const res = computeSplit(total, F.currency, F.split, everyone);
   if (res.error) return toast(res.error);
@@ -239,13 +242,17 @@ function commit(t, entry, current) {
   const isNew = !current;
   A.device.setLastCurrency(t.id, entry.currency);
   if (isNew) A.device.clearDraft(t.id);
-  if (entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
+  if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
   closeSheet();
+  A.justSaved = entry.id;
+  A.justSavedShown = false;
+  if (A.route.tab !== 'expenses') goTrip(t.id, 'expenses');
   const refund = entry.kind === 'refund';
   const among = Object.keys(sharesOf(entry)).map(i => memberName(t, i)).join(', ');
   const noun = refund ? 'refund ' : '';
   send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, actorId: getMe(t), label: `${isNew ? 'added' : 'edited'} ${noun}"${entry.desc}" (${money(entry.total, entry.currency)}), split among ${among}`.slice(0, 340) }), `"${entry.desc}"`);
-  toast(refund ? (isNew ? 'Refund added' : 'Refund saved') : isNew ? 'Expense added' : 'Expense saved');
+  if (needsRate(entry, t.currency)) toast('Saved. Add its exchange rate to count it in balances.');
+  else toast(refund ? (isNew ? 'Refund added' : 'Refund saved') : isNew ? 'Expense added' : 'Expense saved');
 }
 
 const versionCard = (t, title, e) => {

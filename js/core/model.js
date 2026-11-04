@@ -16,7 +16,7 @@ export function isValidEntry(e) {
   return isMap(e) && typeof e.id === 'string' && ['expense', 'payment', 'refund'].includes(e.kind)
     && Number.isInteger(e.total) && e.total > 0 && typeof e.currency === 'string'
     && isAmounts(e.paid) && isAmounts(e.owed) && sum(e.paid) === e.total && sum(e.owed) === e.total
-    && (e.rate === undefined || (typeof e.rate === 'number' && e.rate > 0));
+    && (e.rate === undefined || e.rate === null || (typeof e.rate === 'number' && e.rate > 0));
 }
 
 export function isValidTrip(t) {

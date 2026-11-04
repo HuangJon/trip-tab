@@ -7,7 +7,7 @@ Split trip costs with friends. Share a link, and everyone adds expenses without 
 - **Trips:** any number, with an invite link for each.
 - **Splitting:** equally, exact amounts, percentages, shares, adjustments or item by item, with one or several payers.
 - **Settling up:** simplified debts or expense-by-expense debts, recorded payments and a summary to paste into a group chat.
-- **Currencies:** every expense can use its own currency, at the rate you enter.
+- **Currencies:** every expense can use its own currency. The exchange rate can wait: until an expense has one, it stays out of balances and the app says so.
 - **Verified sign-in:** everyone signs in with Google or a verified email before they can see a trip. Trips follow your account to any phone or browser.
 - **Credit:** every expense shows who added it and who it's split among, and a name belongs to the account that claimed it.
 - **Who's joined:** admins see everyone who opened the link, including people who haven't picked a name, and can remove them.
