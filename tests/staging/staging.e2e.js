@@ -134,7 +134,11 @@ try {
   await friend.waitForSelector('#settlePay');
   assert.match(await friend.textContent('#settlePay'), /Zelle: host-zelle@example\.com/);
   assert.equal(await friend.getAttribute('#settleMethods [data-id=zelle]', 'aria-pressed'), 'true');
+  await friend.selectOption('#sCur', 'TWD');
+  assert.equal(await friend.inputValue('#sRate'), '33', 'the trip remembers the rate');
+  assert.ok(Number(await friend.inputValue('#sSend')) > 0);
   await friend.click('#settleSave');
+  await friend.waitForSelector('#settledUp', { timeout: 15000 });
   await tab(friend, 'expenses');
   await friend.waitForSelector('.tap:has-text("Settlement by Zelle")', { timeout: 15000 });
   await noSync(friend);

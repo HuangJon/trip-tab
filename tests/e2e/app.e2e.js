@@ -692,7 +692,6 @@ assert.equal(await page.evaluate(() => navigator.clipboard.readText()), handleVa
 /* Settling up with those details */
 await page.click('[data-action=settle][data-from] >> nth=0');
 await page.waitForSelector('#settlePay');
-assert.match(await page.textContent('#settlePay'), /Amount:/);
 await page.selectOption('#sTo', { label: 'Mia Chen' });
 assert.match(await page.textContent('#settlePay'), /Venmo: @mia/);
 assert.equal(await page.getAttribute('#settleMethods [data-id=venmo]', 'aria-pressed'), 'true', 'it picks the method they accept');
@@ -700,6 +699,18 @@ await page.selectOption('#sTo', { label: 'Jonathan' });
 await page.selectOption('#sFrom', { label: 'Mia Chen' });
 assert.match(await page.textContent('#settlePay'), /Zelle: j@example\.com/);
 assert.equal(await page.getAttribute('#settleMethods [data-id=zelle]', 'aria-pressed'), 'true');
+assert.equal(await page.inputValue('#sCur'), 'USD', 'Zelle suggests dollars');
+await page.fill('#sAmt', '330');
+await page.fill('#sRate', '0.03');
+await page.waitForSelector('#sRateWarn .check.bad');
+await page.fill('#sRate', '33');
+assert.equal(await page.inputValue('#sSend'), '10.00');
+assert.match(await page.textContent('#settlePay'), /Send: \$10\.00/);
+await page.fill('#sSend', '20');
+assert.equal(await page.inputValue('#sAmt'), '660', 'changing what you send changes what it covers');
+await page.selectOption('#sCur', 'TWD');
+await page.click('[data-action=settle-method][data-id=zelle]');
+assert.equal(await page.inputValue('#sCur'), 'TWD', 'your own choice of currency stays');
 await page.fill('#sAmt', '12');
 assert.match(await page.textContent('#settlePay'), /NT\$12/);
 await page.click('[data-action=settle-method][data-id=cash]');
@@ -713,6 +724,24 @@ assert.match(await page.textContent('#dlg'), /Paid in cash/);
 await page.click('#dlg [data-action=delete-entry]');
 await page.waitForFunction(n => document.querySelectorAll('#entryList .tap').length && [...document.querySelectorAll('#entryList .tap')].filter(r => /Settlement in cash/.test(r.textContent)).length === n - 1, cashRows);
 check('payment details appear beside debts and copy; settling up shows them and marks it paid');
+
+/* Paying in another currency clears the debt exactly */
+await tab(page, 'balances');
+await page.click('[data-action=settle][data-from] >> nth=0');
+await page.waitForSelector('#settlePay');
+await page.selectOption('#sCur', 'USD');
+await page.fill('#sRate', '33');
+const owedBefore = await page.inputValue('#sAmt');
+await page.click('#settleSave');
+await toastSays(/Marked as paid/);
+await page.waitForFunction(v => ![...document.querySelectorAll('.debt .amt')].some(a => a.textContent.includes(Number(v).toLocaleString('en'))), owedBefore);
+await tab(page, 'expenses');
+const usdRow = page.locator('.tap:has-text("Settlement")').filter({ hasText: '$' }).first();
+assert.match(await usdRow.textContent(), new RegExp(`NT\\$${Number(owedBefore).toLocaleString('en')}`), 'both amounts show');
+await usdRow.click();
+assert.match(await page.textContent('#dlg'), /at 1 USD = 33 TWD/);
+await page.click('[data-action=close-sheet]');
+check('paying in another currency clears the debt exactly');
 
 /* Archive */
 await tab(page, 'settings');

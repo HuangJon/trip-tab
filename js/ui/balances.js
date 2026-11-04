@@ -1,6 +1,8 @@
 /** Who pays whom, each person's balance, and recording payments. */
 import { A, actions, changes, inputs, submits } from './state.js';
-import { LIMITS } from '../config/app.js';
+import { CURRENCIES, LIMITS } from '../config/app.js';
+import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
+import { coveredBy, exactRate, sendFor } from '../core/settle.js';
 import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
 import { needsRate, netBalances, pairwise, personLedger, simplify } from '../core/debts.js';
@@ -79,16 +81,66 @@ actions['copy-sheet-text'] = () => copyText(document.getElementById('shareTxt').
 const METHODS = [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['other', 'Other']];
 
 /** How to pay the person receiving, with everything ready to copy. */
-function payHtml(trip, to, amount) {
+function payHtml(trip, to, sendMinor, currency) {
   const m = trip.members[to] || {}, name = esc(memberName(trip, to));
   const rows = [['Venmo', m.venmo], ['Zelle', m.zelle]].filter(([, v]) => v);
   const details = rows.map(([label, v]) => `<div class="handle"><span>${label}: <strong>${esc(v)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(v)}">Copy</button></div>`).join('');
-  const amountRow = amount ? `<div class="handle"><span>Amount: <strong class="amt">${money(amount, trip.currency)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(fromMinor(amount, trip.currency))}">Copy</button></div>` : '';
+  const amountRow = sendMinor ? `<div class="handle"><span>Send: <strong class="amt">${money(sendMinor, currency)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(fromMinor(sendMinor, currency))}">Copy</button></div>` : '';
   return `${amountRow}${details || `<p class="small muted">${name} hasn't added Venmo or Zelle yet. They can add it under More → People, or you can ask them directly.</p>`}`;
 }
+
+/** The amount being paid, in whichever currency it's paid in. */
+function fxHtml(trip) {
+  const pay = A.settle.currency, base = trip.currency;
+  if (pay === base) return '';
+  const q = rateQuestion(pay, base);
+  return `<label class="f"><span>Exchange rate: 1 ${esc(q.one)} = how many ${esc(q.many)}?</span><input id="sRate" class="mono" inputmode="decimal" placeholder="Needed to work out the amount" value="${esc(A.settle.rate)}" data-input="settle-rate"><span id="sRateWarn"></span></label>
+    <label class="f"><span>Amount you're sending in ${esc(pay)}</span><input id="sSend" class="amount-input" inputmode="decimal" value="${esc(A.settle.send)}" data-input="settle-send"></label>`;
+}
+const settleRate = trip => typedToStored(A.settle.rate, A.settle.currency, trip.currency);
+
+/** Keeps the two amounts in step. Whichever one was just edited stays as typed. */
+function syncAmounts(trip, edited) {
+  const S = A.settle, base = trip.currency, rate = settleRate(trip);
+  if (S.currency === base) { S.send = ''; return; }
+  if (edited === 'send') {
+    const sent = toMinor(S.send, S.currency);
+    const box = document.getElementById('sAmt');
+    if (rate && sent && box) box.value = fromMinor(coveredBy(sent, S.currency, base, rate), base);
+  } else {
+    const debt = toMinor(val('sAmt'), base);
+    S.send = rate && debt ? fromMinor(sendFor(debt, base, S.currency, rate), S.currency) : '';
+    const box = document.getElementById('sSend');
+    if (box) box.value = S.send;
+  }
+}
 function drawPay() {
-  const trip = A.trips[A.route.tripId], box = document.getElementById('settlePay');
-  if (box) box.innerHTML = payHtml(trip, val('sTo'), toMinor(val('sAmt'), trip.currency));
+  const trip = A.trips[A.route.tripId], box = document.getElementById('settlePay'), S = A.settle;
+  const foreign = S.currency !== trip.currency;
+  if (box) box.innerHTML = payHtml(trip, val('sTo'), foreign ? toMinor(S.send, S.currency) : toMinor(val('sAmt'), trip.currency), foreign ? S.currency : trip.currency);
+  const warn = document.getElementById('sRateWarn'), rate = settleRate(trip);
+  if (warn) warn.innerHTML = foreign && rate && looksBackwards(rate, S.currency, trip.currency) ? '<div class="check bad">This rate looks backwards. Check which way round it is.</div>' : '';
+  const label = document.getElementById('sAmtLabel');
+  if (label) label.textContent = foreign ? `Debt this covers, in ${trip.currency}` : `Amount in ${trip.currency}`;
+}
+/** Draws the currency section again after the currency changes. */
+function setPayCurrency(trip, currency) {
+  const S = A.settle;
+  S.currency = currency;
+  S.rate = currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency);
+  S.backwardsOk = false;
+  const box = document.getElementById('settleFx'), picker = document.getElementById('sCur');
+  if (picker) picker.value = currency;
+  if (box) box.innerHTML = fxHtml(trip);
+  syncAmounts(trip);
+  const send = document.getElementById('sSend');
+  if (send) send.value = S.send;
+  drawPay();
+}
+/** Venmo and Zelle are generally US dollars only, so they suggest dollars unless you've chosen otherwise. */
+function suggestCurrency(trip) {
+  const S = A.settle;
+  if (!S.currencyChosen && ['venmo', 'zelle'].includes(A.settleMethod) && trip.currency !== 'USD' && S.currency !== 'USD') setPayCurrency(trip, 'USD');
 }
 
 actions.settle = el => {
@@ -100,44 +152,72 @@ actions.settle = el => {
   const opts = sel => members.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   const toHas = trip.members[d.to] || {};
   A.settleMethod = toHas.venmo ? 'venmo' : toHas.zelle ? 'zelle' : 'cash';
+  A.settle = { currency: trip.currency, rate: '', send: '', currencyChosen: false, backwardsOk: false };
   openSheet(`<form class="sheet" data-form="settle">${sheetHead('Settle up', '<button class="btn small primary">Mark as paid</button>')}<div class="sheet-body">
     ${unratedCount(trip) ? `<div class="notice">${unratedCount(trip)} expense${unratedCount(trip) > 1 ? 's are' : ' is'} waiting for an exchange rate and not counted yet. These amounts may change once ${unratedCount(trip) > 1 ? 'they have rates' : 'it has a rate'}.</div>` : ''}
     <div class="grid2"><label class="f"><span>Who paid</span><select id="sFrom" data-change="settle-people">${opts(d.from)}</select></label><label class="f"><span>Who received it</span><select id="sTo" data-change="settle-people">${opts(d.to)}</select></label></div>
-    <label class="f"><span>Amount in ${esc(trip.currency)}</span><input id="sAmt" class="amount-input" inputmode="decimal" required value="${d.amount ? fromMinor(d.amount, trip.currency) : ''}" data-input="settle-amount"></label>
-    <section class="stack"><h3>1. Send the money</h3><p class="small muted">Open your payment app and send it. The app can't move money itself.</p><div class="stack tight" id="settlePay">${payHtml(trip, d.to, d.amount)}</div></section>
+    <div class="grid-cur"><label class="f"><span>Pay in</span><select id="sCur" data-change="settle-currency">${[...new Set([trip.currency, ...CURRENCIES])].map(c => `<option ${c === trip.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="f"><span id="sAmtLabel">Amount in ${esc(trip.currency)}</span><input id="sAmt" class="amount-input" inputmode="decimal" required value="${d.amount ? fromMinor(d.amount, trip.currency) : ''}" data-input="settle-amount"></label></div>
+    <div class="stack" id="settleFx"></div>
+    <section class="stack"><h3>1. Send the money</h3><p class="small muted">Open your payment app and send it. The app can't move money itself.</p><div class="stack tight" id="settlePay">${payHtml(trip, d.to, d.amount, trip.currency)}</div></section>
     <section class="stack"><h3>2. Mark it as paid</h3>
       <div class="seg" role="group" aria-label="How it was paid" id="settleMethods">${METHODS.map(([k, l]) => `<button type="button" data-action="settle-method" data-id="${k}" aria-pressed="${A.settleMethod === k}">${l}</button>`).join('')}</div>
       <label class="f"><span>Date</span><input id="sDate" type="date" required max="${today()}" value="${today()}"></label>
       <label class="f"><span>Note</span><input id="sNote" maxlength="${LIMITS.comment}" placeholder="Optional"></label>
       <button class="btn primary" id="settleSave">Mark as paid</button>
-      <p class="tiny muted">Everyone's balances update, and it's added to the expense list and activity. If this was a mistake, you can delete it.</p></section>
+      <p class="tiny muted">Everyone's balances update, and it's added to the expense list and activity. If this was a mistake, you can delete it and record it again.</p></section>
   </div></form>`);
+  suggestCurrency(trip);
 };
+const showMethod = () => document.querySelectorAll('#settleMethods button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === A.settleMethod)));
 actions['settle-method'] = el => {
   A.settleMethod = el.dataset.id;
-  document.querySelectorAll('#settleMethods button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === A.settleMethod)));
+  showMethod();
+  suggestCurrency(A.trips[A.route.tripId]);
 };
-inputs['settle-amount'] = () => drawPay();
+inputs['settle-amount'] = () => { syncAmounts(A.trips[A.route.tripId]); drawPay(); };
+inputs['settle-rate'] = el => { A.settle.rate = el.value; A.settle.backwardsOk = false; syncAmounts(A.trips[A.route.tripId]); drawPay(); };
+inputs['settle-send'] = el => { A.settle.send = el.value; syncAmounts(A.trips[A.route.tripId], 'send'); drawPay(); };
+changes['settle-currency'] = el => {
+  A.settle.currencyChosen = true;
+  setPayCurrency(A.trips[A.route.tripId], el.value);
+};
 changes['settle-people'] = () => {
   const trip = A.trips[A.route.tripId], pair = debtsFor(trip).find(x => x.from === val('sFrom') && x.to === val('sTo'));
   const amount = document.getElementById('sAmt');
   if (pair && amount) amount.value = fromMinor(pair.amount, trip.currency);
   const to = trip.members[val('sTo')] || {};
   A.settleMethod = to.venmo ? 'venmo' : to.zelle ? 'zelle' : 'cash';
-  document.querySelectorAll('#settleMethods button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === A.settleMethod)));
+  showMethod();
+  syncAmounts(trip);
+  suggestCurrency(trip);
   drawPay();
 };
 submits.settle = () => {
-  const trip = A.trips[A.route.tripId], from = val('sFrom'), to = val('sTo'), total = toMinor(val('sAmt'), trip.currency);
+  const trip = A.trips[A.route.tripId], from = val('sFrom'), to = val('sTo'), debt = toMinor(val('sAmt'), trip.currency), S = A.settle;
   if (from === to) return toast('Choose two different people.');
-  if (total <= 0) return toast('Enter an amount above zero.');
+  if (debt <= 0) return toast('Enter an amount above zero.');
   const date = val('sDate') || today();
   if (date > today()) return toast("Payments can't be dated in the future.");
+  const foreign = S.currency !== trip.currency;
+  let total = debt, rate = 1, quotedRate;
+  if (foreign) {
+    quotedRate = settleRate(trip);
+    if (!quotedRate) return toast(`Enter the exchange rate for ${S.currency}, so the app knows how much this covers.`);
+    if (looksBackwards(quotedRate, S.currency, trip.currency) && !S.backwardsOk) {
+      S.backwardsOk = true;
+      return toast('This rate looks backwards. Fix it, or tap Mark as paid again to keep it.');
+    }
+    total = toMinor(S.send, S.currency);
+    if (total <= 0) return toast('Enter the amount you sent.');
+    rate = exactRate(debt, trip.currency, total, S.currency);
+  }
   const id = randomId(), at = Date.now();
-  const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: trip.currency, rate: 1, total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), method: A.settleMethod || 'other', comments: {}, createdAt: at, updatedAt: at, createdById: getMe(trip), updatedBy: actor(trip), deleted: false };
+  const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: S.currency, rate, ...(foreign ? { quotedRate } : {}), total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), method: A.settleMethod || 'other', comments: {}, createdAt: at, updatedAt: at, createdById: getMe(trip), updatedBy: actor(trip), deleted: false };
+  if (foreign && trip.rates?.[S.currency] !== quotedRate) send(A.repo.updateTrip(trip.id, { [`rates.${S.currency}`]: quotedRate }, getMe(trip)));
   closeSheet();
-  send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), actorId: getMe(trip), label: `marked that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, trip.currency)}${({ venmo: ' by Venmo', zelle: ' by Zelle', cash: ' in cash' })[A.settleMethod] || ''}` }), 'A payment');
-  toast(`Marked as paid. ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, trip.currency)}.`);
+  send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), actorId: getMe(trip), label: `marked that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, S.currency)}${foreign ? ` (${money(debt, trip.currency)})` : ''}${({ venmo: ' by Venmo', zelle: ' by Zelle', cash: ' in cash' })[A.settleMethod] || ''}` }), 'A payment');
+  toast(`Marked as paid. ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, S.currency)}.`);
   return undefined;
 };
 

@@ -29,7 +29,7 @@ export function openDetail(id, { keepTyped } = {}) {
   openSheet(`<div class="sheet">${sheetHead(pay ? 'Payment' : refund ? 'Refund' : 'Expense', editable && !pay && !e.deleted ? `<button type="button" class="btn small" data-action="edit-entry" data-id="${id}">Edit</button>` : '', 'Close')}
   <div class="sheet-body">
     <div class="stack tight"><h1 class="detail-title">${esc(pay ? `${memberName(t, Object.keys(e.paid)[0])} paid ${memberName(t, Object.keys(e.owed)[0])}` : e.desc)}</h1><div class="big">${money(e.total, e.currency)}</div>
-    ${foreign ? (needsRate(e, t.currency) ? `<p><span class="tag warn">Needs an exchange rate</span> <span class="small muted">Not in balances yet.</span></p>` : `<p class="small muted mono">≈ ${money(inBase(e, t.currency).total, t.currency)} at ${esc(rateLabel(e.rate, e.currency, t.currency))}</p>`) : ''}
+    ${foreign ? (needsRate(e, t.currency) ? `<p><span class="tag warn">Needs an exchange rate</span> <span class="small muted">Not in balances yet.</span></p>` : `<p class="small muted mono">≈ ${money(inBase(e, t.currency).total, t.currency)} at ${esc(rateLabel(e.quotedRate || e.rate, e.currency, t.currency))}</p>`) : ''}
     <p class="small muted">${fmtDate(e.date)}${pay ? '' : ` · ${esc(CATEGORIES[e.category] || 'Other')}`}</p></div>
     <p class="small muted wrap-any">${credit(t, e)}</p>
     ${A.pending[t.id]?.includes(id) ? '<p><span class="tag">Waiting to sync</span> <span class="small muted">Friends can\'t see this until your phone is back online.</span></p>' : ''}
