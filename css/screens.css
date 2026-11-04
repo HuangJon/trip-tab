@@ -150,3 +150,26 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .cancel-item { border-bottom:0; color:var(--muted) }
 .menu-note { padding:10px 18px; border-bottom:1px solid var(--line) }
 @media (min-width:760px) { dialog.menu { margin:auto; border-radius:18px } }
+/* Who paid, on an expense row. */
+.payer-line { display:flex; align-items:center; gap:6px; margin-top:3px }
+.payer-line b { font-weight:700 }
+.payer-avas { display:inline-flex; flex:none }
+.payer-avas .ava { width:20px; height:20px; font-size:.65rem; box-shadow:0 0 0 2px var(--surface) }
+.payer-avas .ava + .ava { margin-left:-6px }
+/* Choosing a color and picture. */
+.ava.pic { font-size:1.05rem; line-height:1 }
+.ava.lg.pic { font-size:1.7rem }
+.payer-avas .ava.pic { font-size:.72rem }
+.debt.other .ava.pic { font-size:.85rem }
+.ava-btn { background:none; border:0; padding:0; border-radius:50%; flex:none; min-width:30px; min-height:30px }
+.topbar .ava-btn { padding:6px; margin-right:-2px }
+.ava-preview { display:flex; align-items:center; gap:12px }
+.color-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:8px }
+.color-pick { aspect-ratio:1; border-radius:50%; border:0; min-height:0; padding:0 }
+.color-pick[aria-pressed=true] { box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink) }
+.pic-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
+.pic-pick { aspect-ratio:1; border-radius:14px; border:1px solid var(--line); background:var(--surface); font-size:1.5rem; padding:0; min-height:0 }
+.pic-pick.initial { font-size:1rem; font-weight:700; color:var(--muted) }
+.pic-pick[aria-pressed=true] { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) }
+.ava-preview .ava { width:60px; height:60px; font-size:1.5rem }
+.ava-preview .ava.pic { font-size:2rem }

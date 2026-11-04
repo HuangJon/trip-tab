@@ -701,6 +701,36 @@ await page.click('[data-action=form-cancel]');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 check('typing a foreign amount shows roughly how much it is in dollars');
 
+/* Setting an exchange rate in settings */
+await tab(page, 'settings');
+await page.selectOption('#newRateCur', 'GBP');
+await page.waitForFunction(() => document.querySelector('#newRateCur').value === 'GBP');
+await page.fill('#newRate', '1.3');
+await page.click('form[data-form=add-rate] button');
+await page.waitForSelector('#savedRate-GBP');
+await page.fill('#savedRate-GBP', '1.25');
+await page.locator('#savedRate-GBP').blur();
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+await page.selectOption('#fCur', 'GBP');
+await page.fill('#fAmt', '');
+await page.waitForFunction(() => document.getElementById('fRate')?.value);
+const gbpRate = await page.inputValue('#fRate');
+await page.click('[data-action=form-cancel]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+assert.ok(['1.25', '0.8'].includes(gbpRate), gbpRate);
+check('an exchange rate set in settings fills in on new expenses');
+
+/* Color and picture */
+await page.click('.topbar [data-action=edit-avatar]');
+await page.click('#avatarBody [data-action=pick-pic][data-id="🐼"]');
+await page.click('#avatarBody [data-action=pick-color][data-id="5"]');
+assert.equal(await page.getAttribute('#avatarBody [data-action=pick-color][data-id="5"]', 'aria-pressed'), 'true');
+assert.match(await page.textContent('#avatarBody .ava-preview'), /🐼/);
+await page.click('[data-action=close-sheet]');
+await page.waitForFunction(() => /🐼/.test(document.querySelector('.topbar').textContent));
+check('you can pick your own color and picture');
+
 /* Quick actions: right-click and long press */
 await tab(page, 'expenses');
 await page.click('.tap:has-text("Credit test")', { button: 'right' });

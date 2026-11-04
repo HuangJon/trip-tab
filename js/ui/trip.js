@@ -9,7 +9,7 @@ import { alerts } from './home.js';
 
 export function tripHeader(trip) {
   const me = getMe(trip);
-  return `<div class="topbar"><button class="icon-btn" data-action="home" aria-label="Back to all trips">${svg(ICON.back)}</button><h1 class="grow">${esc(trip.name)}</h1></div>
+  return `<div class="topbar"><button class="icon-btn" data-action="home" aria-label="Back to all trips">${svg(ICON.back)}</button><h1 class="grow">${esc(trip.name)}</h1>${getMe(trip) ? `<button class="ava-btn" data-action="edit-avatar" data-id="${getMe(trip)}" aria-label="Change your color and picture">${avatar(trip, getMe(trip))}</button>` : ''}</div>
     ${alerts()}
     ${trip.fromNewerApp ? '<div class="notice">A friend is on a newer version of this app. Update yours to make changes. Close and reopen the app to update.</div>' : ''}
     ${me ? '' : `<section class="panel pad stack"><div><h3>Which one is you?</h3><p class="small muted">Your name is tied to your account, so only you can add expenses as that person. Names already taken aren't shown. If yours is missing, ask the trip's admin to free it.</p></div>

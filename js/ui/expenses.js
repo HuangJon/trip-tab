@@ -1,7 +1,7 @@
 /** The main list: every expense and settlement, newest first. */
 import { A, actions, changes, inputs, render } from './state.js';
 import { CATEGORIES } from '../config/app.js';
-import { ICON, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
+import { ICON, avatar, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
 import { money } from '../core/money.js';
 import { inBase, needsRate } from '../core/debts.js';
 import { activeMembers, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
@@ -32,7 +32,8 @@ function line(trip, e) {
     else side = `<div class="tiny muted">${b.owed[me] ? 'you covered yours' : 'not involved'}</div>`;
   }
   return `<button class="tap" data-action="open-entry" data-id="${e.id}"><span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span>
-    <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="small muted">${esc(payer)} ${refund ? 'received' : 'paid'} ${money(e.total, e.currency)}${e.receipt ? ' · receipt' : ''}${commentCount ? ` · ${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''}</span>
+    <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="payer-line"><span class="payer-avas">${handlers.slice(0, 3).map(h => avatar(trip, h)).join('')}</span><span class="small"><b>${esc(payer)}</b> ${refund ? 'received' : 'paid'} <b>${money(e.total, e.currency)}</b></span></span>
+    ${e.receipt || commentCount ? `<span class="tiny muted block">${[e.receipt ? 'Receipt' : '', commentCount ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ')}</span>` : ''}
     <span class="tiny muted credit">${creditLine(trip, e)}</span></span>
     <span class="right">${side}</span></button>`;
 }

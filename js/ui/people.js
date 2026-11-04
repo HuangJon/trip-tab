@@ -1,10 +1,10 @@
 /** People, invite link, trip settings and backups. */
 import { A, actions, changes, render, submits } from './state.js';
-import { LIMITS } from '../config/app.js';
+import { AVATARS, AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
 import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
 import { activeMembers, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
-import { rateLabel } from '../core/rates.js';
+import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
 
 const inviteUrl = id => `${location.origin}${location.pathname}#join-${id}`;
@@ -58,7 +58,7 @@ export function peopleView(trip) {
   <section class="panel pad stack"><h2>People on this trip</h2>
     ${members.map(m => {
       const self = me === m.id;
-      return `<div class="stack tight"><div class="row">${avatar(trip, m.id)}<input id="mem-${m.id}" aria-label="${esc(m.name)}'s name" value="${esc(m.name)}" maxlength="${LIMITS.personName}" data-change="rename" data-id="${m.id}" ${admin || self ? '' : 'disabled'}>
+      return `<div class="stack tight"><div class="row">${admin || self ? `<button class="ava-btn" data-action="edit-avatar" data-id="${m.id}" aria-label="Change ${esc(m.name)}'s color and picture">${avatar(trip, m.id)}</button>` : avatar(trip, m.id)}<input id="mem-${m.id}" aria-label="${esc(m.name)}'s name" value="${esc(m.name)}" maxlength="${LIMITS.personName}" data-change="rename" data-id="${m.id}" ${admin || self ? '' : 'disabled'}>
         ${self ? '<span class="tag you">you</span>' : ''}
 </div>
         <div class="person-actions"><span class="tag ${m.claimed ? 'good' : ''}">${m.claimed ? 'Claimed' : 'Not claimed yet'}</span>${isAdminId(trip, m.id) ? '<span class="tag you">Admin</span>' : ''}
@@ -76,13 +76,74 @@ export function peopleView(trip) {
 `;
 }
 
+/** Pick a color and a small picture. Your own, or anyone's if you're an admin. */
+function avatarBody(trip, id) {
+  const m = trip.members[id], color = A.avatarEdit.color ?? m.color ?? 1, emoji = A.avatarEdit.emoji ?? m.emoji ?? '';
+  const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, emoji } } };
+  return `<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
+    <span class="flabel">Color</span><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}" aria-pressed="${color === i + 1}"></button>`).join('')}</div>
+    <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!emoji}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" data-action="pick-pic" data-id="${e}" aria-pressed="${emoji === e}">${e}</button>`).join('')}</div>`;
+}
+actions['edit-avatar'] = el => {
+  const t = A.trips[A.route.tripId], id = el.dataset.id;
+  if (!t.members[id] || !(amAdmin(t) || getMe(t) === id)) return;
+  A.avatarEdit = { id };
+  openSheet(`<div class="sheet">${sheetHead('Color and picture', '', 'Done')}<div class="sheet-body stack" id="avatarBody">${avatarBody(t, id)}</div></div>`);
+};
+function pickAvatar(field, value) {
+  const t = A.trips[A.route.tripId], { id } = A.avatarEdit;
+  A.avatarEdit[field] = value;
+  document.getElementById('avatarBody').innerHTML = avatarBody(t, id);
+  send(A.repo.setMemberPayment(t.id, id, field, value, getMe(t)), 'That change');
+}
+actions['pick-color'] = el => pickAvatar('color', +el.dataset.id);
+actions['pick-pic'] = el => pickAvatar('emoji', el.dataset.id);
+
+/** Exchange rates that fill in on new expenses. Anyone with a name on the trip can set them. */
+function ratesSection(trip) {
+  const can = Boolean(getMe(trip)), saved = trip.rates || {};
+  const others = [...new Set(CURRENCIES)].filter(c => c !== trip.currency && !saved[c]);
+  const adding = others.includes(A.rateCur) ? A.rateCur : others[0];
+  const ask = c => { const q = rateQuestion(c, trip.currency); return `1 ${q.one} = how many ${q.many}?`; };
+  return `<div class="stack tight"><span class="flabel">Exchange rates</span>
+    ${Object.keys(saved).sort().map(c => `<label class="f"><span>${esc(ask(c))}</span><input class="mono" inputmode="decimal" id="savedRate-${esc(c)}" value="${esc(storedToTyped(saved[c], c, trip.currency))}" data-change="saved-rate" data-id="${esc(c)}" ${can ? '' : 'disabled'}></label>`).join('')}
+    ${can && adding ? `<form class="stack tight" data-form="add-rate"><label class="f"><span>Add a currency</span><select id="newRateCur" data-change="new-rate-currency">${others.map(c => `<option ${c === adding ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <div class="row"><label class="f grow"><span>${esc(ask(adding))}</span><input class="mono" id="newRate" inputmode="decimal" required></label><button class="btn">Save</button></div></form>` : ''}
+    <p class="tiny muted">New expenses in that currency start with this rate. Expenses already saved keep the rate they have.</p></div>`;
+}
+
+/** Saves a rate, unless it's a number or looks upside down. A second try keeps a backwards-looking one. */
+function saveRate(trip, currency, typed) {
+  const rate = typedToStored(typed, currency, trip.currency);
+  if (!rate) { toast('Enter a number above zero.'); return false; }
+  const q = rateQuestion(currency, trip.currency);
+  if (looksBackwards(rate, currency, trip.currency) && A.backwardsRate !== `${currency}:${typed}`) {
+    A.backwardsRate = `${currency}:${typed}`;
+    toast(`This looks backwards. Enter how many ${q.many} 1 ${q.one} buys, or save again to keep it.`);
+    return false;
+  }
+  A.backwardsRate = null;
+  send(A.repo.updateTrip(trip.id, { [`rates.${currency}`]: rate }, getMe(trip)), 'That exchange rate');
+  toast(`Saved. New ${currency} expenses will use this rate.`);
+  return true;
+}
+changes['saved-rate'] = el => {
+  const t = A.trips[A.route.tripId], c = el.dataset.id;
+  if (!saveRate(t, c, el.value)) el.focus();
+};
+changes['new-rate-currency'] = el => { A.rateCur = el.value; render(); };
+submits['add-rate'] = () => {
+  const t = A.trips[A.route.tripId];
+  saveRate(t, val('newRateCur'), val('newRate'));
+};
+
 /** The rarely used things, kept apart so the people screen stays short. */
 export function settingsView(trip) {
   const admin = amAdmin(trip), rates = Object.entries(trip.rates || {});
   return `  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
-    <div class="stack tight"><span class="flabel">Saved exchange rates</span>${rates.length ? rates.map(([c, r]) => `<div class="small mono">${esc(rateLabel(r, c, trip.currency))}</div>`).join('') : '<p class="small muted">Add an expense in another currency to save a rate.</p>'}</div>
+    ${ratesSection(trip)}
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
   ${backupSection(trip)}
   <section class="panel pad stack"><h2>Archive, leave or delete</h2>
