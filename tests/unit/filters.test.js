@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { EMPTY_FILTERS, activeFilterCount, applyFilters, filteredTotal } from '../../js/core/filters.js';
+import { EMPTY_FILTERS, activeFilterCount, applyFilters, filterTags, filteredTotal, moreFiltersInUse } from '../../js/core/filters.js';
 
 const trip = { currency: 'USD', members: { a: { name: 'Ana' }, b: { name: 'Ben' }, c: { name: 'Chi' } } };
 const e = (id, over) => ({ id, kind: 'expense', category: 'food', currency: 'USD', rate: 1, total: 1000, date: '2026-01-01', createdAt: 1, desc: id, paid: { a: 1000 }, owed: { a: 500, b: 500 }, ...over });
@@ -63,4 +63,19 @@ test('paid by finds only who handled the money, and works with involved', () => 
   const both = applyFilters(list, trip, '', { ...EMPTY_FILTERS, payer: 'a', person: 'b' });
   for (const e of both) assert.ok((e.kind === 'refund' ? e.owed.a : e.paid.a) && (e.paid.b || e.owed.b));
   assert.equal(activeFilterCount({ ...EMPTY_FILTERS, payer: 'a' }), 1);
+});
+
+test('active filters become removable tags, and sort is not one', () => {
+  const words = { nameOf: id => ({ a: 'Ana', b: 'Ben' })[id], typeName: t => t, money: v => `$${v}` };
+  assert.deepEqual(filterTags(EMPTY_FILTERS, '  ', words), []);
+  assert.deepEqual(filterTags({ ...EMPTY_FILTERS, sort: 'largest' }, '', words), []);
+  assert.deepEqual(filterTags({ ...EMPTY_FILTERS, payer: 'b', person: 'a', min: '5' }, 'uber', words).map(t => [t.key, t.label]), [
+    ['search', 'Search: uber'], ['payer', 'Paid by Ben'], ['person', 'Involved: Ana'], ['min', 'At least $5'],
+  ]);
+});
+test('the extra filters stay open while one is in use', () => {
+  assert.equal(moreFiltersInUse(EMPTY_FILTERS), false);
+  assert.equal(moreFiltersInUse({ ...EMPTY_FILTERS, payer: 'a' }), false);
+  assert.equal(moreFiltersInUse({ ...EMPTY_FILTERS, min: '1' }), true);
+  assert.equal(moreFiltersInUse({ ...EMPTY_FILTERS, sort: 'oldest' }), true);
 });

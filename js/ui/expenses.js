@@ -2,10 +2,10 @@
 import { A, actions, changes, inputs, render } from './state.js';
 import { AVATAR_COLORS, CATEGORIES } from '../config/app.js';
 import { ICON, avatar, canWrite, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
-import { money } from '../core/money.js';
+import { money, toMinor } from '../core/money.js';
 import { inBase, needsRate } from '../core/debts.js';
 import { activeMembers, displayColors, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
-import { EMPTY_FILTERS, activeFilterCount, applyFilters, filteredTotal } from '../core/filters.js';
+import { EMPTY_FILTERS, activeFilterCount, applyFilters, filterTags, filteredTotal, moreFiltersInUse } from '../core/filters.js';
 import { summaryCard } from './trip.js';
 import { goTrip } from './routes.js';
 
@@ -46,7 +46,12 @@ function line(trip, e) {
 
 const waiting = (trip, e) => (A.pending[trip.id]?.includes(e.id) ? ' <span class="tag">Waiting to sync</span>' : '');
 
-function listHtml(trip) {
+const listHtml = trip => {
+  const all = liveEntries(A.entries[trip.id]);
+  return (all.length ? filterRow(trip) : '') + listBody(trip);
+};
+
+function listBody(trip) {
   const all = liveEntries(A.entries[trip.id]);
   const list = applyFilters(all, trip, A.search, A.filters);
   if (!list.length) {
@@ -64,13 +69,32 @@ function listHtml(trip) {
   return summary + [...days].map(([d, es]) => `<div class="label date-head">${fmtDate(d)}</div><section class="panel"><div class="list">${es.map(e => line(trip, e)).join('')}</div></section>`).join('');
 }
 
+const typeName = t => (t === 'kind:refund' ? 'Refunds' : t === 'kind:payment' ? 'Settlements' : CATEGORIES[t] || 'Other');
+
+/** One tap to see what you paid for, and every active filter as a tag you can remove. */
+function filterRow(trip) {
+  const me = getMe(trip), mine = me && A.filters.payer === me;
+  const tags = filterTags(A.filters, A.search, {
+    nameOf: id => memberName(trip, id),
+    typeName,
+    money: v => { const n = toMinor(v, trip.currency); return n ? money(n, trip.currency) : v; },
+  }).filter(t => !(mine && t.key === 'payer'));
+  const quick = me ? `<button type="button" class="filter-quick" data-action="filter-mine" aria-pressed="${Boolean(mine)}">Paid by me</button>` : '';
+  if (!quick && !tags.length) return '';
+  return `<div class="filter-tags" id="filterTags">${quick}${tags.map(t => `<button type="button" class="filter-tag" data-action="filter-remove" data-id="${t.key}" aria-label="Remove filter ${esc(t.label)}">${esc(t.label)}<b aria-hidden="true">×</b></button>`).join('')}</div>`;
+}
+
 function filtersHtml(trip, all) {
   const f = A.filters, cats = [...new Set(all.filter(e => e.kind !== 'payment').map(e => e.category))];
   const option = (value, label, current) => `<option value="${esc(value)}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
+  const more = A.showMoreFilters || moreFiltersInUse(f);
   return `<section class="panel pad filters" id="filterPanel">
     <div class="grid2">
       <label class="f"><span>Paid by</span><select id="fltPayer" data-change="filter" data-key="payer">${option('', 'Anyone', f.payer)}${activeMembers(trip).map(m => option(m.id, m.name, f.payer)).join('')}</select></label>
       <label class="f"><span>Involved</span><select id="fltPerson" data-change="filter" data-key="person">${option('', 'Everyone', f.person)}${activeMembers(trip).map(m => option(m.id, m.name, f.person)).join('')}</select></label>
+    </div>
+    ${more ? '' : '<button type="button" class="link small more-filters" data-action="filters-more">More filters</button>'}
+    <div class="stack" ${more ? '' : 'hidden'} id="moreFilters"><div class="grid2">
       <label class="f"><span>Type</span><select id="fltType" data-change="filter" data-key="type">${option('', 'All types', f.type)}${cats.map(c => option(c, CATEGORIES[c] || 'Other', f.type)).join('')}${option('kind:refund', 'Refunds', f.type)}${option('kind:payment', 'Settlements', f.type)}</select></label>
       <label class="f"><span>From date</span><input id="fltFrom" type="date" value="${esc(f.from)}" data-change="filter" data-key="from"></label>
       <label class="f"><span>To date</span><input id="fltTo" type="date" value="${esc(f.to)}" data-change="filter" data-key="to"></label>
@@ -78,7 +102,8 @@ function filtersHtml(trip, all) {
       <label class="f"><span>Maximum (${esc(trip.currency)})</span><input id="fltMax" inputmode="decimal" placeholder="Any" value="${esc(f.max)}" data-input="filter" data-key="max"></label>
     </div>
     <div class="row between wrap"><label class="f sort"><span>Sort by</span><select id="fltSort" data-change="filter" data-key="sort">${option('newest', 'Newest first', f.sort)}${option('oldest', 'Oldest first', f.sort)}${option('largest', 'Largest first', f.sort)}${option('smallest', 'Smallest first', f.sort)}</select></label>
-    <button type="button" class="link small" data-action="filters-clear">Clear all</button></div>
+    <button type="button" class="link small" data-action="filters-clear">Clear all</button></div></div>
+    ${more && A.showMoreFilters && !moreFiltersInUse(f) ? '<button type="button" class="link small more-filters" data-action="filters-more">Fewer filters</button>' : ''}
   </section>`;
 }
 
@@ -105,6 +130,18 @@ function refreshList() {
   if (list) list.innerHTML = listHtml(trip);
   if (toggle) { toggle.textContent = filterButtonLabel(); toggle.classList.toggle('on', activeFilterCount(A.filters) > 0); }
 }
+actions['filters-more'] = () => { A.showMoreFilters = !A.showMoreFilters; render(); };
+actions['filter-mine'] = () => {
+  const me = getMe(A.trips[A.route.tripId]);
+  A.filters.payer = A.filters.payer === me ? '' : me;
+  render();
+};
+actions['filter-remove'] = el => {
+  const key = el.dataset.id;
+  if (key === 'search') A.search = '';
+  else A.filters[key] = EMPTY_FILTERS[key];
+  render();
+};
 actions['filters-toggle'] = () => { A.showFilters = !A.showFilters; render(); };
 actions['filters-clear'] = () => { A.filters = { ...EMPTY_FILTERS }; A.search = ''; render(); };
 // Amounts redraw only the list as you type, so the box keeps your cursor.

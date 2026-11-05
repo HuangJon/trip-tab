@@ -288,7 +288,7 @@ function setUpClickOutside() {
   });
   document.addEventListener('click', ev => {
     if (!A.showFilters || d.open || !ev.target.isConnected) return; // a click that re-rendered its own button stays open
-    if (ev.target.closest('.filters,#search,[data-action="filters-toggle"],#toast,nav.tabs,.tap')) return;
+    if (ev.target.closest('.filters,.filter-tags,#search,[data-action="filters-toggle"],#toast,nav.tabs,.tap')) return;
     A.showFilters = false;
     render();
   });

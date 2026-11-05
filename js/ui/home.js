@@ -62,7 +62,7 @@ export function homeView() {
         : `<div class="tiny muted">${v > 0 ? 'You get' : 'You owe'}</div><div class="amt ${v > 0 ? 'owed' : 'owe'}">${amount}</div>`;
     } else status = `<span class="muted small">${settled ? 'Settled up' : 'Pick who you are'}</span>`;
     return `<button class="tap" data-action="open-trip" data-id="${t.id}">
-      <span class="grow"><strong class="block wrap-any">${esc(t.name)}</strong><span class="small muted">${activeMembers(t).length} people · ${money(total, t.currency)} spent</span></span>
+      <span class="grow"><strong class="block wrap-any">${esc(t.name)}</strong><span class="small muted">${activeMembers(t).length} ${activeMembers(t).length === 1 ? 'person' : 'people'} · ${money(total, t.currency)} spent</span></span>
       <span class="right">${status}${(A.pending[t.id]?.length) ? '<div class="tag">Waiting to sync</div>' : ''}</span></button>`;
   };
   const rows = trips.map(rowFor).join('');
