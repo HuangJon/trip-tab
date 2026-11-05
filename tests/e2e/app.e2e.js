@@ -430,12 +430,8 @@ check('a friend picks or adds their name');
   assert.match(picker, /tied to your account/);
   await pal.click('[data-action=set-me]:has-text("Mia")');
   await pal.waitForFunction(() => !/Which one is you/.test(document.getElementById('app').textContent));
-  await pal.waitForSelector('#welcomeCard');
-  await pal.click('[data-action=welcome-dismiss]');
-  await pal.waitForFunction(() => !document.getElementById('welcomeCard'));
   await pal.reload();
   await pal.waitForSelector('.tap:has-text("Rental car")');
-  assert.equal(await pal.locator('#welcomeCard').count(), 0, 'the welcome appears once');
   await pal.click('.tap:has-text("Rental car")', { button: 'right' });
   await pal.waitForSelector('#rowMenu');
   assert.equal(await pal.locator('#rowMenu [data-action=edit-entry]').count(), 0, "the menu won't offer to edit someone else's expense");
@@ -846,6 +842,48 @@ await page.click('[data-action=share-wrapup]');
 await page.waitForFunction(() => /wrap-up/.test(document.getElementById('dlg').textContent));
 await page.click('[data-action=close-sheet]');
 check('a quick expense takes only an amount and a description; reminders and wrap-ups can be shared');
+
+/* The walkthrough shows once for someone new, and can be skipped or replayed */
+await page.evaluate(id => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); localStorage.setItem(`triptab:welcome:${id}`, 'true'); }, await page.evaluate(() => /#t-([a-z0-9]+)-/.exec(location.hash)[1]));
+await page.reload();
+await page.waitForSelector('#tour');
+await page.click('[data-action=tour-step]');
+assert.match(await page.textContent('#tour'), /See every expense/);
+await page.click('#tourSkip');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.reload();
+await page.waitForSelector('[data-tab=expenses]');
+assert.equal(await page.locator('#tour').count(), 0, 'it shows only once');
+await page.click('.topbar [data-action=edit-avatar]');
+await page.click('[data-action=tour-start]');
+await page.waitForSelector('#tour');
+await page.click('[data-action=close-sheet] >> nth=0');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.evaluate(() => sessionStorage.removeItem('tour-test'));
+await page.evaluate(() => localStorage.setItem('triptab:last-seen', String(Date.now() - 100 * 86400000)));
+await page.reload();
+await page.waitForSelector('#tour');
+await page.click('#tourSkip');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.reload();
+await page.waitForSelector('[data-tab=expenses]');
+assert.equal(await page.locator('#tour').count(), 0, 'back after a while shows it just once');
+check('the walkthrough shows once, can be skipped, and can be replayed');
+
+/* Press and hold a trip on the home page */
+await page.click('[data-action=home]');
+await page.waitForSelector('.tap[data-action=open-trip]');
+const tripBefore = await page.locator('.tap[data-action=open-trip]').count();
+await page.click('.tap[data-action=open-trip] >> nth=0', { button: 'right' });
+await page.waitForSelector('#tripMenu');
+await page.click('[data-action=trip-delete]');
+await page.click('[data-action=trip-delete-yes]');
+await page.waitForFunction(n => document.querySelectorAll('.tap[data-action=open-trip]').length < n, tripBefore);
+await page.click('#toast [data-action=undo]');
+await page.waitForFunction(n => document.querySelectorAll('.tap[data-action=open-trip]').length === n, tripBefore);
+await page.click('.tap[data-action=open-trip] >> nth=0');
+await page.waitForSelector('[data-tab=expenses]');
+check('a trip can be deleted from the home page with a press and hold, and undone');
 
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');

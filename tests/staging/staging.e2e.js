@@ -28,6 +28,7 @@ async function account(name) {
 const browser = await launch();
 async function person(user) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  await context.addInitScript(() => localStorage.setItem('triptab:tour-done', 'true'));
   const page = await context.newPage();
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));

@@ -24,6 +24,7 @@ import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
 import { applyLook, setLook } from './ui/look.js';
+import { maybeStartTour } from './ui/walkthrough.js';
 import { amOwner, ownerView } from './ui/owner.js';
 import { setUpErrorLog } from './ui/error-log.js';
 import { watchForUpdates } from './ui/updates.js';
@@ -87,6 +88,7 @@ function draw() {
       }
     }
   }
+  if (A.route.name === 'trip') maybeStartTour(A.trips[A.route.tripId]);
   if (typing) {
     const n = document.getElementById(typing.id);
     if (n) { n.value = typing.value; n.focus(); try { n.setSelectionRange(typing.at, typing.at); } catch { /* date boxes */ } }
