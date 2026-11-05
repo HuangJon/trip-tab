@@ -7,6 +7,7 @@ import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
+import { currentLook } from './look.js';
 
 const inviteUrl = id => `${location.origin}${location.pathname}#join-${id}`;
 
@@ -148,7 +149,9 @@ submits['add-rate'] = () => {
 /** The rarely used things, kept apart so the people screen stays short. */
 export function settingsView(trip) {
   const admin = amAdmin(trip), rates = Object.entries(trip.rates || {});
-  return `  <section class="panel pad stack"><h2>Trip settings</h2>
+  const look = currentLook();
+  return `  <section class="panel pad stack"><h2>Appearance</h2><div class="look-row"><span>Theme on this device</span><div class="seg" role="group" aria-label="Theme"><button data-action="set-look" data-id="light" aria-pressed="${look === 'light'}">Light</button><button data-action="set-look" data-id="dark" aria-pressed="${look === 'dark'}">Dark</button></div></div></section>
+  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
     ${ratesSection(trip)}

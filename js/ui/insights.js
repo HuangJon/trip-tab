@@ -20,7 +20,7 @@ export function insightsView(trip) {
   const max = Math.max(1, ...members.flatMap(m => [s.paid[m.id] || 0, s.share[m.id] || 0]));
   const unrated = liveEntries(A.entries[trip.id]).filter(e => needsRate(e, c)).length;
   return `${unrated ? `<div class="notice">Leaves out ${unrated} expense${unrated > 1 ? 's' : ''} waiting for an exchange rate.</div>` : ''}<section class="hero"><span class="label">Total trip spending</span><div class="big">${f(s.total)}</div>
-    <p class="small">${s.count} expense${s.count > 1 ? 's' : ''} over ${days.length} day${days.length > 1 ? 's' : ''} · ${f(Math.round(s.total / Math.max(1, members.length)))} per person${me ? ` · your share ${f(s.share[me] || 0)}` : ''}</p></section>
+    <dl class="stats"><div><dt>Expenses</dt><dd>${s.count} over ${days.length} day${days.length > 1 ? 's' : ''}</dd></div><div><dt>Per person</dt><dd>${f(Math.round(s.total / Math.max(1, members.length)))}</dd></div>${me ? `<div><dt>Your share</dt><dd>${f(s.share[me] || 0)}</dd></div>` : ''}</dl></section>
   <section class="panel pad stack"><h2>By category</h2>${bars(Object.entries(s.byCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ k: CATEGORIES[k] || 'Other', v })), f)}</section>
   <section class="panel pad stack"><h2>Paid compared with share</h2>
     <div class="row small muted"><span class="row gap6"><span class="key"></span>Paid, after refunds</span><span class="row gap6"><span class="key alt"></span>Share</span></div>

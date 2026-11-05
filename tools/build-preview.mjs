@@ -7,7 +7,7 @@ const [, , repo = '.', out = 'preview.html'] = process.argv;
 const html = readFileSync(join(repo, 'index.html'), 'utf8');
 const body = html.slice(html.indexOf('<body>') + 6, html.indexOf('<script type="module"'));
 const fonts = /<link rel="stylesheet" href="https:\/\/fonts[^>]+>/.exec(html)[0];
-let css = ['tokens', 'base', 'screens'].map(n => readFileSync(join(repo, 'css', `${n}.css`), 'utf8')).join('\n');
+let css = ['tokens', 'base', 'screens', 'theme'].map(n => readFileSync(join(repo, 'css', `${n}.css`), 'utf8')).join('\n');
 // Claude's viewer can force light or dark with data-theme, so honor it as well as the system setting.
 const start = css.indexOf('@media (prefers-color-scheme: dark) {');
 const darkBody = css.slice(css.indexOf(':root {', start) + 7, css.indexOf('}\n}', start));

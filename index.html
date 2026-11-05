@@ -5,16 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>The Trip Tab</title>
 <meta name="description" content="Split trip costs with friends.">
-<meta name="theme-color" content="#edf3f8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#141c28" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E3DED3" id="themeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Trip Tab">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/screens.css">
+<link rel="stylesheet" href="css/theme.css">
+<script>try{document.documentElement.dataset.look=localStorage.getItem('triptab:look')==='dark'?'dark':'light'}catch(e){document.documentElement.dataset.look='light'}</script>
 </head>
 <body>
 <div id="updateBanner" class="update" hidden><span>A new version is ready.</span><button class="btn small" data-action="apply-update">Update</button></div>

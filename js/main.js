@@ -23,6 +23,7 @@ import { attachReceipt } from './ui/expense-form.js';
 import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
+import { applyLook, setLook } from './ui/look.js';
 import { watchForUpdates } from './ui/updates.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
@@ -158,6 +159,7 @@ A.enterTrip = async id => {
 
 /* ---------- Events ---------- */
 actions.reload = () => location.reload();
+actions['set-look'] = el => { setLook(el.dataset.id); render(); };
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-action]');
   if (el) actions[el.dataset.action]?.(el, ev);
@@ -180,6 +182,7 @@ addEventListener('online', () => render());
 addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
 
+applyLook();
 setUpRowMenu();
 setUpClickOutside();
 

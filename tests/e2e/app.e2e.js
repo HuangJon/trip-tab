@@ -749,6 +749,17 @@ await tab(page, 'expenses');
 }
 check('the app asks for a Venmo or Zelle, once on the expenses screen');
 
+/* Light by default, dark if chosen, remembered */
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'light');
+await tab(page, 'settings');
+await page.click('[data-action=set-look][data-id=dark]');
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'dark');
+await page.reload();
+await page.waitForSelector('[data-action=set-look]');
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'dark');
+await page.click('[data-action=set-look][data-id=light]');
+check('light is the default, and dark can be chosen and is remembered');
+
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
 await page.setViewportSize({ width: 1000, height: 800 });

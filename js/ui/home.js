@@ -1,6 +1,6 @@
 /** The list of trips on this phone. */
 import { A, actions, render, submits } from './state.js';
-import { APP_NAME, CURRENCIES, LIMITS, ZONE_CURRENCY } from '../config/app.js';
+import { APP_NAME, CURRENCIES, LIMITS } from '../config/app.js';
 import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from './dom.js';
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
@@ -71,12 +71,9 @@ export function homeView() {
     ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}`;
 }
 
-function defaultCurrency() {
-  try { return ZONE_CURRENCY[Intl.DateTimeFormat().resolvedOptions().timeZone] || 'USD'; } catch { return 'USD'; }
-}
 
 actions['new-trip'] = () => {
-  const cur = defaultCurrency();
+  const cur = 'USD';
   openSheet(`<form class="sheet" data-form="new-trip">${sheetHead('New trip', '<button class="btn small primary">Create</button>')}<div class="sheet-body">
     <label class="f"><span>Trip name</span><input id="ntName" required maxlength="${LIMITS.tripName}" placeholder="Okinawa, April"></label>
     <label class="f"><span>Show balances in</span><select id="ntCur">${CURRENCIES.map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
