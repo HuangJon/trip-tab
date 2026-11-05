@@ -69,6 +69,9 @@ jobs:
       - name: Build the staging site
         run: |
           cp config/firebase.staging.js js/config/firebase.js
+          # The test owner replaces the real one, only for this publish to the staging project.
+          sed -i "s/80zN7EdZTZOZ8RGVWLmUcMAgetk2/stagingOwnerTestAccount01/" firestore.rules
+          grep -q "stagingOwnerTestAccount01" firestore.rules
           mkdir _site
           cp -r index.html manifest.webmanifest sw.js css js icons _site/
       - name: Publish to staging

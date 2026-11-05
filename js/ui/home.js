@@ -11,6 +11,7 @@ import { environment } from '../config/firebase.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { isIos, shouldSuggestInstall } from '../core/platform.js';
 import { goTrip } from './routes.js';
+import { amOwner } from './owner.js';
 
 export function modeNotice() {
   if (environment === 'staging') return '<div class="notice">Staging site: test data only. Anything here can be deleted at any time.</div>';
@@ -77,7 +78,7 @@ export function homeView() {
     : '<section class="panel empty"><h2>Start your first trip</h2><ol class="how small"><li>Create a trip and add the people going.</li><li>Send your friends the invite link.</li><li>Add expenses as you go, then settle up at the end.</li></ol><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
     <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
     ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}
-    <footer class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></footer>`;
+    <footer class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><span class="row gap8">${amOwner() ? '<button class="link small" data-action="owner-open">Owner page</button>' : ''}<button class="link small" data-action="auth-signout">Sign out</button></span></footer>`;
 }
 
 

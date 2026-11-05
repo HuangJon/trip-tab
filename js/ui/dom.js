@@ -102,6 +102,7 @@ export function send(promise, label = 'A change') {
     else if (e?.name === 'QuotaExceededError') why = 'This device is out of storage for the preview. Remove a photo or trip.';
     else if (e?.code === 'resource-exhausted') why = 'The free database limit is used up for now. Changes will work again after it resets.';
     toast(why);
+    A.logProblem?.('failed-save', `${label}: ${e?.code || e?.name || 'unknown'}`);
     A.device.addFailedChange(`${label} didn't save. ${why}`);
     render();
   });

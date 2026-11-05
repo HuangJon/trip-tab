@@ -201,6 +201,44 @@ await refused(admin.backend.set('other/thing', { a: 1 }));
 const [rev] = await admin.repo.listRevisions(trip.id, benEntry.id);
 await refused(admin.backend.update(`trips/${trip.id}/entries/${benEntry.id}/revisions/${rev.id}`, { by: 'Forged' }));
 
+/* The owner can read everything and change nothing. Nobody else can see across trips. */
+await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/projects/demo-trip-tab/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' }, body: JSON.stringify({ localId: '80zN7EdZTZOZ8RGVWLmUcMAgetk2', email: 'owner@example.com', password: 'password1', emailVerified: true }) });
+const owner = await (async () => {
+  const backend = await createFirebaseBackend(config, phoneSdk());
+  await authSdk.signInWithEmailAndPassword(backend.firebaseAuth, 'owner@example.com', 'password1');
+  assert.equal(backend.uid(), '80zN7EdZTZOZ8RGVWLmUcMAgetk2');
+  return { backend, repo: createRepository(backend), profile: backend.auth.current() };
+})();
+const seen = await owner.repo.ownerTrips();
+assert.ok(seen.some(t => t.id === trip.id && t.entryCount > 0 && t.joined.length > 0 && t.lastActivity), 'the owner sees trips, entries, people and activity');
+assert.ok((await owner.repo.ownerTrip(trip.id)).entries.length > 0);
+await refused(owner.backend.update(`trips/${trip.id}`, { name: 'Owner', changedBy: a }), 'the owner cannot change a trip');
+await refused(owner.backend.update(entryPath, { desc: 'Owner', updatedById: a }), 'or an expense');
+await refused(owner.backend.set(`trips/${trip.id}/entries/entry00000000009`, { ...entryFor('entry00000000009', a), updatedById: a }), 'or add one');
+await refused(store.deleteDoc(store.doc(owner.backend.db, entryPath)), 'or delete one');
+await refused(owner.backend.set(`trips/${trip.id}/activity/activity00000009`, { id: 'activity00000009', tripId: trip.id, text: 'x', at: 1, byId: a }), 'or write activity');
+await refused(friend.repo.ownerTrips(), 'friends cannot list trips');
+await refused(stranger.backend.list('trips'), 'nor can strangers');
+await refused(friend.backend.list(`trips/${trip.id}/joined`), 'non-admins cannot list who joined');
+const lookalike = await newPhone('owner@example.org');
+await refused(lookalike.backend.list('trips'), 'only the owner account can list trips');
+
+/* Anyone signed in can add a problem report about themselves. Only the owner can read them, and nobody can change them. */
+const report = (id, phone, extra = {}) => ({ id, kind: 'failed-save', message: 'A change: permission-denied', where: 'trip/expenses', tripId: trip.id, agent: 'test', uid: phone.profile.uid, email: phone.profile.email, at: 1, ...extra });
+await friend.repo.logError(report('report0000000001', friend));
+await refused(friend.repo.logError(report('report0000000002', friend, { uid: admin.profile.uid })), "can't report as someone else");
+await refused(friend.repo.logError(report('report0000000003', friend, { email: 'x@example.com' })), 'or with another email');
+await refused(friend.repo.logError(report('report0000000004', friend, { message: 'x'.repeat(301) })), 'or too long');
+await refused(friend.repo.logError(report('report0000000005', friend, { kind: 'other' })), 'or an unknown kind');
+await refused(friend.repo.logError(report('report0000000006', friend, { extra: 'x' })), 'or with extra fields');
+await refused(friend.repo.logError(report('short', friend, { id: 'short' })), 'or a bad id');
+await refused(friend.repo.ownerErrors(), 'friends cannot read reports');
+await refused(friend.backend.get('errorLog/report0000000001'), 'not even their own');
+await refused(friend.backend.update('errorLog/report0000000001', { message: 'x' }), 'or change them');
+await refused(owner.backend.update('errorLog/report0000000001', { message: 'x' }), 'the owner cannot change them either');
+await refused(store.deleteDoc(store.doc(owner.backend.db, 'errorLog/report0000000001')), 'or delete them');
+assert.ok((await owner.repo.ownerErrors()).some(e => e.id === 'report0000000001'));
+
 /* A phone that hasn't signed in gets nothing, even with the right link. */
 const unsigned = store.initializeFirestore(app.initializeApp(config, 'unsigned'), {});
 store.connectFirestoreEmulator(unsigned, '127.0.0.1', 8181);

@@ -3,10 +3,13 @@ rules_version = '2';
 // Opening a trip's link records the account in joined/{uid}, and an admin can remove anyone from there.
 // A name on a trip belongs to the account that claimed it, recorded in claims/{memberId}.
 // Every write says which name is making it, and that name has to belong to this account.
-// Nobody can list trips, and nothing can be deleted except an entry on your own trip list.
+// Only the app's owner can list trips. The owner gets reading only, with no extra power to change anything.
+// Nothing can be deleted except an entry on your own trip list.
 // Rules can't add up a map, so the app also checks that each expense's shares reach its total.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // The app's owner. Testing swaps in a test address when publishing to the staging project only.
+    function isOwner() { return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == '80zN7EdZTZOZ8RGVWLmUcMAgetk2'; }
     function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function okId(id) { return id.matches('^[a-z0-9]{10,40}$'); }
     function okTripId(id) { return signedIn() && id.matches('^[a-z0-9]{20,40}$'); }
@@ -78,9 +81,27 @@ service cloud.firestore {
       allow create, update: if signedIn() && uid == request.auth.uid && request.resource.data.tripId == tripId;
     }
 
+    // A short note when something breaks. Anyone signed in can add their own; only the owner can read them.
+    match /errorLog/{id} {
+      allow read: if isOwner();
+      allow create: if request.auth != null && okId(id)
+        && request.resource.data.keys().hasOnly(['id', 'kind', 'message', 'where', 'tripId', 'agent', 'uid', 'email', 'at'])
+        && request.resource.data.keys().hasAll(['id', 'kind', 'message', 'where', 'tripId', 'agent', 'uid', 'email', 'at'])
+        && request.resource.data.id == id
+        && request.resource.data.kind in ['failed-save', 'app-error']
+        && short(request.resource.data.message, 300)
+        && short(request.resource.data.where, 100)
+        && short(request.resource.data.tripId, 40)
+        && short(request.resource.data.agent, 200)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.get('email', '')
+        && request.resource.data.at is number;
+      allow update, delete: if false;
+    }
+
     match /trips/{tripId} {
-      allow get: if okTripId(tripId) && (resource == null || onTrip(tripId));
-      allow list: if false;
+      allow get: if okTripId(tripId) && (resource == null || onTrip(tripId) || isOwner());
+      allow list: if isOwner();
       allow create: if okTripId(tripId) && validTrip(request.resource.data, tripId)
         && request.resource.data.adminUids.get(request.auth.uid, false) == true;
       allow update: if okTripId(tripId) && validTrip(request.resource.data, tripId)
@@ -98,8 +119,8 @@ service cloud.firestore {
       allow delete: if false;
 
       match /joined/{uid} {
-        allow get: if okTripId(tripId) && (uid == request.auth.uid || isAdminAccount(tripId));
-        allow list: if okTripId(tripId) && isAdminAccount(tripId);
+        allow get: if okTripId(tripId) && (uid == request.auth.uid || isAdminAccount(tripId) || isOwner());
+        allow list: if okTripId(tripId) && (isAdminAccount(tripId) || isOwner());
         allow create: if okTripId(tripId) && uid == request.auth.uid
           && request.resource.data.uid == uid
           && request.resource.data.tripId == tripId
@@ -140,7 +161,7 @@ service cloud.firestore {
       }
 
       match /entries/{id} {
-        allow read: if okTripId(tripId) && onTrip(tripId);
+        allow read: if okTripId(tripId) && (onTrip(tripId) || isOwner());
         allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
           && (isAdmin(tripId, request.resource.data.updatedById)
             || (isMe(tripId, request.resource.data.updatedById)
@@ -171,7 +192,7 @@ service cloud.firestore {
         }
       }
       match /activity/{id} {
-        allow read: if okTripId(tripId) && onTrip(tripId);
+        allow read: if okTripId(tripId) && (onTrip(tripId) || isOwner());
         allow create: if okTripId(tripId) && okId(id)
           && isMe(tripId, request.resource.data.byId)
           && request.resource.data.tripId == tripId
@@ -180,7 +201,7 @@ service cloud.firestore {
         allow update, delete: if false;
       }
       match /receipts/{id} {
-        allow get: if okTripId(tripId) && onTrip(tripId);
+        allow get: if okTripId(tripId) && (onTrip(tripId) || isOwner());
         allow list: if false; // receipts load one at a time, only when someone opens one
         allow create: if okTripId(tripId) && okId(id)
           && isMe(tripId, request.resource.data.byId)
