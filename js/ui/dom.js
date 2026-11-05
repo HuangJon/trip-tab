@@ -9,7 +9,7 @@ export const svg = paths => `<svg viewBox="0 0 24 24" fill="none" stroke="curren
 export const val = id => document.getElementById(id)?.value ?? '';
 
 export const ICON = {
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M18.400 5.600l-2.100 2.100M7.700 16.300l-2.100 2.100"/>', check: '<path d="M5 12.500l4.500 4.500L19 7.500"/>', plus: '<path d="M12 5v14M5 12h14"/>', back: '<path d="M15 5l-7 7 7 7"/>',
+  home: '<path d="M4 11l8-7 8 7M6.500 9.500V20h11V9.500M10 20v-5.500h4V20"/>', gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M18.400 5.600l-2.100 2.100M7.700 16.300l-2.100 2.100"/>', check: '<path d="M5 12.500l4.500 4.500L19 7.500"/>', plus: '<path d="M12 5v14M5 12h14"/>', back: '<path d="M15 5l-7 7 7 7"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
   scale: '<path d="M12 3v18M7 21h10M4 7h16M6.5 7L3 14a3.5 3.5 0 0 0 7 0zM17.500 7L14 14a3.500 3.500 0 0 0 7 0z"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

@@ -10,25 +10,25 @@ export const MORE_TABS = ['insights', 'activity', 'settings'];
 function setHash(h, addToHistory) {
   try {
     if (location.hash === h) return;
-    history[addToHistory ? 'pushState' : 'replaceState'](null, '', h || location.pathname + location.search);
+    const depth = history.state?.depth || 0;
+    history[addToHistory ? 'pushState' : 'replaceState']({ depth: addToHistory ? depth + 1 : depth }, '', h || location.pathname + location.search);
   } catch { /* the address bar is optional */ }
 }
 export function goHome() {
   A.route = { name: 'home' };
   A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; A.confirm = null;
-  setHash('');
+  setHash('', true);
   render();
   scrollTo(0, 0);
 }
 export function goTrip(id, tab = 'expenses') {
-  // Opening a trip adds a history step, so the phone's back button returns to the list of trips.
-  const fromHome = A.route.name !== 'trip';
-  const sameTrip = !fromHome && A.route.tripId === id;
+  // Every screen is a history step, so back always returns to the screen you came from.
+  const sameTrip = A.route.name === 'trip' && A.route.tripId === id;
   A.route = { name: 'trip', tripId: id, tab };
   A.confirm = null;
   // Filters stay while you move between tabs on a trip, and reset on a different one.
   if (!sameTrip) { A.peopleTab = A.peopleTab === 'invite' ? 'invite' : 'people'; A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; }
-  setHash(`#t-${id}-${tab}`, fromHome);
+  setHash(`#t-${id}-${tab}`, true);
   A.watchActivity?.(id);
   A.watchJoined?.(id);
   render();
@@ -51,4 +51,5 @@ export function readHash() {
   } else A.route = { name: 'home' };
 }
 actions.home = () => goHome();
+actions.back = () => { if (history.state?.depth > 0) history.back(); else goHome(); };
 actions.tab = el => goTrip(A.route.tripId, el.dataset.tab);

@@ -206,9 +206,9 @@ await page.fill('#fDesc', 'Fresh row');
 await page.fill('#fAmt', '20');
 await page.click('#fSave');
 await page.waitForSelector('.tap.fresh:has-text("Fresh row")');
-await page.goBack();
+await page.click('[data-action=home]');
 await page.waitForSelector('.home-head');
-await page.goForward();
+await page.goBack();
 await page.waitForSelector('#entryList');
 check('saving highlights the new row; the phone back button returns to your trips');
 
@@ -780,6 +780,20 @@ await tab(page, 'settings');
 await page.selectOption('#tripDefaultCur', 'TWD');
 await tab(page, 'expenses');
 check('home totals in USD, and a trip can choose its starting currency');
+
+/* Back returns to the last screen, and All trips goes home */
+await tab(page, 'expenses');
+await page.click('[data-tab=balances]');
+await page.click('[data-tab=people]');
+await page.click('[data-action=back]');
+await page.waitForFunction(() => /-balances$/.test(location.hash));
+await page.click('[data-action=back]');
+await page.waitForFunction(() => /-expenses$/.test(location.hash));
+await page.click('[data-action=home]');
+await page.waitForSelector('[data-action=new-trip]');
+await page.click('.tap >> nth=0');
+await page.waitForSelector('[data-tab=expenses]');
+check('back returns to the last screen, and All trips goes home');
 
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
