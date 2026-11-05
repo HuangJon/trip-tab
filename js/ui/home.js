@@ -69,13 +69,13 @@ export function homeView() {
     ${rough ? '<p class="small">Roughly, using estimated exchange rates.</p>' : ''}</section>`;
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
-    <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
     : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They verify an email or Google account, then pick their name.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
     <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
-    ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}`;
+    ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}
+    <footer class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></footer>`;
 }
 
 

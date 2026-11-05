@@ -206,3 +206,5 @@ dialog,dialog .sheet,dialog .sheet-body { background:#22211E }
 :root[data-look="dark"] .fill.alt,:root[data-look="dark"] .key.alt { background:#7F8FA3 }
 .topbar { gap:8px }
 .topbar h1 { font-size:1.25rem; line-height:1.2 }
+
+.signed-in { margin-top:24px; padding-top:14px; border-top:1px solid var(--line) }
