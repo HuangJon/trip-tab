@@ -16,7 +16,7 @@ function setHash(h, addToHistory) {
 }
 export function goHome() {
   A.route = { name: 'home' };
-  A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; A.confirm = null;
+  A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; A.showMoreFilters = false; A.confirm = null;
   setHash('', true);
   render();
   scrollTo(0, 0);
@@ -27,7 +27,7 @@ export function goTrip(id, tab = 'expenses') {
   A.route = { name: 'trip', tripId: id, tab };
   A.confirm = null;
   // Filters stay while you move between tabs on a trip, and reset on a different one.
-  if (!sameTrip) { A.peopleTab = A.peopleTab === 'invite' ? 'invite' : 'people'; A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; }
+  if (!sameTrip) { A.peopleTab = A.peopleTab === 'invite' ? 'invite' : 'people'; A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; A.showMoreFilters = false; }
   setHash(`#t-${id}-${tab}`, true);
   A.watchActivity?.(id);
   A.watchJoined?.(id);

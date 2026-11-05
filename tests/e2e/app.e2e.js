@@ -668,6 +668,8 @@ await page.waitForFunction(() => document.getElementById('entryList').textConten
 for (const row of await page.locator('#entryList .tap').all()) assert.match(await row.textContent(), /小偉 (paid|received)|Settlement|小偉/);
 await page.selectOption('#fltPayer', { label: 'Anyone' });
 await page.selectOption('#fltPerson', { label: 'Everyone' });
+assert.equal(await page.isVisible('#fltType'), false, 'less-used filters start tucked away');
+await page.click('[data-action=filters-more]');
 await page.selectOption('#fltType', 'kind:refund');
 assert.equal(await page.locator('.tap').count(), 1);
 assert.match(await page.textContent('.tap'), /Deposit back/);
@@ -685,8 +687,16 @@ assert.equal(await page.locator('.date-head').count(), 0);
 assert.match(await page.locator('.tap').first().textContent(), /Rental car/);
 await page.fill('#fltFrom', '2099-01-01');
 assert.match(await page.textContent('#entryList'), /No matches/);
+await page.waitForSelector('.filter-tag:has-text("From 2099-01-01")');
+await page.click('.filter-tag:has-text("From 2099-01-01")');
+await page.waitForFunction(() => !document.querySelector('[data-id=from].filter-tag'));
+await page.click('[data-action=filter-mine]');
+assert.equal(await page.getAttribute('[data-action=filter-mine]', 'aria-pressed'), 'true');
+for (const row of await page.locator('#entryList .tap').all()) assert.match(await row.textContent(), /You|Jonathan/);
+await page.click('[data-action=filter-mine]');
 await page.click('#filterPanel [data-action=filters-clear]');
 await page.click('[data-action=filters-toggle]');
+assert.equal(await page.locator('.filter-tag').count(), 0);
 check('filter by person, type, date and amount, and sort');
 
 /* A rough dollar figure while typing a foreign amount */
@@ -917,6 +927,9 @@ await tab(page, 'expenses');
 await page.click('.tap:has-text("Credit test")', { button: 'right' });
 await page.waitForSelector('#rowMenu');
 assert.match(await page.textContent('#rowMenu'), /Edit expense/);
+await page.waitForTimeout(350);
+const menuBox = await page.evaluate(() => { const r = document.getElementById('dlg').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+assert.ok(menuBox.top > 100 && Math.round(menuBox.bottom) === page.viewportSize().height, `the menu rises from the bottom and fits its content: ${JSON.stringify(menuBox)}`);
 await page.click('#rowMenu [data-action=edit-entry]');
 assert.equal(await page.inputValue('#fDesc'), 'Credit test');
 await page.click('[data-action=form-cancel]');

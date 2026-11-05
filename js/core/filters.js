@@ -54,3 +54,23 @@ export function filteredTotal(list, base) {
     return sum + (e.kind === 'refund' ? -1 : 1) * inBase(e, base).total;
   }, 0);
 }
+
+/**
+ * The active filters as removable tags. `key` says what to clear. Sort isn't here, because it hides nothing.
+ * `nameOf` and `typeName` turn stored values into words.
+ */
+export function filterTags(f, query, { nameOf, typeName, money }) {
+  const q = (query || '').trim(), tags = [];
+  if (q) tags.push({ key: 'search', label: `Search: ${q}` });
+  if (f.payer) tags.push({ key: 'payer', label: `Paid by ${nameOf(f.payer)}` });
+  if (f.person) tags.push({ key: 'person', label: `Involved: ${nameOf(f.person)}` });
+  if (f.type) tags.push({ key: 'type', label: typeName(f.type) });
+  if (f.from) tags.push({ key: 'from', label: `From ${f.from}` });
+  if (f.to) tags.push({ key: 'to', label: `To ${f.to}` });
+  if (f.min) tags.push({ key: 'min', label: `At least ${money(f.min)}` });
+  if (f.max) tags.push({ key: 'max', label: `At most ${money(f.max)}` });
+  return tags;
+}
+
+/** The less-used filters stay open while any of them is in use, so nothing active is ever hidden. */
+export const moreFiltersInUse = f => Boolean(f.type || f.from || f.to || f.min || f.max || f.sort !== 'newest');
