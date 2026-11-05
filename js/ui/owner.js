@@ -29,7 +29,7 @@ const tripTag = t => (t.deletedAt ? ' <span class="tag">Deleted</span>' : t.reti
 const tripRow = t => {
   const people = Object.values(t.members || {}).filter(m => !m.removed).length, joined = (t.joined || []).filter(j => !j.removed).length;
   return `<button class="tap" data-action="owner-trip" data-id="${esc(t.id)}"><span class="grow"><strong class="block wrap-any">${esc(t.name)}${tripTag(t)}</strong>
-    <span class="small muted">${people} names · ${joined} joined · ${t.entryCount} ${t.entryCount === 1 ? 'entry' : 'entries'}</span>
+    <span class="small muted">${people} ${people === 1 ? 'name' : 'names'} · ${joined} joined · ${t.entryCount} ${t.entryCount === 1 ? 'entry' : 'entries'}</span>
     <span class="tiny muted block wrap-any">Created ${when(t.createdAt)} · Last activity ${when(t.lastActivity?.at)}</span>
     ${t.lastActivity?.text ? `<span class="tiny muted block wrap-any">${esc(t.lastActivity.text)}</span>` : ''}</span></button>`;
 };
