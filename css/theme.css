@@ -209,3 +209,28 @@
 :root[data-look="pride"] .mark { background:linear-gradient(180deg,#E40303 0 16.66%,#FF8C00 16.66% 33.33%,#FFED00 33.33% 50%,#008026 50% 66.66%,#004DFF 66.66% 83.33%,#750787 83.33%) }
 :root[data-look="pride"] .mark::after { border-left-color:#241C33 }
 :root[data-look="pride"] .mark::before { background:#FFFFFF }
+
+/* Pride, turned up: a soft rainbow behind everything, with white cards keeping the content readable */
+:root[data-look="pride"] { --muted:#3F3650; --bar:rgba(255,255,255,.55); --wash:transparent; background:#FFD9D6 }
+:root[data-look="pride"] body { background:none }
+:root[data-look="pride"] body::after { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; background:linear-gradient(165deg,#FFC2C2 0%,#FFD9A8 20%,#FFF3A3 38%,#BDEFC4 56%,#B5D2FF 75%,#DDBDF5 100%) }
+:root[data-look="pride"] .panel,:root[data-look="pride"] .tap,:root[data-look="pride"] dialog .panel { --muted:#5A5068 }
+:root[data-look="pride"] .panel { background:#FFFFFF; border-color:transparent }
+:root[data-look="pride"] .date-head { color:#241C33 }
+:root[data-look="pride"] .notice { background:rgba(255,255,255,.82); color:#241C33 }
+:root[data-look="pride"] .seg { background:rgba(255,255,255,.55) }
+:root[data-look="pride"] .seg button { color:#241C33 }
+:root[data-look="pride"] .seg button[aria-pressed="true"] { background:#FFFFFF }
+:root[data-look="pride"] .hero { background-size:165px auto; box-shadow:0 0 0 3px #FFFFFF }
+:root[data-look="pride"] .hero::before,:root[data-look="pride"] .hero::after { display:none }
+:root[data-look="pride"] .hero-line { position:relative }
+:root[data-look="pride"] .btn:not(.primary),:root[data-look="pride"] .icon-btn { background:#FFFFFF }
+:root[data-look="pride"] input,:root[data-look="pride"] select,:root[data-look="pride"] textarea { background:#FFFFFF }
+:root[data-look="pride"] .link { color:#3D1266 }
+:root[data-look="pride"] nav.tabs::before { height:5px }
+:root[data-look="pride"] body::before { height:calc(env(safe-area-inset-top,0px) + 6px) }
+:root[data-look="pride"] .tabs .add-tab svg { background:linear-gradient(120deg,#FF8A8A,#FFC766,#FFF07A,#8FE3A0,#8FB8FF,#C99BF0); color:#241C33 }
+:root[data-look="pride"] .btn.primary { background:linear-gradient(100deg,#B3122A,#B85400 25%,#0B6E33 50%,#0B4FD6 75%,#5B1E8C); border-color:transparent; color:#FFFFFF }
+:root[data-look="pride"] dialog,:root[data-look="pride"] dialog .sheet,:root[data-look="pride"] dialog .sheet-body { background:linear-gradient(165deg,#FFE3E3,#FFF0D6 25%,#FFFAD6 45%,#E0F7E4 62%,#E0ECFF 80%,#F0E2FB); --muted:#3F3650 }
+:root[data-look="pride"] .sheet-head { background:rgba(255,255,255,.7) }
+:root[data-look="pride"] dialog .seg { background:rgba(255,255,255,.6) }
