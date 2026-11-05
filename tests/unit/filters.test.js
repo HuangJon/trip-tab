@@ -53,3 +53,14 @@ test('counts filters on, not the sort', () => {
   assert.equal(activeFilterCount({ ...EMPTY_FILTERS, sort: 'largest' }), 0);
   assert.equal(activeFilterCount({ ...EMPTY_FILTERS, person: 'a', min: '1' }), 2);
 });
+
+test('paid by finds only who handled the money, and works with involved', () => {
+  for (const e of list) {
+    const got = applyFilters(list, trip, '', { ...EMPTY_FILTERS, payer: 'b' }).some(x => x.id === e.id);
+    const handled = e.kind === 'refund' ? Boolean(e.owed.b) : Boolean(e.paid.b);
+    assert.equal(got, handled, e.id);
+  }
+  const both = applyFilters(list, trip, '', { ...EMPTY_FILTERS, payer: 'a', person: 'b' });
+  for (const e of both) assert.ok((e.kind === 'refund' ? e.owed.a : e.paid.a) && (e.paid.b || e.owed.b));
+  assert.equal(activeFilterCount({ ...EMPTY_FILTERS, payer: 'a' }), 1);
+});

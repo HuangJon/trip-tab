@@ -1,12 +1,12 @@
 /** Finding expenses: pure functions, so the screen only has to draw the result. */
 import { inBase, needsRate } from './debts.js';
-import { byNewest, memberName } from './model.js';
+import { byNewest, handlersOf, memberName } from './model.js';
 import { toMinor } from './money.js';
 
-export const EMPTY_FILTERS = { person: '', type: '', from: '', to: '', min: '', max: '', sort: 'newest' };
+export const EMPTY_FILTERS = { payer: '', person: '', type: '', from: '', to: '', min: '', max: '', sort: 'newest' };
 
 /** How many filters are on. Sort order isn't a filter, because it never hides anything. */
-export const activeFilterCount = f => ['person', 'type', 'from', 'to', 'min', 'max'].filter(k => f[k]).length;
+export const activeFilterCount = f => ['payer', 'person', 'type', 'from', 'to', 'min', 'max'].filter(k => f[k]).length;
 
 const amountIn = (e, base) => (needsRate(e, base) ? null : inBase(e, base).total);
 
@@ -18,7 +18,8 @@ export function matchesType(e, type) {
 }
 
 /**
- * Applies search and filters. "Person" means anyone who paid, received or shared it.
+ * Applies search and filters. "Paid by" is who handled the money (who received it, for a refund).
+ * "Involved" means anyone who paid, received or shared it.
  * Amounts are compared in the trip's currency, so an expense with no exchange rate yet can't
  * match an amount filter. Dates are inclusive.
  */
@@ -26,6 +27,7 @@ export function applyFilters(entries, trip, query, f) {
   const q = (query || '').trim().toLowerCase(), base = trip.currency;
   const min = f.min ? toMinor(f.min, base) : null, max = f.max ? toMinor(f.max, base) : null;
   const list = entries.filter(e => {
+    if (f.payer && !handlersOf(e)[f.payer]) return false;
     if (f.person && !(e.paid[f.person] || e.owed[f.person])) return false;
     if (!matchesType(e, f.type)) return false;
     if (f.from && e.date < f.from) return false;

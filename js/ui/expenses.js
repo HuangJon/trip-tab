@@ -69,7 +69,8 @@ function filtersHtml(trip, all) {
   const option = (value, label, current) => `<option value="${esc(value)}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
   return `<section class="panel pad filters" id="filterPanel">
     <div class="grid2">
-      <label class="f"><span>Person</span><select id="fltPerson" data-change="filter" data-key="person">${option('', 'Everyone', f.person)}${activeMembers(trip).map(m => option(m.id, m.name, f.person)).join('')}</select></label>
+      <label class="f"><span>Paid by</span><select id="fltPayer" data-change="filter" data-key="payer">${option('', 'Anyone', f.payer)}${activeMembers(trip).map(m => option(m.id, m.name, f.payer)).join('')}</select></label>
+      <label class="f"><span>Involved</span><select id="fltPerson" data-change="filter" data-key="person">${option('', 'Everyone', f.person)}${activeMembers(trip).map(m => option(m.id, m.name, f.person)).join('')}</select></label>
       <label class="f"><span>Type</span><select id="fltType" data-change="filter" data-key="type">${option('', 'All types', f.type)}${cats.map(c => option(c, CATEGORIES[c] || 'Other', f.type)).join('')}${option('kind:refund', 'Refunds', f.type)}${option('kind:payment', 'Settlements', f.type)}</select></label>
       <label class="f"><span>From date</span><input id="fltFrom" type="date" value="${esc(f.from)}" data-change="filter" data-key="from"></label>
       <label class="f"><span>To date</span><input id="fltTo" type="date" value="${esc(f.to)}" data-change="filter" data-key="to"></label>
