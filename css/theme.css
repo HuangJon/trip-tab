@@ -184,11 +184,14 @@ dialog,dialog .sheet,dialog .sheet-body { background:#22211E }
 :root[data-look="light"] .hero.is-owing .hero-line .amt { color:#F7B4A6 }
 :root[data-look="light"] .hero.is-owed .hero-line .amt { color:#A8E2C4 }
 :root[data-look="light"] .hero-btn { background:#F2EEE5; color:#2C3646 }
-:root[data-look="light"] .hero.is-owing .big,:root[data-look="light"] .hero.is-owed .big {background:#F2EEE5;padding:2px 12px 4px;border-radius:8px;justify-self:start;width:fit-content}
-:root[data-look="light"] .hero.is-owing .big {color:var(--owe)}
-:root[data-look="light"] .hero.is-owed .big {color:var(--owed)}
+:root[data-look="light"] .hero.is-owing .big,:root[data-look="light"] .hero.is-owed .big {color:#F4F0E7}
 :root[data-look="light"] .hero-line .amt,:root[data-look="light"] .hero.is-owing .hero-line .amt,:root[data-look="light"] .hero.is-owed .hero-line .amt {color:#F4F0E7}
 
 
 :root[data-look="light"] { --display:"Shippori Mincho","Noto Serif TC","Songti TC",Georgia,serif }
 :root[data-look="light"] h1,:root[data-look="light"] h2,:root[data-look="light"] .hero .big,:root[data-look="light"] .hero-settled { font-family:var(--display) }
+
+/* The menu behind your icon */
+.me-actions { display:grid; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--line) }
+.me-settings { display:flex; align-items:center; justify-content:center; gap:8px; width:100% }
+.me-settings svg { width:18px; height:18px }

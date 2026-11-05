@@ -159,7 +159,10 @@ A.enterTrip = async id => {
 
 /* ---------- Events ---------- */
 actions.reload = () => location.reload();
-actions['set-look'] = el => { setLook(el.dataset.id); render(); };
+actions['set-look'] = el => {
+  setLook(el.dataset.id);
+  document.querySelectorAll('[data-action="set-look"]').forEach(b => b.setAttribute('aria-pressed', String(b === el)));
+};
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-action]');
   if (el) actions[el.dataset.action]?.(el, ev);

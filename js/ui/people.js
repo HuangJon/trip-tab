@@ -2,7 +2,7 @@
 import { A, actions, changes, render, submits } from './state.js';
 import { AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
 import { AVATARS, avatarArt } from './avatars.js';
-import { actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, toast, val } from './dom.js';
+import { ICON, actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, svg, toast, val } from './dom.js';
 import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
@@ -89,7 +89,9 @@ function avatarBody(trip, id) {
   const m = trip.members[id], shown = displayColors(trip, AVATAR_COLORS), color = A.avatarEdit.color ?? shown[id], pic = A.avatarEdit.pic ?? m.pic ?? '';
   const taken = new Set(activeMembers(trip).filter(o => o.id !== id).map(o => shown[o.id]));
   const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, pic } } };
-  return `<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
+  const look = currentLook();
+  const mine = id === getMe(trip) ? `<div class="me-actions"><div class="look-row"><span>Theme</span><div class="seg" role="group" aria-label="Theme"><button type="button" data-action="set-look" data-id="light" aria-pressed="${look === 'light'}">Light</button><button type="button" data-action="set-look" data-id="dark" aria-pressed="${look === 'dark'}">Dark</button></div></div><button type="button" class="btn me-settings" data-action="open-settings">${svg(ICON.gear)}Trip settings</button></div>` : '';
+  return `${mine}<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
     <span class="flabel">Color</span><p class="tiny muted">Dimmed colors belong to someone else on this trip.</p><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}${taken.has(i + 1) ? ', taken' : ''}" aria-pressed="${color === i + 1}" ${taken.has(i + 1) ? 'disabled' : ''}></button>`).join('')}</div>
     <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!pic}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" style="--pick:var(--m${color})" data-action="pick-pic" data-id="${e}" aria-label="${e}" aria-pressed="${pic === e}">${avatarArt(e)}</button>`).join('')}</div>`;
 }
@@ -97,7 +99,7 @@ actions['edit-avatar'] = el => {
   const t = A.trips[A.route.tripId], id = el.dataset.id;
   if (!t.members[id] || !(amAdmin(t) || getMe(t) === id)) return;
   A.avatarEdit = { id };
-  openSheet(`<div class="sheet">${sheetHead('Color and picture', '', 'Done')}<div class="sheet-body stack" id="avatarBody">${avatarBody(t, id)}</div></div>`);
+  openSheet(`<div class="sheet">${sheetHead(id === getMe(t) ? 'You' : 'Color and picture', '', 'Done')}<div class="sheet-body stack" id="avatarBody">${avatarBody(t, id)}</div></div>`);
 };
 function pickAvatar(field, value) {
   const t = A.trips[A.route.tripId], { id } = A.avatarEdit;
@@ -105,6 +107,7 @@ function pickAvatar(field, value) {
   document.getElementById('avatarBody').innerHTML = avatarBody(t, id);
   send(A.repo.setMemberPayment(t.id, id, field, value, getMe(t)), 'That change');
 }
+actions['open-settings'] = () => { closeSheet(); goTrip(A.route.tripId, 'settings'); };
 actions['pick-color'] = el => pickAvatar('color', +el.dataset.id);
 actions['pick-pic'] = el => pickAvatar('pic', el.dataset.id);
 
@@ -149,9 +152,7 @@ submits['add-rate'] = () => {
 /** The rarely used things, kept apart so the people screen stays short. */
 export function settingsView(trip) {
   const admin = amAdmin(trip), rates = Object.entries(trip.rates || {});
-  const look = currentLook();
-  return `  <section class="panel pad stack"><h2>Appearance</h2><div class="look-row"><span>Theme on this device</span><div class="seg" role="group" aria-label="Theme"><button data-action="set-look" data-id="light" aria-pressed="${look === 'light'}">Light</button><button data-action="set-look" data-id="dark" aria-pressed="${look === 'dark'}">Dark</button></div></div></section>
-  <section class="panel pad stack"><h2>Trip settings</h2>
+  return `  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
     ${ratesSection(trip)}
