@@ -5,3 +5,6 @@ export function isIos(ua = '', platform = '', touchPoints = 0) {
 export function shouldSuggestInstall({ ios, standalone, preview, dismissed }) {
   return ios && !standalone && !preview && !dismissed;
 }
+
+/** True when someone was last here on this device more than 90 days ago. */
+export const backAfterAWhile = (lastSeen, now) => Boolean(lastSeen) && now - lastSeen > 90 * 86400000;

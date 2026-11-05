@@ -243,3 +243,13 @@ a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-c
 .tour-icon { width:56px; height:56px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
 .tour-icon svg { width:28px; height:28px }
 .tour p { margin:0 } .tour-nav { display:flex; gap:10px; width:100%; margin-top:8px } .tour-nav .btn { flex:1 }
+/* The question mark */
+.help-btn { position:relative; font-weight:700; font-size:1.0625rem; flex:none }
+.help-btn::after { content:attr(data-tip); position:absolute; top:calc(100% + 6px); right:0; padding:4px 8px; border-radius:6px; background:var(--ink); color:var(--ground); font-size:.8125rem; font-weight:600; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s; z-index:30 }
+.help-btn:hover::after,.help-btn:focus-visible::after,.help-btn.show-tip::after { opacity:1 }
+.help-btn { -webkit-touch-callout:none; user-select:none; -webkit-user-select:none }
+/* Your icon looks like a menu: a small pill with a chevron */
+.topbar .ava-btn { display:inline-flex; align-items:center; gap:5px; padding:3px 9px 3px 3px; border:1px solid var(--line); border-radius:999px; background:var(--surface); min-height:40px; position:relative }
+.ava-caret { width:7px; height:7px; border-right:1.8px solid var(--muted); border-bottom:1.8px solid var(--muted); transform:rotate(45deg) translate(-1px,-1px) }
+.topbar .ava-btn::after { content:attr(data-tip); position:absolute; top:calc(100% + 6px); right:0; padding:4px 8px; border-radius:6px; background:var(--ink); color:var(--ground); font-size:.8125rem; font-weight:600; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s; z-index:30 }
+.topbar .ava-btn:hover::after,.topbar .ava-btn:focus-visible::after { opacity:1 }

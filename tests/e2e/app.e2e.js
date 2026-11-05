@@ -843,8 +843,8 @@ await page.waitForFunction(() => /wrap-up/.test(document.getElementById('dlg').t
 await page.click('[data-action=close-sheet]');
 check('a quick expense takes only an amount and a description; reminders and wrap-ups can be shared');
 
-/* The walkthrough shows once for someone new, and can be skipped or replayed */
-await page.evaluate(id => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); localStorage.setItem(`triptab:welcome:${id}`, 'true'); }, await page.evaluate(() => /#t-([a-z0-9]+)-/.exec(location.hash)[1]));
+/* The walkthrough: once at first sign-in, offered after 90 days, and behind the question mark */
+await page.evaluate(() => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); });
 await page.reload();
 await page.waitForSelector('#tour');
 await page.click('[data-action=tour-step]');
@@ -854,21 +854,25 @@ await page.waitForFunction(() => !document.getElementById('dlg').open);
 await page.reload();
 await page.waitForSelector('[data-tab=expenses]');
 assert.equal(await page.locator('#tour').count(), 0, 'it shows only once');
-await page.click('.topbar [data-action=edit-avatar]');
-await page.click('[data-action=tour-start]');
-await page.waitForSelector('#tour');
-await page.click('[data-action=close-sheet] >> nth=0');
-await page.waitForFunction(() => !document.getElementById('dlg').open);
-await page.evaluate(() => sessionStorage.removeItem('tour-test'));
 await page.evaluate(() => localStorage.setItem('triptab:last-seen', String(Date.now() - 100 * 86400000)));
 await page.reload();
+await page.waitForSelector('#tourAsk');
+assert.equal(await page.locator('#tour').count(), 0, 'after 90 days it asks first');
+await page.click('#tourAsk [data-action=tour-start]');
 await page.waitForSelector('#tour');
 await page.click('#tourSkip');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 await page.reload();
 await page.waitForSelector('[data-tab=expenses]');
-assert.equal(await page.locator('#tour').count(), 0, 'back after a while shows it just once');
-check('the walkthrough shows once, can be skipped, and can be replayed');
+assert.equal(await page.locator('#tourAsk').count(), 0, 'and asks just once');
+await page.hover('.help-btn');
+assert.equal(await page.getAttribute('.help-btn', 'data-tip'), 'Tutorial');
+await page.click('.help-btn');
+await page.waitForSelector('#tour');
+await page.click('#tourSkip');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.evaluate(() => sessionStorage.removeItem('tour-test'));
+check('the walkthrough shows at first sign-in, asks after 90 days, and is behind the question mark');
 
 /* Press and hold a trip on the home page */
 await page.click('[data-action=home]');

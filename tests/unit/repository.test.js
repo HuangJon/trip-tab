@@ -345,12 +345,9 @@ test('moving a link keeps only the mover as admin; others claim again', async ()
   assert.equal(claim.memberId, a);
 });
 
-test('recent choices and the one-time welcome are remembered per trip', () => {
+test('recent choices are remembered per trip', () => {
   const d = createDevice(createMemoryStorage());
   assert.deepEqual(d.recent('a'), {});
   d.setRecent('a', { category: 'food', payer: 'm' });
   assert.equal(d.recent('a').payer, 'm'); assert.deepEqual(d.recent('b'), {});
-  assert.equal(d.needsWelcome('a'), false);
-  d.setNeedsWelcome('a', true); assert.equal(d.needsWelcome('a'), true);
-  d.setNeedsWelcome('a', false); assert.equal(d.needsWelcome('a'), false);
 });

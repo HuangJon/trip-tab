@@ -54,8 +54,6 @@ export function createDevice(storage, now = () => Date.now()) {
     recent: tripId => storage.get(`recent:${tripId}`, {}),
     setRecent: (tripId, value) => storage.trySet(`recent:${tripId}`, value),
     /** A friend's one-time introduction to a trip. */
-    needsWelcome: tripId => storage.get(`welcome:${tripId}`, false),
-    setNeedsWelcome: (tripId, value) => (value ? storage.trySet(`welcome:${tripId}`, true) : storage.remove(`welcome:${tripId}`)),
 
     lastBackup: tripId => storage.get(`backup-at:${tripId}`),
     markBackup: tripId => storage.trySet(`backup-at:${tripId}`, now()),

@@ -1,6 +1,7 @@
-/** A short, skippable tour for someone new. It shows once on this device, and can be replayed from your icon. */
+/** A short, skippable tour: once at first sign-in, offered after 90 days away, and always behind the question mark. */
 import { A, actions } from './state.js';
 import { ICON, closeSheet, getMe, openSheet, svg } from './dom.js';
+import { backAfterAWhile } from '../core/platform.js';
 
 const STEPS = [
   ['plus', 'Add what you pay for', 'Tap Add expense whenever you pay for something. Enter the amount and a description. It splits equally with everyone unless you tap Change.'],
@@ -19,24 +20,46 @@ function drawStep(i) {
 }
 export function startTour() { drawStep(0); }
 
-const AWAY_MS = 90 * 86400000;
-/** True when someone last opened a trip on this device more than about three months ago. */
-export const backAfterAWhile = (lastSeen, now) => Boolean(lastSeen) && now - lastSeen > AWAY_MS;
+const HOLD_MS = 500;
 
-/** Opens the tour for someone who has just joined, or who hasn't been here in about three months. */
-export function maybeStartTour(trip) {
-  if (!trip || !getMe(trip)) return;
+/** The small question mark in the top bar. Hovering or holding it says Tutorial, and tapping it starts the tour. */
+export const helpButton = () => `<button class="icon-btn help-btn" data-action="tour-start" aria-label="Tutorial" data-tip="Tutorial">?</button>`;
+
+/**
+ * Shows the tour the first time someone signs in on this device, and asks whether they'd
+ * like it again if they've been away over 90 days. Waits until they've picked their name on a trip.
+ */
+export function maybeStartTour() {
+  const trip = A.route.name === 'trip' ? A.trips[A.route.tripId] : null;
+  if (!A.user?.verified || A.route.name === 'owner' || (A.route.name === 'trip' && !(trip && getMe(trip)))) return;
   const now = Date.now();
-  // Checked once per visit, before the visit itself counts as being here.
-  if (A.returning === undefined) A.returning = backAfterAWhile(A.device.lastSeen(), now);
+  if (A.returning === undefined) A.returning = backAfterAWhile(A.device.lastSeen(), now); // before this visit counts
   A.device.markSeen(now);
   if (document.getElementById('dlg').open) return;
-  const isNew = A.device.needsWelcome(trip.id) && !A.device.tourDone();
-  A.device.setNeedsWelcome(trip.id, false);
-  if (!isNew && !A.returning) return;
+  if (!A.device.tourDone()) { A.returning = false; A.device.setTourDone(); startTour(); return; }
+  if (!A.returning) return;
   A.returning = false;
-  A.device.setTourDone();
-  startTour();
+  openSheet(`<div class="tour" id="tourAsk"><h2>Welcome back!</h2><p>It's been a while. Would you like a quick walkthrough?</p><div class="tour-nav"><button type="button" class="btn" data-action="close-sheet">No thanks</button><button type="button" class="btn primary" data-action="tour-start">Show me</button></div></div>`);
+  document.getElementById('dlg').classList.add('menu');
+}
+
+/** Long press shows the label on a phone, and doesn't also start the tour. */
+export function setUpHelpButton() {
+  let timer = null, held = false;
+  const btnAt = t => t.closest?.('.help-btn');
+  const clearTips = () => document.querySelectorAll('.help-btn.show-tip').forEach(b => b.classList.remove('show-tip'));
+  document.addEventListener('pointerdown', ev => {
+    held = false;
+    const b = btnAt(ev.target);
+    if (!b || ev.pointerType === 'mouse') return;
+    timer = setTimeout(() => { held = true; b.classList.add('show-tip'); setTimeout(clearTips, 1500); }, HOLD_MS);
+  });
+  for (const e of ['pointerup', 'pointercancel']) document.addEventListener(e, () => clearTimeout(timer));
+  document.addEventListener('contextmenu', ev => { if (btnAt(ev.target)) ev.preventDefault(); });
+  document.addEventListener('click', ev => {
+    if (held && btnAt(ev.target)) { ev.stopPropagation(); ev.preventDefault(); }
+    held = false;
+  }, true);
 }
 actions['tour-step'] = el => drawStep(+el.dataset.id);
 actions['tour-start'] = () => { closeSheet(); startTour(); };
