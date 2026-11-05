@@ -141,7 +141,8 @@ nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box
 .tabs button[aria-current="page"] svg { background:var(--accent-soft); color:var(--accent) }
 /* Long-press menu, rising from the bottom of the screen. */
 .tap { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none }
-dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-radius:18px 18px 0 0; background:var(--surface) }
+/* A modal dialog is pinned to the top and bottom of the screen, so height:auto stretches it. fit-content lets it rise from the bottom. */
+dialog.menu { width:min(420px,100%); height:fit-content; max-height:88%; overflow:auto; margin:auto auto 0; border-radius:18px 18px 0 0; background:var(--surface) }
 .menu-sheet { display:grid; padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px)) }
 .menu-title { display:flex; justify-content:space-between; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line) }
 .menu-item { background:none; border:0; border-bottom:1px solid var(--line); padding:15px 18px; text-align:left; font-weight:600; min-height:50px }
@@ -253,3 +254,10 @@ a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-c
 .ava-caret { width:7px; height:7px; border-right:1.8px solid var(--muted); border-bottom:1.8px solid var(--muted); transform:rotate(45deg) translate(-1px,-1px) }
 .topbar .ava-btn::after { content:attr(data-tip); position:absolute; top:calc(100% + 6px); right:0; padding:4px 8px; border-radius:6px; background:var(--ink); color:var(--ground); font-size:.8125rem; font-weight:600; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s; z-index:30 }
 .topbar .ava-btn:hover::after,.topbar .ava-btn:focus-visible::after { opacity:1 }
+/* Filters above the list */
+.filter-tags { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px }
+.filter-tag { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:4px 12px; border-radius:999px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--ink); font-size:.875rem; font-weight:600 }
+.filter-tag b { font-weight:700; font-size:1.05rem; line-height:1 }
+.filter-quick { display:inline-flex; align-items:center; min-height:36px; padding:4px 12px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--ink); font-size:.875rem; font-weight:600 }
+.filter-quick[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }
+.more-filters { justify-self:start }
