@@ -67,7 +67,7 @@ await host.reload();
 await host.waitForSelector('.tap:has-text("Second expense")', { timeout: 15000 });
 check('expenses survive a reload');
 
-await tab(host, 'people');
+await tab(host, 'invite');
 const invite = await host.textContent('#inviteLink', { timeout: 15000 });
 const friend = await person();
 await verifiedSignUp(friend, invite, 'Friend');
