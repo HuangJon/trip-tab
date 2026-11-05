@@ -30,10 +30,15 @@ export async function createTrip(page, name = 'Okinawa', people = 'Jonathan\nMia
   await page.selectOption('#ntCur', 'TWD');
   await page.click('form[data-form=new-trip] .btn.primary');
   await page.waitForSelector('[data-action=invite-first]');
-  await tab(page, 'people');
+  await tab(page, 'invite');
   await page.waitForSelector('#inviteLink');
 }
 export async function tab(page, name) {
+  if (['invite', 'payment', 'people'].includes(name)) {
+    await page.click('[data-tab=people]');
+    await page.click(`[data-action=people-tab][data-id=${name}]`);
+    return;
+  }
   if (!await page.locator(`[data-tab=${name}]`).count()) await page.click('#moreTab');
   await page.click(`[data-tab=${name}]`);
 }

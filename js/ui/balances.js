@@ -49,11 +49,12 @@ export function balancesView(trip) {
   const mine = me ? myPayments(liveEntries(A.entries[trip.id]), c, me, trip.simplify !== false) : { pays: [], gets: [], others: debts, alsoOwed: [], alsoOwing: [] };
   const names = ids => ids.map(i => esc(memberName(trip, i))).join(' and ');
   const row = (d, kind) => `<div class="debt ${kind}"><div class="debt-who">${avatar(trip, d.from)}<span class="wrap-any"><strong>${esc(who(trip, d.from))}</strong></span><span class="arrow" aria-label="pays">→</span>${avatar(trip, d.to)}<span class="wrap-any"><strong>${esc(who(trip, d.to))}</strong></span></div>
-      <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small ${kind === 'pay' ? 'primary' : ''}" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
+      <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
       ${d.to !== me ? handles(trip, d.to) : ''}</div>`;
   const group = (title, rows, kind, note) => (rows.length ? `<div class="debt-group"><span class="label group-title">${title}</span>${note ? `<p class="small muted group-note">${note}</p>` : ''}<div class="list">${rows.map(d => row(d, kind)).join('')}</div></div>` : '');
   return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
     ${debts.length ? `${group('You pay', mine.pays, 'pay', mine.alsoOwed.length ? `This also covers what you owe ${names(mine.alsoOwed)}.` : '')}
+      ${mine.gets.length && me && !trip.members[me]?.venmo && !trip.members[me]?.zelle && write ? `<div class="notice stack tight" id="paymentAsk"><span>People owe you, but they can't see how to pay you yet.</span><div><button class="btn small" data-action="add-payment">Add Venmo or Zelle</button></div></div>` : ''}
       ${group('You receive', mine.gets, 'get', mine.alsoOwing.length ? `This also covers what ${names(mine.alsoOwing)} ${mine.alsoOwing.length > 1 ? 'owe' : 'owes'} you.` : '')}
       ${group(me ? 'Between others' : 'Who pays whom', mine.others, 'other')}
       <div class="tear" aria-hidden="true"></div>` : `${settledHtml(trip)}<div class="tear" aria-hidden="true"></div>`}
@@ -91,7 +92,7 @@ function payHtml(trip, to, sendMinor, currency) {
   const rows = [['Venmo', m.venmo], ['Zelle', m.zelle]].filter(([, v]) => v);
   const details = rows.map(([label, v]) => `<div class="handle"><span>${label}: <strong>${esc(v)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(v)}">Copy</button></div>`).join('');
   const amountRow = sendMinor ? `<div class="handle"><span>Send: <strong class="amt">${money(sendMinor, currency)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(fromMinor(sendMinor, currency))}">Copy</button></div>` : '';
-  return `${amountRow}${details || `<p class="small muted">${name} hasn't added Venmo or Zelle yet. They can add it under More → People, or you can ask them directly.</p>`}`;
+  return `${amountRow}${details || `<p class="small muted">${name} hasn't added Venmo or Zelle yet. Ask them for the best way to pay, or they can add it under People → Payment.</p>`}`;
 }
 
 /** The amount being paid, in whichever currency it's paid in. */

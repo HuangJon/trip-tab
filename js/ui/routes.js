@@ -27,7 +27,7 @@ export function goTrip(id, tab = 'expenses') {
   A.route = { name: 'trip', tripId: id, tab };
   A.confirm = null;
   // Filters stay while you move between tabs on a trip, and reset on a different one.
-  if (!sameTrip) { A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; }
+  if (!sameTrip) { A.peopleTab = A.peopleTab === 'invite' ? 'invite' : 'people'; A.search = ''; A.filters = { ...EMPTY_FILTERS }; A.showFilters = false; }
   setHash(`#t-${id}-${tab}`, fromHome);
   A.watchActivity?.(id);
   A.watchJoined?.(id);

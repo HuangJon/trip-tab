@@ -336,7 +336,7 @@ await page.click('[data-action=close-sheet]');
 check('receipt photo saves and shows');
 
 /* Friend on a second screen: invite link and live update (a second tab shares this browser's database) */
-await tab(page, 'people');
+await tab(page, 'invite');
 const invite = await page.textContent('#inviteLink');
 assert.match(invite, /#join-[a-z0-9]{24}$/);
 const context2Page = await context.newPage();
@@ -468,8 +468,10 @@ check('a friend picks or adds their name');
   assert.equal(await pal.locator('#newMember').count(), 0);
   assert.ok(await pal.locator('input[aria-label="Jonathan\'s name"]').isDisabled());
   assert.ok(!(await pal.locator('input[aria-label="Mia\'s name"]').isDisabled()), 'can rename themselves');
+  await tab(pal, 'payment');
   assert.ok(!(await pal.locator('input[aria-label="Mia\'s Venmo"]').isDisabled()));
   assert.ok(await pal.locator('input[aria-label="Jonathan\'s Venmo"]').isDisabled());
+  await tab(pal, 'people');
 
   /* The same account on a new device */
   const dump2 = await pal.evaluate(() => localStorage.getItem('triptab:localdb'));
@@ -732,6 +734,21 @@ assert.ok(await page.locator('.color-pick[disabled]').count() >= 1, "other peopl
 await page.click('[data-action=close-sheet]');
 check('you can pick your own color and picture');
 
+/* Asking for payment details */
+await tab(page, 'expenses');
+{
+  const nudge = page.locator('#paymentNudge');
+  if (await nudge.count()) {
+    await page.click('#paymentNudge [data-action=add-payment]');
+    await page.waitForSelector('input[aria-label="Jonathan\'s Venmo"]');
+    assert.ok(await page.locator('[data-action=people-tab][data-id=payment][aria-pressed=true]').count());
+    await tab(page, 'expenses');
+    await page.click('#paymentNudge [data-action=payment-nudge-dismiss]');
+    await page.waitForFunction(() => !document.getElementById('paymentNudge'));
+  }
+}
+check('the app asks for a Venmo or Zelle, once on the expenses screen');
+
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
 await page.setViewportSize({ width: 1000, height: 800 });
@@ -818,7 +835,7 @@ await page.waitForFunction(() => !/You're offline/.test(document.getElementById(
 check('offline notice comes and goes');
 
 /* Payment details */
-await tab(page, 'people');
+await tab(page, 'payment');
 await page.fill('input[aria-label="Mia Chen\'s Venmo"]', '@mia');
 await page.press('input[aria-label="Mia Chen\'s Venmo"]', 'Tab');
 await page.fill('input[aria-label="Jonathan\'s Zelle"]', 'j@example.com');
@@ -935,7 +952,7 @@ await page.waitForSelector('[data-action=copy-link]');
 await page.click('[data-action=copy-link]');
 await page.waitForFunction(() => !document.querySelector('[data-action=copy-link]'));
 assert.match(await page.evaluate(() => navigator.clipboard.readText()), /#join-/);
-await tab(page, 'people');
+await tab(page, 'invite');
 await page.click('[data-action=confirm-replace]');
 await page.click('[data-action=confirm-clear]');
 await page.click('[data-action=confirm-replace]');

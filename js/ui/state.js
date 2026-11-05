@@ -14,7 +14,7 @@ export const A = {
   skipped: {},              // tripId -> entries too damaged to show
   activity: {},             // tripId -> [items]
   route: { name: 'home' },
-  search: '', filters: { ...EMPTY_FILTERS }, showFilters: false, confirm: null,
+  search: '', filters: { ...EMPTY_FILTERS }, showFilters: false, peopleTab: 'people', confirm: null,
   form: null, detail: null, undo: null,
 };
 let renderFn = () => {};

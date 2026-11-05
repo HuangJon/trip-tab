@@ -1,13 +1,20 @@
 /** The main list: every expense and settlement, newest first. */
 import { A, actions, changes, inputs, render } from './state.js';
 import { AVATAR_COLORS, CATEGORIES } from '../config/app.js';
-import { ICON, avatar, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
+import { ICON, avatar, canWrite, catIcon, esc, fmtDate, getMe, svg, who } from './dom.js';
 import { money } from '../core/money.js';
 import { inBase, needsRate } from '../core/debts.js';
 import { activeMembers, displayColors, handlersOf, liveEntries, memberName, sharesOf } from '../core/model.js';
 import { EMPTY_FILTERS, activeFilterCount, applyFilters, filteredTotal } from '../core/filters.js';
 import { summaryCard } from './trip.js';
 import { goTrip } from './routes.js';
+
+/** After joining, asks once for a Venmo or Zelle. Balances asks again when someone owes you. */
+function paymentNudge(trip) {
+  const me = getMe(trip), m = trip.members[me];
+  if (!m || m.venmo || m.zelle || !canWrite(trip) || A.device.needsWelcome(trip.id) || A.device.paymentNudgeDismissed(trip.id)) return '';
+  return `<div class="notice stack tight" id="paymentNudge"><span>Add your Venmo or Zelle so friends can pay you back.</span><div class="row wrap"><button class="btn small" data-action="add-payment">Add it</button><button class="btn small" data-action="payment-nudge-dismiss">Not now</button></div></div>`;
+}
 
 function line(trip, e) {
   const me = getMe(trip);
@@ -87,6 +94,7 @@ export function expensesView(trip) {
       <ul class="plain small"><li>Tap <strong>Add expense</strong> whenever you pay for something, and choose who shares it.</li><li>Balances keeps a running total of who owes whom.</li><li>You can change what you added or paid for. To fix anything else, ask the trip's admin.</li><li>Press and hold an expense for quick actions.</li></ul>
       <div><button class="btn small" data-action="welcome-dismiss">Got it</button></div></section>` : ''}
     ${damaged ? `<div class="notice">${damaged} ${damaged > 1 ? 'entries' : 'entry'} couldn't be read and ${damaged > 1 ? 'are' : 'is'} left out of the balances. Update the app, or ask whoever added ${damaged > 1 ? 'them' : 'it'} to add ${damaged > 1 ? 'them' : 'it'} again.</div>` : ''}
+    ${paymentNudge(trip)}
     ${summaryCard(trip)}
     ${all.length ? `<div class="row"><input id="search" class="grow" type="search" placeholder="Search expenses or people" aria-label="Search expenses" value="${esc(A.search)}" data-input="search"><button class="btn ${activeFilterCount(A.filters) ? 'on' : ''}" id="filterToggle" data-action="filters-toggle" aria-expanded="${Boolean(A.showFilters)}">${filterButtonLabel()}</button></div>
     ${A.showFilters ? filtersHtml(trip, all) : ''}` : ''}
@@ -94,7 +102,7 @@ export function expensesView(trip) {
 }
 
 actions['welcome-dismiss'] = () => { A.device.setNeedsWelcome(A.route.tripId, false); render(); };
-actions['invite-first'] = () => goTrip(A.route.tripId, 'people');
+actions['invite-first'] = () => { A.peopleTab = 'invite'; goTrip(A.route.tripId, 'people'); };
 function refreshList() {
   const trip = A.trips[A.route.tripId], list = document.getElementById('entryList'), toggle = document.getElementById('filterToggle');
   if (list) list.innerHTML = listHtml(trip);

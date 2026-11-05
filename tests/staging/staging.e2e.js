@@ -99,7 +99,7 @@ try {
   await noFailures(host);
   check('an expense with no exchange rate saves on the published rules');
 
-  await tab(host, 'people');
+  await tab(host, 'invite');
   const invite = await host.textContent('#inviteLink', { timeout: 15000 });
   const friendUser = await account('Friend');
   const friend = await person(friendUser);
@@ -125,7 +125,7 @@ try {
   check("a friend's expense appears live, and they can't edit yours");
 
   // Settling up, with real payment details and real rules.
-  await tab(host, 'people');
+  await tab(host, 'payment');
   await host.fill('input[aria-label="Host\'s Zelle"]', 'host-zelle@example.com');
   await host.press('input[aria-label="Host\'s Zelle"]', 'Tab');
   await tab(friend, 'balances');

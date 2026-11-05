@@ -12,7 +12,7 @@ export function createDevice(storage, now = () => Date.now()) {
     setMe: (tripId, memberId) => storage.trySet(`me:${tripId}`, memberId),
     /** Forgets this account's trips and names on signing out, so the next person starts clean. */
     forgetAccount() {
-      for (const id of storage.get('trips', [])) { storage.remove(`me:${id}`); storage.remove(`draft:${id}`); storage.remove(`snapshots:${id}`); }
+      for (const id of storage.get('trips', [])) { storage.remove(`me:${id}`); storage.remove(`payment-nudge:${id}`); storage.remove(`draft:${id}`); storage.remove(`snapshots:${id}`); }
       storage.remove('trips');
       storage.remove('archived');
     },
@@ -34,6 +34,8 @@ export function createDevice(storage, now = () => Date.now()) {
       const rest = storage.get('archived', []).filter(x => x !== id);
       storage.trySet('archived', on ? [id, ...rest] : rest);
     },
+    paymentNudgeDismissed: tripId => storage.get(`payment-nudge:${tripId}`, false),
+    dismissPaymentNudge: tripId => storage.trySet(`payment-nudge:${tripId}`, true),
     installTipDismissed: () => storage.get('install-tip-dismissed', false),
     dismissInstallTip: () => storage.trySet('install-tip-dismissed', true),
 

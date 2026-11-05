@@ -48,14 +48,17 @@ function usedOn(entries, id) {
 export function peopleView(trip) {
   const me = getMe(trip), admin = amAdmin(trip), entries = A.entries[trip.id];
   const members = activeMembers(trip);
-  return `<section class="panel pad stack"><h2>Invite friends</h2>
+  const sub = A.peopleTab || 'people';
+  const nav = `<div class="seg" role="group" aria-label="People">${[['people', 'People'], ['invite', 'Invite'], ['payment', 'Payment']].map(([k, l]) => `<button data-action="people-tab" data-id="${k}" aria-pressed="${sub === k}">${l}</button>`).join('')}</div>`;
+  const invite = `<section class="panel pad stack"><h2>Invite friends</h2>
       <p class="small muted">Friends open this link, verify an email or Google account, then pick their name. Share it only with the group.</p>
       <div class="linkbox" id="inviteLink">${esc(inviteUrl(trip.id))}</div>
       <button class="btn primary" data-action="invite">Share invite link</button>
       ${A.confirm === 'replace' ? `<p class="small">This copies the trip to a new link. The old link will stop opening the trip, so you'll need to send the new one to everyone, and everyone joins and claims their name again. Edit history isn't copied, and the old copy stays stored, so someone with technical skills and the old link could still read it.</p><div class="row wrap"><button class="btn danger" data-action="replace-yes">Replace the link</button><button class="btn" data-action="confirm-clear">Keep this link</button></div>`
       : admin ? '<button class="link small" data-action="confirm-replace">Link shared too widely? Replace it</button>' : ''}
       ${A.preview ? '<p class="tiny muted">In this preview the link only shows what friends will get. It starts working once the app is live.</p>' : ''}</section>
-  ${joinedSection(trip, admin, members)}
+`;
+  const names = `${joinedSection(trip, admin, members)}
   <section class="panel pad stack"><h2>People on this trip</h2>
     ${members.map(m => {
       const self = me === m.id;
@@ -71,10 +74,13 @@ export function peopleView(trip) {
     ${admin ? `<form class="row" data-form="add-member"><input id="newMember" placeholder="Add a name" aria-label="New person's name" required maxlength="${LIMITS.personName}"><button class="btn">Add</button></form>` : ''}
     <p class="tiny muted">A name belongs to the account that claimed it. Free a name if someone took the wrong one, and remove a name nobody needs.</p>
     <p class="tiny muted">People who appear on an expense can't be removed, because the balances would stop adding up.</p></section>
-  <section class="panel pad stack"><h2>Payment details</h2>
-    <p class="small muted">Optional. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
-    ${members.map(m => `<div class="stack tight"><strong class="small wrap-any">${esc(m.name)}</strong><div class="pay-grid"><input id="ven-${m.id}" aria-label="${esc(m.name)}'s Venmo" placeholder="Venmo @name" maxlength="60" value="${esc(m.venmo || '')}" data-change="payment" data-field="venmo" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}><input id="zel-${m.id}" aria-label="${esc(m.name)}'s Zelle" placeholder="Zelle phone or email" maxlength="60" value="${esc(m.zelle || '')}" data-change="payment" data-field="zelle" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}></div></div>`).join('')}</section>
 `;
+  // Your own details come first, since those are the ones you came to fill in.
+  const ordered = [...members].sort((x, y) => (y.id === me) - (x.id === me));
+  const payment = `<section class="panel pad stack"><h2>Payment details</h2>
+    <p class="small muted">Add yours so friends can pay you back. These appear next to what people owe, with a copy button. Anyone with the trip link can see them, so a Zelle phone number or email is visible to the group.</p>
+    ${ordered.map(m => `<div class="stack tight"><strong class="small wrap-any">${esc(m.name)}</strong><div class="pay-grid"><input id="ven-${m.id}" aria-label="${esc(m.name)}'s Venmo" placeholder="Venmo @name" maxlength="60" value="${esc(m.venmo || '')}" data-change="payment" data-field="venmo" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}><input id="zel-${m.id}" aria-label="${esc(m.name)}'s Zelle" placeholder="Zelle phone or email" maxlength="60" value="${esc(m.zelle || '')}" data-change="payment" data-field="zelle" data-id="${m.id}" autocomplete="off" ${admin || me === m.id ? '' : 'disabled'}></div></div>`).join('')}</section>`;
+  return nav + (sub === 'invite' ? invite : sub === 'payment' ? payment : names);
 }
 
 /** Pick a color and a small picture. Your own, or anyone's if you're an admin. */
@@ -185,6 +191,9 @@ actions.invite = async () => {
   copyText(url, 'inviteLink');
   linkHandled();
 };
+actions['people-tab'] = el => { A.peopleTab = el.dataset.id; render(); };
+actions['add-payment'] = () => { A.peopleTab = 'payment'; goTrip(A.route.tripId, 'people'); };
+actions['payment-nudge-dismiss'] = () => { A.device.dismissPaymentNudge(A.route.tripId); render(); };
 actions['copy-link'] = () => {
   copyText(inviteUrl(A.route.tripId));
   linkHandled();
@@ -230,6 +239,7 @@ actions['replace-yes'] = async () => {
   A.trips[copy.id] = copy;
   A.loaded[copy.id] = true;
   A.watchTrip(copy.id);
+  A.peopleTab = 'invite';
   goTrip(copy.id, 'people');
   toast('New link ready. Send it to the group.');
 };
