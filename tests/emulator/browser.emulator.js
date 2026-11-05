@@ -12,6 +12,7 @@ const server = await serve('.'), browser = await launch();
 async function person() {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.addInitScript(() => localStorage.setItem('triptab:test-emulator', 'true'));
+  await context.addInitScript(() => localStorage.setItem('triptab:tour-done', 'true'));
   const page = await context.newPage();
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));

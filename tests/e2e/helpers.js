@@ -9,7 +9,7 @@ export async function openPage(context, url) {
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  await page.addInitScript(() => { if (!sessionStorage.getItem('quick-form')) localStorage.setItem('triptab:form-open', 'true'); });
+  await page.addInitScript(() => { if (!sessionStorage.getItem('quick-form')) localStorage.setItem('triptab:form-open', 'true'); if (!sessionStorage.getItem('tour-test')) localStorage.setItem('triptab:tour-done', 'true'); });
   await page.goto(url);
   return page;
 }

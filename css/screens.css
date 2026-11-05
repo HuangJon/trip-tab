@@ -238,3 +238,8 @@ a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-c
 .look-row { flex-wrap:wrap }
 .look-row .seg { max-width:none; flex:1 1 100%; }
 .look-row .seg button { white-space:nowrap; padding-inline:4px }
+/* Walkthrough */
+.tour { display:grid; justify-items:center; text-align:center; gap:10px; padding:26px 22px calc(22px + env(safe-area-inset-bottom,0px)) }
+.tour-icon { width:56px; height:56px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
+.tour-icon svg { width:28px; height:28px }
+.tour p { margin:0 } .tour-nav { display:flex; gap:10px; width:100%; margin-top:8px } .tour-nav .btn { flex:1 }
