@@ -749,8 +749,8 @@ await tab(page, 'expenses');
 }
 check('the app asks for a Venmo or Zelle, once on the expenses screen');
 
-/* Light by default, dark if chosen, remembered */
-assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'light');
+/* Blue by default, others if chosen, remembered */
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'blue');
 await page.click('.topbar [data-action=edit-avatar]');
 await page.click('[data-action=set-look][data-id=dark]');
 assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'dark');
@@ -759,9 +759,11 @@ await page.waitForSelector('.topbar [data-action=edit-avatar]');
 assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'dark');
 await page.click('.topbar [data-action=edit-avatar]');
 await page.click('[data-action=set-look][data-id=light]');
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'light');
+await page.click('[data-action=set-look][data-id=blue]');
 await page.click('[data-action=open-settings]');
 await page.waitForSelector('#tripName');
-check('light is the default, and dark can be chosen and is remembered');
+check('blue is the default, and other looks can be chosen and are remembered');
 
 /* Home totals in USD, and each trip chooses what new expenses start in */
 await page.click('[data-action=home]');

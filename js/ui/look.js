@@ -1,9 +1,9 @@
-/** Light or dark, chosen in Settings. Light unless someone picks dark, and remembered on this device. */
+/** Blue, light or dark, chosen behind your icon. Blue unless someone picks another, and remembered on this device. */
 const KEY = 'triptab:look';
-const COLORS = { light: '#E3DED3', dark: '#1C1B19' };
+const COLORS = { blue: '#edf3f8', light: '#E3DED3', dark: '#1C1B19' };
 
 export function currentLook() {
-  try { return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
+  try { const v = localStorage.getItem(KEY); return COLORS[v] ? v : 'blue'; } catch { return 'blue'; }
 }
 export function applyLook(look = currentLook()) {
   document.documentElement.dataset.look = look;

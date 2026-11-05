@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>The Trip Tab</title>
 <meta name="description" content="Split trip costs with friends.">
-<meta name="theme-color" content="#E3DED3" id="themeColor">
+<meta name="theme-color" content="#edf3f8" id="themeColor">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Trip Tab">
 <link rel="manifest" href="manifest.webmanifest">
@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/screens.css">
 <link rel="stylesheet" href="css/theme.css">
-<script>try{document.documentElement.dataset.look=localStorage.getItem('triptab:look')==='dark'?'dark':'light'}catch(e){document.documentElement.dataset.look='light'}</script>
+<script>try{var l=localStorage.getItem('triptab:look');document.documentElement.dataset.look=l==='dark'||l==='light'?l:'blue'}catch(e){document.documentElement.dataset.look='blue'}</script>
 </head>
 <body>
 <div id="updateBanner" class="update" hidden><span>A new version is ready.</span><button class="btn small" data-action="apply-update">Update</button></div>
