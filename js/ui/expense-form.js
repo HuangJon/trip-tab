@@ -45,7 +45,7 @@ export function openExpenseForm(trip, entry) {
     const currency = trip.defaultCurrency || A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
     const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
-    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: all.includes(recent.payer) ? recent.payer : me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
 }
@@ -310,7 +310,7 @@ function commit(t, entry, current) {
   const isNew = !current;
   A.device.setLastCurrency(t.id, entry.currency);
   const handlers = Object.keys(handlersOf(entry));
-  A.device.setRecent(t.id, { category: entry.category, payer: handlers.length === 1 ? handlers[0] : null });
+  A.device.setRecent(t.id, { category: entry.category });
   if (isNew) A.device.clearDraft(t.id);
   if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
   closeSheet();

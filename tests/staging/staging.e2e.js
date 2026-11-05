@@ -106,6 +106,7 @@ try {
   await friend.signIn(invite);
   await friend.waitForSelector('.chips [data-action=set-me]', { timeout: 30000 });
   assert.ok(!/Host/.test(await friend.textContent('.chips')));
+  await tab(host, 'people');
   await host.waitForFunction(e => document.getElementById('app').textContent.includes(e), friendUser.email, { timeout: 20000 });
   assert.match(await host.textContent('#joinedCount'), /hasn't picked a name/);
   check('the admin sees a friend who joined without picking a name');

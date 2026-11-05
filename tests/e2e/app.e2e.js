@@ -187,7 +187,7 @@ await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
 assert.equal(await page.isVisible('#fDate'), false, 'details start tucked away');
 assert.match(await page.textContent('.more-toggle'), /Today/);
-assert.equal(await page.locator('#fPayer option:checked').textContent(), '小偉', 'the last payer is suggested');
+assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonathan', 'paid by starts on you');
 await page.fill('#fDesc', 'Kept typing');
 await page.click('[data-action=form-more]');
 assert.equal(await page.isVisible('#fDate'), true);
@@ -794,6 +794,14 @@ await page.waitForSelector('[data-action=new-trip]');
 await page.click('.tap >> nth=0');
 await page.waitForSelector('[data-tab=expenses]');
 check('back returns to the last screen, and All trips goes home');
+
+/* Paid by starts on you, not whoever paid last */
+await addExpense(page, 'Paid by someone else', '10', async () => { await page.selectOption('#fPayer', { index: 1 }); });
+await page.click('[data-action=add-expense]');
+assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonathan');
+await page.click('[data-action=form-cancel]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+check('paid by starts on you each time');
 
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
