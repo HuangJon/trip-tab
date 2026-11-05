@@ -234,3 +234,4 @@
 :root[data-look="pride"] dialog,:root[data-look="pride"] dialog .sheet,:root[data-look="pride"] dialog .sheet-body { background:linear-gradient(165deg,#FFE3E3,#FFF0D6 25%,#FFFAD6 45%,#E0F7E4 62%,#E0ECFF 80%,#F0E2FB); --muted:#3F3650 }
 :root[data-look="pride"] .sheet-head { background:rgba(255,255,255,.7) }
 :root[data-look="pride"] dialog .seg { background:rgba(255,255,255,.6) }
+:root[data-look="pride"] .hero-line .amt { background:#241C33; padding:2px 6px; border-radius:6px; margin-right:-6px }
