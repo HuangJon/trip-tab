@@ -226,3 +226,15 @@ a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-c
 .home-head h1 { font-size:1.5rem }
 .home-actions { flex:none }
 .home-actions .btn { white-space:nowrap }
+/* Owner page rows. */
+.owner-row { padding-bottom:10px; border-bottom:1px solid var(--line) }
+/* Home header: title and buttons share a row, with the tagline underneath at full width */
+.home-head { display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:12px; row-gap:6px; align-items:center }
+.home-head .brand,.home-head .brand>.stack { display:contents }
+.home-head h1 { grid-column:2; grid-row:1; font-size:1.5rem; line-height:1.15 }
+.home-head .mark { grid-column:1; grid-row:1 }
+.home-actions { grid-column:3; grid-row:1 }
+.home-head p { grid-column:1 / -1; grid-row:2; margin:0 }
+.look-row { flex-wrap:wrap }
+.look-row .seg { max-width:none; flex:1 1 100%; }
+.look-row .seg button { white-space:nowrap; padding-inline:4px }

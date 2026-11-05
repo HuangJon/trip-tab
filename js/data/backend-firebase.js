@@ -82,7 +82,13 @@ export async function createFirebaseBackend(config, sdk, { appCheckSiteKey = nul
       const snap = await sdk.getDoc(sdk.doc(db, path));
       return snap.exists() ? data(snap) : null;
     },
-    list: async col => (await sdk.getDocs(sdk.collection(db, col))).docs.map(data),
+    list: async (col, { orderBy, limit } = {}) => {
+      const parts = [];
+      if (orderBy) parts.push(sdk.orderBy(orderBy, 'desc'));
+      if (limit) parts.push(sdk.limit(limit));
+      return (await sdk.getDocs(sdk.query(sdk.collection(db, col), ...parts))).docs.map(data);
+    },
+    count: async col => (await sdk.getCountFromServer(sdk.collection(db, col))).data().count,
     watchDoc: (path, cb, err) => sdk.onSnapshot(sdk.doc(db, path), snap => {
       // A cached "missing" is not proof, because the invite may be brand new on this phone.
       if (!snap.exists() && snap.metadata.fromCache) return;

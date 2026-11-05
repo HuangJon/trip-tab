@@ -5,6 +5,8 @@
  */
 /** Shows a label on anything that isn't the real app. The staging build replaces this file. */
 export const environment = 'live';
+/** The account that can open the owner page. firestore.rules holds the same ID, and that's what protects the data. */
+export const ownerUid = '80zN7EdZTZOZ8RGVWLmUcMAgetk2';
 export const firebaseConfig = {
   apiKey: 'AIzaSyDDscSOw0nIfsoRZIIDmG3m9HeU7l-xXeE',
   authDomain: 'trip-tab-c19f4.firebaseapp.com',
