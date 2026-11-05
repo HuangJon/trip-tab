@@ -7,10 +7,11 @@ import { myPayments, needsRate } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { alerts } from './home.js';
 import { joinSteps } from './account.js';
+import { helpButton } from './walkthrough.js';
 
 export function tripHeader(trip) {
   const me = getMe(trip);
-  return `<div class="topbar"><button class="icon-btn" data-action="back" aria-label="Back">${svg(ICON.back)}</button><button class="icon-btn" data-action="home" aria-label="All trips">${svg(ICON.home)}</button><h1 class="grow">${esc(trip.name)}</h1>${getMe(trip) ? `<button class="ava-btn" data-action="edit-avatar" data-id="${getMe(trip)}" aria-label="Change your color and picture">${avatar(trip, getMe(trip))}</button>` : ''}</div>
+  return `<div class="topbar"><button class="icon-btn" data-action="back" aria-label="Back">${svg(ICON.back)}</button><button class="icon-btn" data-action="home" aria-label="All trips">${svg(ICON.home)}</button><h1 class="grow">${esc(trip.name)}</h1>${helpButton()}${getMe(trip) ? `<button class="ava-btn" data-action="edit-avatar" data-id="${getMe(trip)}" aria-label="Your settings" data-tip="Your settings">${avatar(trip, getMe(trip))}<span class="ava-caret" aria-hidden="true"></span></button>` : ''}</div>
     ${alerts()}
     ${trip.fromNewerApp ? '<div class="notice">A friend is on a newer version of this app. Update yours to make changes. Close and reopen the app to update.</div>' : ''}
     ${me ? '' : `<section class="panel pad stack">${joinSteps(3)}<div><h3>Which one is you?</h3><p class="small muted">Your name is tied to your account, so only you can add expenses as that person. Names already taken aren't shown. If yours is missing, ask the trip's admin to free it.</p></div>
@@ -52,7 +53,6 @@ actions['set-me'] = async el => {
   try {
     await A.repo.claimMember(tripId, memberId);
     A.device.setMe(tripId, memberId);
-    A.device.setNeedsWelcome(tripId, true);
     render();
     toast(`You're in as ${A.trips[tripId]?.members?.[memberId]?.name || 'yourself'}`);
   } catch (e) {
@@ -68,7 +68,6 @@ submits['join-self'] = async () => {
   try {
     const { memberId } = await A.repo.joinAs(trip, name);
     A.device.setMe(trip.id, memberId);
-    A.device.setNeedsWelcome(trip.id, true);
     render();
     toast(`Welcome, ${name}`);
   } catch { toast("You weren't added. Check your connection and try again."); }

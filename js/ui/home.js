@@ -4,6 +4,7 @@ import { APP_NAME, CURRENCIES, LIMITS } from '../config/app.js';
 import { convertRough } from '../core/rates.js';
 import { ICON, closeSheet, esc, getMe, openSheet, send, sheetHead, svg, toast, val } from './dom.js';
 import { lookPicker } from './look.js';
+import { helpButton } from './walkthrough.js';
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
@@ -71,7 +72,7 @@ export function homeView() {
     ${overall === 0 ? '<div class="hero-settled">All settled</div>' : `<div class="hero-say">${overall > 0 ? 'Overall, you get' : 'Overall, you owe'}</div><div class="big">${rough ? '≈ ' : ''}${money(Math.abs(overall), show)}</div>`}
     ${rough ? '<p class="small">Roughly, using estimated exchange rates.</p>' : ''}</section>`;
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
-    <div class="home-actions"><button class="icon-btn" data-action="home-theme" aria-label="Theme">${svg(ICON.theme)}</button><button class="btn primary" data-action="new-trip">New trip</button></div></header>
+    <div class="home-actions">${helpButton()}<button class="icon-btn" data-action="home-theme" aria-label="Theme">${svg(ICON.theme)}</button><button class="btn primary" data-action="new-trip">New trip</button></div></header>
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
