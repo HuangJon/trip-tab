@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { asksInverse, looksBackwards, rateLabel, rateQuestion, roughUsd, storedToTyped, typedToStored } from '../../js/core/rates.js';
+import { convertRough, asksInverse, looksBackwards, rateLabel, rateQuestion, roughUsd, storedToTyped, typedToStored } from '../../js/core/rates.js';
 import { convert } from '../../js/core/money.js';
 
 test('the form asks in the direction that gives a number of 1 or more', () => {
@@ -50,4 +50,10 @@ test('a rough dollar figure for a foreign amount', () => {
   assert.equal(roughUsd(5000, 'USD'), '');
   assert.equal(roughUsd(0, 'TWD'), '');
   assert.equal(roughUsd(5000, 'XXX'), '');
+});
+
+test('rough conversion for overview totals', () => {
+  assert.equal(convertRough(3200, 'TWD', 'USD'), 10000);
+  assert.equal(convertRough(500, 'USD', 'USD'), 500);
+  assert.equal(convertRough(500, 'XXX', 'USD'), null);
 });

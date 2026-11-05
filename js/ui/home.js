@@ -1,6 +1,7 @@
 /** The list of trips on this phone. */
-import { A, actions, render, submits } from './state.js';
+import { A, actions, changes, render, submits } from './state.js';
 import { APP_NAME, CURRENCIES, LIMITS } from '../config/app.js';
+import { convertRough } from '../core/rates.js';
 import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from './dom.js';
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
@@ -26,6 +27,7 @@ export function alerts() {
     ${failed.length ? `<div class="notice note-row bad-note"><span>${failed.map(f => esc(f.text)).join('<br>')}</span><button class="btn small" data-action="failed-dismiss">Dismiss</button></div>` : ''}
     ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. It keeps you signed in, because Safari can clear a site's data if you don't visit for about a week. Sign in on the home-screen app and your trips will be there.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
 }
+changes['display-currency'] = el => { A.device.setDisplayCurrency(el.value); render(); };
 actions['failed-dismiss'] = () => { A.device.clearFailedChanges(); render(); };
 actions['install-dismiss'] = () => { A.device.dismissInstallTip(); render(); };
 
@@ -35,7 +37,14 @@ export function homeView() {
   const trips = all.filter(t => !archived.includes(t.id));
   const shelved = all.filter(t => archived.includes(t.id));
   const waiting = ids.filter(id => !A.loaded[id]).length;
-  const totals = {};
+  const show = A.device.displayCurrency();
+  let overall = 0, rough = false;
+  const inShown = (v, c) => {
+    const x = convertRough(v, c, show);
+    if (x === null) return null;
+    if (c !== show) rough = true;
+    return x;
+  };
   const rowFor = t => {
     const list = liveEntries(A.entries[t.id]);
     const net = netBalances(list, t.currency);
@@ -44,11 +53,11 @@ export function homeView() {
     const settled = Object.values(net).every(v => v === 0);
     let status;
     if (me) {
-      const v = net[me] || 0;
-      totals[t.currency] = (totals[t.currency] || 0) + v;
+      const v = net[me] || 0, shown = inShown(v, t.currency);
+      if (shown !== null) overall += shown;
+      const amount = shown === null ? money(Math.abs(v), t.currency) : `${t.currency === show ? '' : '≈ '}${money(Math.abs(shown), show)}`;
       status = v === 0 ? '<span class="muted small">Settled up</span>'
-        : v > 0 ? `<div class="tiny muted">you receive</div><div class="amt owed">${money(v, t.currency)}</div>`
-        : `<div class="tiny muted">you pay</div><div class="amt owe">${money(-v, t.currency)}</div>`;
+        : `<div class="tiny muted">${v > 0 ? 'You get' : 'You owe'}</div><div class="amt ${v > 0 ? 'owed' : 'owe'}">${amount}</div>`;
     } else status = `<span class="muted small">${settled ? 'Settled up' : 'Pick who you are'}</span>`;
     return `<button class="tap" data-action="open-trip" data-id="${t.id}">
       <span class="grow"><strong class="block wrap-any">${esc(t.name)}</strong><span class="small muted">${activeMembers(t).length} people · ${money(total, t.currency)} spent</span></span>
@@ -56,10 +65,10 @@ export function homeView() {
   };
   const rows = trips.map(rowFor).join('');
   const shelvedRows = shelved.map(rowFor).join('');
-  const sums = Object.entries(totals).filter(([, v]) => v !== 0);
-  const summary = !all.length ? '' : `<section class="hero"><span class="label">Your overall balance</span>
-    ${sums.length ? sums.map(([c, v]) => `<div class="big ${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : '−'}${money(Math.abs(v), c)}</div>`).join('') : '<div class="big">All square</div>'}
-    <p class="small">Counts the trips where you've chosen your name.</p></section>`;
+  const picker = `<label class="home-currency"><span>Show in</span><select id="homeCur" aria-label="Show amounts in" data-change="display-currency">${[...new Set([show, ...CURRENCIES])].map(c => `<option ${c === show ? 'selected' : ''}>${c}</option>`).join('')}</select></label>`;
+  const summary = !all.length ? '' : `<section class="hero ${overall > 0 ? 'is-owed' : overall < 0 ? 'is-owing' : ''}" id="homeBalance">
+    ${overall === 0 ? '<div class="hero-settled">All settled</div>' : `<div class="hero-say">${overall > 0 ? 'Overall, you get' : 'Overall, you owe'}</div><div class="big">${rough ? '≈ ' : ''}${money(Math.abs(overall), show)}</div>`}
+    <div class="home-note">${picker}${rough ? '<span class="small">Rough exchange rates. Each trip keeps its own currency.</span>' : ''}</div></section>`;
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
     <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>

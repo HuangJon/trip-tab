@@ -5,7 +5,7 @@ import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../c
 import { coveredBy, exactRate, sendFor } from '../core/settle.js';
 import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
-import { myPayments, needsRate, netBalances, personLedger, tripDebts } from '../core/debts.js';
+import { myPayments, needsRate, netBalances, personLedger, spendingBreakdown, tripDebts } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { summaryCard } from './trip.js';
@@ -41,6 +41,20 @@ function handles(trip, id) {
 }
 actions['copy-handle'] = el => copyText(el.dataset.value);
 
+/** What already happened: payments marked as paid, and what each person spent. It stays after settling up. */
+function historyHtml(trip) {
+  const list = liveEntries(A.entries[trip.id]);
+  if (!list.length) return '';
+  const paidOff = list.filter(e => e.kind === 'payment').sort((x, y) => (y.date || '').localeCompare(x.date || '') || (y.createdAt || 0) - (x.createdAt || 0));
+  const s = spendingBreakdown(list, trip.currency), c = trip.currency;
+  const pays = paidOff.length ? `<section class="panel pad stack" id="paymentsMade"><h2>Payments made</h2>${paidOff.map(e => {
+    const from = Object.keys(e.paid)[0], to = Object.keys(e.owed)[0];
+    return `<button class="row-btn" data-action="open-entry" data-id="${e.id}"><span class="grow"><strong>${esc(who(trip, from))}</strong> paid <strong>${esc(who(trip, to))}</strong><span class="block small muted">${fmtDate(e.date)}</span></span><span class="amt">${money(e.total, e.currency)}</span></button>`;
+  }).join('')}</section>` : '';
+  const rows = activeMembers(trip).filter(m => s.paid[m.id] || s.share[m.id]).map(m => `<div class="spent-row"><span class="wrap-any">${avatar(trip, m.id)} ${esc(m.name)}</span><span class="amt">${money(s.paid[m.id] || 0, c)}</span><span class="amt">${money(s.share[m.id] || 0, c)}</span></div>`).join('');
+  return `${pays}<section class="panel pad stack" id="tripTotals"><h2>Trip totals</h2><p class="small muted">${money(s.total, c)} spent on this trip.</p><div class="spent-row spent-head"><span>Person</span><span>Paid</span><span>Their share</span></div>${rows}</section>`;
+}
+
 export function balancesView(trip) {
   const c = trip.currency, members = activeMembers(trip), me = getMe(trip);
   const net = netBalances(liveEntries(A.entries[trip.id]), c, members.map(m => m.id));
@@ -68,7 +82,8 @@ export function balancesView(trip) {
       return `<button type="button" class="person-row stack tight" data-action="person-ledger" data-id="${m.id}"><div class="row between"><span class="row gap8">${avatar(trip, m.id)}<span>${esc(m.name)}</span>${m.id === me ? '<span class="tag you">you</span>' : ''}</span><span class="amt ${v > 0 ? 'owed' : v < 0 ? 'owe' : 'muted'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}</span></div>
         <div class="diverge" role="img" aria-label="${esc(m.name)} ${v >= 0 ? 'is owed' : 'owes'} ${money(Math.abs(v), c)}"><div>${v < 0 ? `<i class="bar-owe" style="width:${w}%"></i>` : ''}</div><div>${v > 0 ? `<i class="bar-owed" style="width:${w}%"></i>` : ''}</div></div></button>`;
     }).join('')}
-    <p class="tiny muted">Left of center owes money. Right of center is owed money. Tap a person to see why.</p></section>`;
+    <p class="tiny muted">Left of center owes money. Right of center is owed money. Tap a person to see why.</p></section>
+  ${historyHtml(trip)}`;
 }
 
 actions.simplify = el => { const t = A.trips[A.route.tripId]; send(A.repo.updateTrip(t.id, { simplify: el.checked }, getMe(t))); };

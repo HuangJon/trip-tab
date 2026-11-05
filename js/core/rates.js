@@ -31,6 +31,13 @@ export function roughUsd(minor, currency) {
   return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD', minimumFractionDigits: small ? 2 : 0, maximumFractionDigits: small ? 2 : 0 }).format(dollars);
 }
 
+/** A rough conversion for overview totals only. Null when a currency isn't in the rough list. */
+export function convertRough(minor, from, to) {
+  if (from === to) return minor;
+  const rate = roughRate(from, to);
+  return rate ? Math.round((minor / 10 ** decimals(from)) * rate * 10 ** decimals(to)) : null;
+}
+
 /** True when the form should ask "1 trip currency = how many expense currency". */
 export const asksInverse = (from, to) => (roughRate(from, to) ?? 1) < 1;
 

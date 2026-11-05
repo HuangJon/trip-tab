@@ -190,3 +190,12 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .hero-btn { max-width:48%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .add-tab { margin-top:-16px }
 .tabs .add-tab svg { width:56px; height:44px; padding:10px; border-radius:14px }
+/* Home overview and trip history */
+.home-note { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:10px; color:var(--hero-muted) }
+.home-currency { display:flex; align-items:center; gap:8px; font-size:.9375rem; color:var(--hero-ink) }
+.home-currency select { width:auto; min-height:38px; padding:4px 8px }
+.row-btn { display:flex; gap:12px; align-items:center; width:100%; background:none; border:0; border-top:1px solid var(--line); padding:12px 0; text-align:left; color:var(--ink) }
+.row-btn:first-of-type { border-top:0 }
+.spent-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px; align-items:center; padding:8px 0; border-top:1px solid var(--line) }
+.spent-row>.amt { font-family:var(--body); font-weight:600; text-align:right; min-width:72px }
+.spent-head { border-top:0; padding:0; font-size:.8125rem; color:var(--muted) } .spent-head>span:not(:first-child) { text-align:right; min-width:72px }

@@ -760,6 +760,18 @@ assert.equal(await page.evaluate(() => document.documentElement.dataset.look), '
 await page.click('[data-action=set-look][data-id=light]');
 check('light is the default, and dark can be chosen and is remembered');
 
+/* Home shows USD by default, and can show another currency */
+await page.click('[data-action=home]');
+await page.waitForSelector('#homeCur');
+assert.equal(await page.inputValue('#homeCur'), 'USD');
+assert.match(await page.textContent('#homeBalance'), /\$/);
+await page.selectOption('#homeCur', 'EUR');
+await page.waitForFunction(() => /€/.test(document.getElementById('homeBalance').textContent));
+await page.selectOption('#homeCur', 'USD');
+await page.click('.tap >> nth=0');
+await page.waitForSelector('[data-tab=expenses]');
+check('home shows balances in USD, with an option to switch');
+
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
 await page.setViewportSize({ width: 1000, height: 800 });
@@ -1027,6 +1039,8 @@ await page.click('[data-action=settle] >> nth=0');
 await page.click('form[data-form=settle] .btn.primary');
 await page.waitForSelector('#settledUp');
 assert.match(await page.textContent('#settledUp'), /Everyone is settled up/);
+assert.match(await page.textContent('#tripTotals'), /Their share/);
+assert.ok(await page.locator('#paymentsMade .row-btn').count() >= 1, 'payments stay visible after settling up');
 await page.click('#settledUp [data-action=archive-toggle]');
 await page.waitForSelector('.home-head');
 await page.click('[data-action=toggle-archived]');
