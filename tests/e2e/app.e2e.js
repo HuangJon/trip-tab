@@ -890,6 +890,19 @@ await page.waitForFunction(() => !document.getElementById('tour'));
 await page.reload();
 await page.waitForSelector('[data-tab=expenses]');
 assert.equal(await page.locator('#tourAsk').count(), 0, 'and asks just once');
+
+/* A long trip name stops at two lines, and doesn't push anything off the screen */
+const topbar = await page.evaluate(() => {
+  const h = document.querySelector('.topbar h1'), before = h.textContent;
+  const oneLine = h.getBoundingClientRect().height;
+  h.textContent = 'Golden week in Okinawa and Kyoto with the whole extended family and Supercalifragilisticexpialidociousness '.repeat(3);
+  const out = { height: h.getBoundingClientRect().height, wide: document.documentElement.scrollWidth > innerWidth, lineHeight: parseFloat(getComputedStyle(h).lineHeight), oneLine };
+  h.textContent = before;
+  return out;
+});
+assert.ok(topbar.height <= topbar.lineHeight * 2 + 1, `name is ${topbar.height}px tall`);
+assert.equal(topbar.wide, false, 'the page stays on screen');
+
 await page.hover('.help-btn');
 assert.equal(await page.getAttribute('.help-btn', 'data-tip'), 'Tutorial');
 await page.click('.help-btn');

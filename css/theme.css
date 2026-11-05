@@ -15,7 +15,8 @@
 .me-settings svg { width:18px; height:18px }
 .fill.alt,.key.alt { background:#D2A64E }
 .topbar { gap:8px }
-.topbar h1 { font-size:1.25rem; line-height:1.2 }
+.topbar h1 { font-size:1.25rem; line-height:1.2; min-width:0; overflow-wrap:break-word; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden }
+@media (max-width:360px) { .topbar { gap:4px } .topbar h1 { font-size:1.05rem } }
 .signed-in { margin-top:24px; padding-top:14px; border-top:1px solid var(--line) }
 :root[data-look="blue"] .hero { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='%23FFFFFF' stroke-opacity='.14' stroke-width='1'%3E%3Ccircle cx='200' cy='40' r='18'/%3E%3Ccircle cx='200' cy='40' r='32'/%3E%3Ccircle cx='200' cy='40' r='46'/%3E%3Ccircle cx='200' cy='40' r='60'/%3E%3Ccircle cx='200' cy='40' r='74'/%3E%3Ccircle cx='200' cy='40' r='88'/%3E%3Ccircle cx='200' cy='40' r='102'/%3E%3Ccircle cx='200' cy='40' r='116'/%3E%3Ccircle cx='200' cy='40' r='130'/%3E%3Ccircle cx='200' cy='40' r='144'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right top; background-size:170px auto }
 :root[data-look="dark"] { --ground:#1C1B19; --surface:#292825; --sunken:#33312E; --ink:#EAE1D1; --muted:#ABA79C; --line:#3A3A36;
