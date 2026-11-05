@@ -211,3 +211,18 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .home-actions { display:flex; align-items:center; gap:8px; margin-left:auto }
 .how { text-align:left; margin:0 auto; padding-left:20px; display:grid; gap:6px; max-width:320px; color:var(--muted) }
 .row.center { justify-content:center }
+/* Trip currencies */
+.rate-row { display:flex; align-items:flex-end; gap:8px }
+.rate-row .grow { flex:1; min-width:0 }
+.rate-row select { width:auto; flex:none }
+/* Pay details wrap cleanly */
+.handle { flex-wrap:wrap }
+.handle .row { flex:none; margin-left:auto }
+.handle .btn { white-space:nowrap }
+a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-content:center }
+/* Home header stays on one line */
+.home-head { flex-wrap:nowrap; align-items:flex-start }
+.home-head .brand { flex:1; min-width:0 }
+.home-head h1 { font-size:1.5rem }
+.home-actions { flex:none }
+.home-actions .btn { white-space:nowrap }

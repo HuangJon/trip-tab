@@ -115,6 +115,10 @@ const benAgain = await newPhone(friend.profile.email);
 assert.equal(benAgain.backend.uid(), friend.backend.uid());
 await benAgain.repo.renameMember(trip.id, b, 'Ben N', b);
 
+/* Removing a currency replaces the rates. */
+await admin.repo.updateTrip(trip.id, { rates: { JPY: 0.2 } }, a);
+await admin.repo.updateTrip(trip.id, { rates: {} }, a);
+
 /* Your own color and picture. */
 await friend.repo.setMemberPayment(trip.id, b, 'pic', 'fox', b);
 await refused(friend.repo.setMemberPayment(trip.id, a, 'pic', 'fox', b), "you can't change someone else's picture");

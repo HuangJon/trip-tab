@@ -719,7 +719,12 @@ const gbpRate = await page.inputValue('#fRate');
 await page.click('[data-action=form-cancel]');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 assert.ok(['1.25', '0.8'].includes(gbpRate), gbpRate);
-check('an exchange rate set in settings fills in on new expenses');
+await tab(page, 'settings');
+await page.click('[data-action=remove-rate][data-id=GBP]');
+await page.waitForFunction(() => !document.getElementById('savedRate-GBP'));
+assert.ok(await page.locator('#newRateCur option:has-text("GBP")').count(), 'a removed currency can be added again');
+await tab(page, 'expenses');
+check('an exchange rate set in settings fills in on new expenses, and can be removed');
 
 /* Color and picture */
 await page.click('.topbar [data-action=edit-avatar]');

@@ -5,7 +5,7 @@ import { AVATARS, avatarArt } from './avatars.js';
 import { ICON, actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, svg, toast, val } from './dom.js';
 import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
-import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
+import { looksBackwards, rateQuestion, roughRate, storedToTyped, typedToStored } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
 import { lookPicker } from './look.js';
 
@@ -110,18 +110,26 @@ actions['open-settings'] = () => { closeSheet(); goTrip(A.route.tripId, 'setting
 actions['pick-color'] = el => pickAvatar('color', +el.dataset.id);
 actions['pick-pic'] = el => pickAvatar('pic', el.dataset.id);
 
-/** Exchange rates that fill in on new expenses. Anyone with a name on the trip can set them. */
+/** The currencies this trip uses, each with its rate. Removing one never changes expenses already saved. */
 function ratesSection(trip) {
-  const can = Boolean(getMe(trip)), saved = trip.rates || {};
-  const others = [...new Set(CURRENCIES)].filter(c => c !== trip.currency && !saved[c]);
+  const can = Boolean(getMe(trip)), saved = trip.rates || {}, base = trip.currency;
+  const used = Object.keys(saved).filter(c => c !== base).sort();
+  const others = CURRENCIES.filter(c => c !== base && !saved[c]);
   const adding = others.includes(A.rateCur) ? A.rateCur : others[0];
-  const ask = c => { const q = rateQuestion(c, trip.currency); return `1 ${q.one} = how many ${q.many}?`; };
-  return `<div class="stack tight"><span class="flabel">Exchange rates</span>
-    ${Object.keys(saved).sort().map(c => `<label class="f"><span>${esc(ask(c))}</span><input class="mono" inputmode="decimal" id="savedRate-${esc(c)}" value="${esc(storedToTyped(saved[c], c, trip.currency))}" data-change="saved-rate" data-id="${esc(c)}" ${can ? '' : 'disabled'}></label>`).join('')}
-    ${can && adding ? `<form class="stack tight" data-form="add-rate"><label class="f"><span>Add a currency</span><select id="newRateCur" data-change="new-rate-currency">${others.map(c => `<option ${c === adding ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
-      <div class="row"><label class="f grow"><span>${esc(ask(adding))}</span><input class="mono" id="newRate" inputmode="decimal" required></label><button class="btn">Save</button></div></form>` : ''}
-    <p class="tiny muted">New expenses in that currency start with this rate. Expenses already saved keep the rate they have.</p></div>`;
+  const ask = c => { const q = rateQuestion(c, base); return `1 ${q.one} = how many ${q.many}?`; };
+  const about = c => { const r = roughRate(c, base); return r ? `About ${Number(storedToTyped(r, c, base)).toPrecision(3)}` : ''; };
+  return `<div class="stack"><span class="flabel">Other currencies on this trip</span>
+    ${used.length ? used.map(c => `<div class="rate-row"><label class="f grow"><span><strong>${esc(c)}</strong> · ${esc(ask(c))}</span><input class="mono" inputmode="decimal" id="savedRate-${esc(c)}" value="${esc(storedToTyped(saved[c], c, base))}" data-change="saved-rate" data-id="${esc(c)}" ${can ? '' : 'disabled'}></label>${can ? `<button type="button" class="btn small" data-action="remove-rate" data-id="${esc(c)}" aria-label="Remove ${esc(c)}">Remove</button>` : ''}</div>`).join('') : `<p class="small muted">None yet. This trip uses only ${esc(base)}. Add a currency if you'll pay in something else.</p>`}
+    ${can && adding ? `<form class="stack tight" data-form="add-rate"><span class="flabel">Add a currency</span><div class="rate-row"><select id="newRateCur" aria-label="Currency" data-change="new-rate-currency">${others.map(c => `<option ${c === adding ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><input class="mono grow" id="newRate" inputmode="decimal" required aria-label="${esc(ask(adding))}" placeholder="${esc(about(adding))}"><button class="btn">Add</button></div><span class="tiny muted">${esc(ask(adding))}</span></form>` : ''}
+    <p class="tiny muted">New expenses in that currency start with this rate. Removing or changing one doesn't touch expenses already saved.</p></div>`;
 }
+actions['remove-rate'] = el => {
+  const t = A.trips[A.route.tripId], c = el.dataset.id, rates = { ...(t.rates || {}) };
+  delete rates[c];
+  send(A.repo.updateTrip(t.id, { rates }, getMe(t)), 'Removing that currency');
+  if (t.defaultCurrency === c && amAdmin(t)) send(A.repo.updateTrip(t.id, { defaultCurrency: t.currency }, getMe(t)), 'That setting');
+  toast(`${c} removed`);
+};
 
 /** Saves a rate, unless it's a number or looks upside down. A second try keeps a backwards-looking one. */
 function saveRate(trip, currency, typed) {
@@ -154,7 +162,7 @@ export function settingsView(trip) {
   return `  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
-    <label class="f"><span>New expenses start in</span><select id="tripDefaultCur" data-change="trip-default-currency" ${admin ? '' : 'disabled'}>${[...new Set([trip.currency, ...CURRENCIES])].map(c => `<option ${c === (trip.defaultCurrency || trip.currency) ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+    <label class="f"><span>New expenses start in</span><select id="tripDefaultCur" data-change="trip-default-currency" ${admin ? '' : 'disabled'}>${[trip.currency, ...Object.keys(trip.rates || {}).filter(c => c !== trip.currency).sort()].map(c => `<option ${c === (trip.defaultCurrency || trip.currency) ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     ${ratesSection(trip)}
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
   ${backupSection(trip)}
