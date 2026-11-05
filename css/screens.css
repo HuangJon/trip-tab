@@ -44,7 +44,7 @@
 .linkbox { font:400 .8rem/1.4 var(--mono); padding:10px; background:var(--sunken); border-radius:8px; overflow-wrap:anywhere; user-select:all }
 /* Trip frame */
 .topbar { position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bar); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); margin-inline:-8px; padding-inline:8px; border-radius:0 0 14px 14px; padding-block:8px; margin-top:-8px; display:flex; gap:12px; align-items:center }
-.topbar h1 { font-size:1.5rem; overflow-wrap:anywhere }
+.topbar h1 { font-size:1.5rem }
 nav.tabs { position:fixed; left:0; right:0; bottom:0; z-index:6; background:var(--surface); border-top:1px solid var(--line); padding:0 max(8px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(8px,env(safe-area-inset-left,0px)) }
 .tabs-in { max-width:680px; margin:0 auto; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)) }
 .tabs button { background:none; border:0; padding:9px 2px 8px; font-size:.8125rem; font-weight:600; color:var(--muted); display:grid; justify-items:center; gap:3px; min-height:58px }
