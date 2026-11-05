@@ -872,12 +872,16 @@ assert.equal(await page.evaluate(() => document.documentElement.dataset.look), '
 await page.click('#tour [data-action=set-look][data-id=blue]');
 await page.click('#tour [data-action=tour-close]');
 await page.waitForFunction(() => !document.getElementById('tour'));
+assert.equal(await page.isVisible('[data-action=home-theme]'), true, 'the tutorial finishes on the home page');
+await page.click('[data-action=open-trip] >> nth=0');
+await page.click('#tabs [data-tab=people]');
+await page.waitForSelector('#newMember'); // People is back on the names, so they can be added
 await page.click('.help-btn');
 await page.waitForSelector('#tour');
 await page.click('#tourSkip');
 await page.waitForFunction(() => !document.getElementById('tour'));
 await page.reload();
-await page.waitForSelector('[data-tab=expenses]');
+await page.waitForSelector('[data-action=home-theme]');
 assert.equal(await page.locator('#tour').count(), 0, 'it shows only once');
 await page.evaluate(() => localStorage.setItem('triptab:last-seen', String(Date.now() - 100 * 86400000)));
 await page.reload();
@@ -888,9 +892,11 @@ await page.waitForSelector('#tour');
 await page.click('#tourSkip');
 await page.waitForFunction(() => !document.getElementById('tour'));
 await page.reload();
-await page.waitForSelector('[data-tab=expenses]');
+await page.waitForSelector('[data-action=home-theme]');
 assert.equal(await page.locator('#tourAsk').count(), 0, 'and asks just once');
 
+await page.click('[data-action=open-trip] >> nth=0');
+await page.waitForSelector('.topbar h1');
 /* A long trip name stops at two lines, and doesn't push anything off the screen */
 const topbar = await page.evaluate(() => {
   const h = document.querySelector('.topbar h1'), before = h.textContent;
@@ -910,6 +916,31 @@ await page.waitForSelector('#tour');
 await page.click('#tourSkip');
 await page.waitForFunction(() => !document.getElementById('tour'));
 await page.evaluate(() => sessionStorage.removeItem('tour-test'));
+/* Someone joining by link while the tutorial is new to them: joining still works, and the tutorial follows */
+{
+  if (!/#t-/.test(await page.evaluate(() => location.hash))) await page.click('[data-action=open-trip] >> nth=0');
+  await page.waitForSelector('.topbar h1');
+  const dump = await page.evaluate(() => localStorage.getItem('triptab:localdb'));
+  const link = await page.evaluate(() => `${location.href.split('#')[0]}#join-${location.hash.match(/#t-([a-z0-9]+)/)[1]}`);
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await phone.addInitScript(d => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); sessionStorage.setItem('tour-test', '1'); localStorage.setItem('triptab:localdb', d); } }, dump);
+  const pal = await openPage(phone, link);
+  await pal.evaluate(() => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); });
+  await signUp(pal, 'Tutorial Tess', 'tess@example.com');
+  await pal.waitForSelector('#joinName');
+  assert.equal(await pal.locator('#tour').count(), 0, 'the tutorial waits until you have joined');
+  await pal.fill('#joinName', 'Tutorial Tess');
+  await pal.click('[data-form=join-self] button');
+  await pal.waitForSelector('#tour');
+  await pal.click('#tourSkip');
+  await pal.waitForSelector('[data-action=home-theme]');
+  assert.match(await pal.textContent('#app'), new RegExp(await page.evaluate(() => document.querySelector('.topbar h1').textContent.slice(0, 8))));
+  await pal.click('.help-btn');
+  await pal.waitForSelector('#tour');
+  await pal.evaluate(l => { location.href = l; }, `${new URL(link).pathname}#join-${'x'.repeat(24)}`);
+  await pal.waitForFunction(() => !document.getElementById('tourLayer'));
+  await phone.close();
+}
 check('the walkthrough shows at first sign-in, asks after 90 days, and is behind the question mark');
 
 /* Press and hold a trip on the home page */

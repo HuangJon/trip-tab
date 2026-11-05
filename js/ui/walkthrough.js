@@ -20,7 +20,7 @@ const THEME_STEP = { theme: true, tab: 'expenses', at: '.topbar [data-action="ed
 const HOME_THEME_STEP = { theme: true, home: true, at: '[data-action="home-theme"]', title: 'Change your theme', text: THEME_TEXT };
 
 function buildSteps() {
-  if (A.route.name === 'trip') return [...TRIP_STEPS.map(s => ({ ...s, trip: A.route.tripId })), { ...THEME_STEP, trip: A.route.tripId }];
+  if (A.route.name === 'trip' && getMe(A.trips[A.route.tripId] || {})) return [...TRIP_STEPS.map(s => ({ ...s, trip: A.route.tripId })), { ...THEME_STEP, trip: A.route.tripId }];
   const first = Object.values(A.trips).find(t => !t.deletedAt && !t.retiredAt && getMe(t));
   return first
     ? [...HOME_STEPS, ...TRIP_STEPS.map(s => ({ ...s, trip: first.id })), { ...THEME_STEP, trip: first.id }]
@@ -47,7 +47,7 @@ export function placeTour() {
 function showStep(i) {
   const { steps } = A.tour, step = steps[i], last = i === steps.length - 1;
   A.tour.i = i;
-  if (step.sub) A.peopleTab = step.sub;
+  A.peopleTab = step.sub || 'people';
   if (step.home) { if (A.route.name !== 'home') goHome(); else render(); } else goTrip(step.trip, step.tab);
   document.getElementById('tourLayer').innerHTML = `<div class="tour-spot" hidden></div>
     <div class="tour-card" id="tour" role="dialog" aria-label="Tutorial" data-place="bottom"><p class="tiny muted">${i + 1} of ${steps.length}</p><h2>${step.title}</h2><p>${step.text}</p>
@@ -64,17 +64,20 @@ addEventListener('click', replace);
 
 export function startTour() {
   closeSheet();
-  A.tour = { steps: buildSteps(), i: 0, from: A.route.name === 'trip' ? A.route.tab : null };
+  A.tour = { steps: buildSteps(), i: 0 };
   let layer = document.getElementById('tourLayer');
   if (!layer) { layer = document.createElement('div'); layer.id = 'tourLayer'; document.body.append(layer); }
   showStep(0);
 }
-function endTour() {
+function clearTour() {
   document.getElementById('tourLayer')?.remove();
-  const { from, steps } = A.tour, wasIn = steps.find(s => s.trip)?.trip;
   A.tour = null;
-  if (from && wasIn) goTrip(wasIn, from); else if (wasIn) goTrip(wasIn, 'expenses');
-  else render();
+  A.peopleTab = 'people'; // the tour opened other People tabs, so put it back on the names
+}
+/** The tour always finishes on the home page. */
+function endTour() {
+  clearTour();
+  goHome();
 }
 
 const HOLD_MS = 500;
@@ -91,12 +94,14 @@ let markedAt = 0;
  */
 export function maybeStartTour() {
   const trip = A.route.name === 'trip' ? A.trips[A.route.tripId] : null;
+  // A link can open a trip you haven't joined mid-tour. The join screen comes first, so nothing may cover it.
+  if (A.tour && A.route.name === 'trip' && !(trip && getMe(trip))) { clearTour(); return; }
   if (!A.user?.verified || A.route.name === 'owner' || (A.route.name === 'trip' && !(trip && getMe(trip)))) return;
   const now = Date.now();
   if (A.returning === undefined) A.returning = backAfterAWhile(A.device.lastSeen(), now); // before this visit counts
   if (now - markedAt > DAY_MS) { markedAt = now; A.device.markSeen(now); } // a day's accuracy is plenty
   if (A.tour || document.getElementById('dlg').open) return;
-  if (!A.device.tourDone()) { A.returning = false; A.device.setTourDone(); setTimeout(startTour); return; }
+  if (!A.device.tourDone()) { A.returning = false; A.device.setTourDone(); setTimeout(() => { if (!document.getElementById('dlg').open) startTour(); }); return; }
   if (!A.returning) return;
   A.returning = false;
   openSheet(`<div class="tour" id="tourAsk"><h2>Welcome back!</h2><p>It's been a while. Would you like a quick walkthrough?</p><div class="tour-nav"><button type="button" class="btn" data-action="close-sheet">No thanks</button><button type="button" class="btn primary" data-action="tour-start">Show me</button></div></div>`);
