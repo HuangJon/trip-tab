@@ -42,7 +42,7 @@ export function openExpenseForm(trip, entry) {
   } else if (draft) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
-    const currency = A.device.lastCurrency(trip.id) || trip.currency;
+    const currency = trip.defaultCurrency || A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
     const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
     A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: all.includes(recent.payer) ? recent.payer : me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };

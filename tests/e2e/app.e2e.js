@@ -763,17 +763,23 @@ await page.click('[data-action=open-settings]');
 await page.waitForSelector('#tripName');
 check('light is the default, and dark can be chosen and is remembered');
 
-/* Home shows USD by default, and can show another currency */
+/* Home totals in USD, and each trip chooses what new expenses start in */
 await page.click('[data-action=home]');
-await page.waitForSelector('#homeCur');
-assert.equal(await page.inputValue('#homeCur'), 'USD');
+await page.waitForSelector('#homeBalance');
 assert.match(await page.textContent('#homeBalance'), /\$/);
-await page.selectOption('#homeCur', 'EUR');
-await page.waitForFunction(() => /€/.test(document.getElementById('homeBalance').textContent));
-await page.selectOption('#homeCur', 'USD');
+assert.equal(await page.locator('#homeCur').count(), 0);
 await page.click('.tap >> nth=0');
-await page.waitForSelector('[data-tab=expenses]');
-check('home shows balances in USD, with an option to switch');
+await tab(page, 'settings');
+await page.selectOption('#tripDefaultCur', 'EUR');
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+assert.equal(await page.inputValue('#fCur'), 'EUR');
+await page.click('[data-action=form-cancel]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await tab(page, 'settings');
+await page.selectOption('#tripDefaultCur', 'TWD');
+await tab(page, 'expenses');
+check('home totals in USD, and a trip can choose its starting currency');
 
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');
@@ -1043,6 +1049,7 @@ await page.click('form[data-form=settle] .btn.primary');
 await page.waitForSelector('#settledUp');
 assert.match(await page.textContent('#settledUp'), /Everyone is settled up/);
 assert.match(await page.textContent('#tripTotals'), /Their share/);
+assert.equal(await page.locator('#simp').count(), 0, 'simplify is hidden when nothing is left to settle');
 assert.ok(await page.locator('#paymentsMade .row-btn').count() >= 1, 'payments stay visible after settling up');
 await page.click('#settledUp [data-action=archive-toggle]');
 await page.waitForSelector('.home-head');

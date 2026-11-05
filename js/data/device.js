@@ -36,8 +36,6 @@ export function createDevice(storage, now = () => Date.now()) {
     },
     paymentNudgeDismissed: tripId => storage.get(`payment-nudge:${tripId}`, false),
     dismissPaymentNudge: tripId => storage.trySet(`payment-nudge:${tripId}`, true),
-    displayCurrency: () => storage.get('display-currency', 'USD'),
-    setDisplayCurrency: c => storage.trySet('display-currency', c),
     installTipDismissed: () => storage.get('install-tip-dismissed', false),
     dismissInstallTip: () => storage.trySet('install-tip-dismissed', true),
 

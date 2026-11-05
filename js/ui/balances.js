@@ -71,10 +71,10 @@ export function balancesView(trip) {
       ${mine.gets.length && me && !trip.members[me]?.venmo && !trip.members[me]?.zelle && write ? `<div class="notice stack tight" id="paymentAsk"><span>People owe you, but they can't see how to pay you yet.</span><div><button class="btn small" data-action="add-payment">Add Venmo or Zelle</button></div></div>` : ''}
       ${group('You receive', mine.gets, 'get', mine.alsoOwing.length ? `This also covers what ${names(mine.alsoOwing)} ${mine.alsoOwing.length > 1 ? 'owe' : 'owes'} you.` : '')}
       ${group(me ? 'Between others' : 'Who pays whom', mine.others, 'other')}
-      <div class="tear" aria-hidden="true"></div>` : `${settledHtml(trip)}<div class="tear" aria-hidden="true"></div>`}
-    <div class="pad stack"><div class="row between wrap"><h3>Who pays whom</h3><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
+      <div class="tear" aria-hidden="true"></div>` : settledHtml(trip)}
+    ${debts.length ? `<div class="pad stack"><div class="row between wrap"><h3>Who pays whom</h3><label class="row small gap8"><input id="simp" type="checkbox" data-action="simplify" ${trip.simplify !== false ? 'checked' : ''} ${admin ? '' : 'disabled'}>Simplify debts</label></div>
     <p class="small muted">${trip.simplify !== false ? 'Combines debts so the group makes the fewest payments. What each person ends up with stays the same.' : 'Shows who owes whom based on each expense.'}</p>
-    ${debts.length ? '<div><button class="btn small" data-action="share-summary">Share this summary</button></div>' : ''}</div>
+    <div><button class="btn small" data-action="share-summary">Share this summary</button></div></div>` : ''}
   </section>
   <section class="panel pad stack"><h2>Everyone's balance</h2>
     ${members.map(m => {

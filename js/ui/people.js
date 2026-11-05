@@ -155,6 +155,7 @@ export function settingsView(trip) {
   return `  <section class="panel pad stack"><h2>Trip settings</h2>
     <label class="f"><span>Trip name</span><input id="tripName" value="${esc(trip.name)}" maxlength="${LIMITS.tripName}" data-change="trip-name" ${admin ? '' : 'disabled'}></label>
     <div class="row between"><span>Balances are shown in</span><strong class="mono">${esc(trip.currency)}</strong></div>
+    <label class="f"><span>New expenses start in</span><select id="tripDefaultCur" data-change="trip-default-currency" ${admin ? '' : 'disabled'}>${[...new Set([trip.currency, ...CURRENCIES])].map(c => `<option ${c === (trip.defaultCurrency || trip.currency) ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     ${ratesSection(trip)}
     <div class="row wrap"><button class="btn" data-action="export-csv">Export CSV</button></div></section>
   ${backupSection(trip)}
@@ -260,6 +261,7 @@ actions['archive-toggle'] = () => {
   if (on) { goHome(); toast('Archived on this phone'); } else render();
 };
 changes.rename = el => { if (el.value.trim()) send(A.repo.renameMember(A.route.tripId, el.dataset.id, el.value.trim().slice(0, LIMITS.personName), getMe(A.trips[A.route.tripId]))); };
+changes['trip-default-currency'] = el => { send(A.repo.updateTrip(A.route.tripId, { defaultCurrency: el.value }, getMe(A.trips[A.route.tripId])), 'That setting'); toast(`New expenses will start in ${el.value}`); };
 changes['trip-name'] = el => { if (el.value.trim()) send(A.repo.updateTrip(A.route.tripId, { name: el.value.trim().slice(0, LIMITS.tripName) }, getMe(A.trips[A.route.tripId]))); };
 
 actions['confirm-leave'] = () => { A.confirm = 'leave'; render(); };

@@ -1,5 +1,5 @@
 /** The list of trips on this phone. */
-import { A, actions, changes, render, submits } from './state.js';
+import { A, actions, render, submits } from './state.js';
 import { APP_NAME, CURRENCIES, LIMITS } from '../config/app.js';
 import { convertRough } from '../core/rates.js';
 import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from './dom.js';
@@ -27,7 +27,6 @@ export function alerts() {
     ${failed.length ? `<div class="notice note-row bad-note"><span>${failed.map(f => esc(f.text)).join('<br>')}</span><button class="btn small" data-action="failed-dismiss">Dismiss</button></div>` : ''}
     ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. It keeps you signed in, because Safari can clear a site's data if you don't visit for about a week. Sign in on the home-screen app and your trips will be there.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
 }
-changes['display-currency'] = el => { A.device.setDisplayCurrency(el.value); render(); };
 actions['failed-dismiss'] = () => { A.device.clearFailedChanges(); render(); };
 actions['install-dismiss'] = () => { A.device.dismissInstallTip(); render(); };
 
@@ -37,7 +36,7 @@ export function homeView() {
   const trips = all.filter(t => !archived.includes(t.id));
   const shelved = all.filter(t => archived.includes(t.id));
   const waiting = ids.filter(id => !A.loaded[id]).length;
-  const show = A.device.displayCurrency();
+  const show = 'USD'; // the home page always totals in dollars
   let overall = 0, rough = false;
   const inShown = (v, c) => {
     const x = convertRough(v, c, show);
@@ -65,10 +64,9 @@ export function homeView() {
   };
   const rows = trips.map(rowFor).join('');
   const shelvedRows = shelved.map(rowFor).join('');
-  const picker = `<label class="home-currency"><span>Show in</span><select id="homeCur" aria-label="Show amounts in" data-change="display-currency">${[...new Set([show, ...CURRENCIES])].map(c => `<option ${c === show ? 'selected' : ''}>${c}</option>`).join('')}</select></label>`;
   const summary = !all.length ? '' : `<section class="hero ${overall > 0 ? 'is-owed' : overall < 0 ? 'is-owing' : ''}" id="homeBalance">
     ${overall === 0 ? '<div class="hero-settled">All settled</div>' : `<div class="hero-say">${overall > 0 ? 'Overall, you get' : 'Overall, you owe'}</div><div class="big">${rough ? '≈ ' : ''}${money(Math.abs(overall), show)}</div>`}
-    <div class="home-note">${picker}${rough ? '<span class="small">Rough exchange rates. Each trip keeps its own currency.</span>' : ''}</div></section>`;
+    ${rough ? '<p class="small">Roughly, using estimated exchange rates.</p>' : ''}</section>`;
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
     <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>
