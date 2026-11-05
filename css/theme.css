@@ -195,3 +195,7 @@ dialog,dialog .sheet,dialog .sheet-body { background:#22211E }
 .me-actions { display:grid; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--line) }
 .me-settings { display:flex; align-items:center; justify-content:center; gap:8px; width:100% }
 .me-settings svg { width:18px; height:18px }
+
+/* Paid and share need to look different at a glance, not only in shade */
+.fill.alt,.key.alt { background:#D2A64E }
+:root[data-look="light"] .fill.alt,:root[data-look="light"] .key.alt { background:#B5832F }
