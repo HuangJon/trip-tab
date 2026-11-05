@@ -13,3 +13,7 @@ export function setLook(look) {
   try { localStorage.setItem(KEY, look); } catch { /* this device just won't remember */ }
   applyLook(look);
 }
+
+const LOOKS = [['blue', 'Blue'], ['light', 'Light'], ['dark', 'Dark'], ['pride', 'Pride']];
+/** The theme picker, used behind your icon and on the home page. */
+export const lookPicker = () => `<div class="look-row"><span>Theme</span><div class="seg" role="group" aria-label="Theme">${LOOKS.map(([k, label]) => `<button type="button" data-action="set-look" data-id="${k}" aria-pressed="${currentLook() === k}">${label}</button>`).join('')}</div></div>`;

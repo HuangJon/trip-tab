@@ -2,7 +2,8 @@
 import { A, actions, render, submits } from './state.js';
 import { APP_NAME, CURRENCIES, LIMITS } from '../config/app.js';
 import { convertRough } from '../core/rates.js';
-import { closeSheet, esc, getMe, openSheet, send, sheetHead, toast, val } from './dom.js';
+import { ICON, closeSheet, esc, getMe, openSheet, send, sheetHead, svg, toast, val } from './dom.js';
+import { lookPicker } from './look.js';
 import { money } from '../core/money.js';
 import { netBalances, spendingBreakdown } from '../core/debts.js';
 import { activeMembers, liveEntries } from '../core/model.js';
@@ -27,6 +28,7 @@ export function alerts() {
     ${failed.length ? `<div class="notice note-row bad-note"><span>${failed.map(f => esc(f.text)).join('<br>')}</span><button class="btn small" data-action="failed-dismiss">Dismiss</button></div>` : ''}
     ${suggest ? `<div class="notice note-row" id="installTip"><span>Add this app to your Home Screen: tap Share, then Add to Home Screen. It keeps you signed in, because Safari can clear a site's data if you don't visit for about a week. Sign in on the home-screen app and your trips will be there.</span><button class="btn small" data-action="install-dismiss">Got it</button></div>` : ''}`;
 }
+actions['home-theme'] = () => openSheet(`<div class="sheet">${sheetHead('Theme', '', 'Done')}<div class="sheet-body stack">${lookPicker()}</div></div>`);
 actions['failed-dismiss'] = () => { A.device.clearFailedChanges(); render(); };
 actions['install-dismiss'] = () => { A.device.dismissInstallTip(); render(); };
 
@@ -68,11 +70,11 @@ export function homeView() {
     ${overall === 0 ? '<div class="hero-settled">All settled</div>' : `<div class="hero-say">${overall > 0 ? 'Overall, you get' : 'Overall, you owe'}</div><div class="big">${rough ? '≈ ' : ''}${money(Math.abs(overall), show)}</div>`}
     ${rough ? '<p class="small">Roughly, using estimated exchange rates.</p>' : ''}</section>`;
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
-    <button class="btn primary" data-action="new-trip">New trip</button></header>
+    <div class="home-actions"><button class="icon-btn" data-action="home-theme" aria-label="Theme">${svg(ICON.theme)}</button><button class="btn primary" data-action="new-trip">New trip</button></div></header>
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'
-    : '<section class="panel empty"><h2>No trips yet</h2><p class="muted">Create a trip and send friends the link. They verify an email or Google account, then pick their name.</p><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
+    : '<section class="panel empty"><h2>Start your first trip</h2><ol class="how small"><li>Create a trip and add the people going.</li><li>Send your friends the invite link.</li><li>Add expenses as you go, then settle up at the end.</li></ol><button class="btn primary" data-action="new-trip">Create your first trip</button></section>'}
     <form class="row" data-form="join-link"><input id="joinLink" aria-label="Invite link" placeholder="Have an invite? Paste the link" autocomplete="off"><button class="btn">Join</button></form>
     ${shelved.length ? `<button class="link small" data-action="toggle-archived">${A.showArchived ? 'Hide' : 'Show'} archived trips (${shelved.length})</button>${A.showArchived ? `<section class="panel"><div class="list">${shelvedRows}</div></section>` : ''}` : ''}
     <footer class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></footer>`;

@@ -14,7 +14,7 @@
 .hero.is-owed .big,.hero .big.up { color:var(--hero-up) }
 .hero.is-owing .big,.hero .big.down { color:var(--hero-down) }
 .summary { display:grid; gap:4px; padding:18px 16px }
-.big { font-family:var(--mono); font-weight:600; font-size:clamp(1.7rem,8vw,2.4rem); line-height:1.1; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
+.big { font-family:var(--body); font-weight:700; font-size:clamp(1.7rem,8vw,2.4rem); line-height:1.1; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
 .empty { padding:28px 18px; text-align:center; display:grid; gap:10px; justify-items:center }
 /* Lists */
 .list { display:grid; grid-template-columns:minmax(0,1fr) }
@@ -80,11 +80,11 @@ dialog::backdrop { background:var(--scrim) }
 .seg button[aria-pressed="true"] { background:var(--surface); color:var(--ink) }
 .split-row { display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--line); flex-wrap:wrap }
 .split-row:first-child { border-top:0 } .split-row>.grow { flex:1 1 80px }
-.split-row input:not([type=checkbox]) { width:88px; flex:none; text-align:right; font-family:var(--mono) }
+.split-row input:not([type=checkbox]) { width:88px; flex:none; text-align:right; font-family:var(--body) }
 .split-row .res { min-width:76px; text-align:right; flex:none; font-size:.84rem; margin-left:auto }
 .conv { font-size:.9rem; font-weight:600; color:var(--ink); overflow-wrap:anywhere }
 #fRateWarn:empty { display:none }
-.check { padding:8px 12px; border-radius:10px; font-size:.875rem; font-family:var(--mono) }
+.check { padding:8px 12px; border-radius:10px; font-size:.875rem; font-family:var(--body); font-variant-numeric:tabular-nums }
 .check.ok { background:var(--owed-soft); color:var(--owed) } .check.bad { background:var(--owe-soft); color:var(--owe) }
 .item { display:grid; gap:8px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface) }
 .item-top { display:grid; grid-template-columns:minmax(0,1fr) 92px 36px; gap:8px; align-items:center }
@@ -197,3 +197,17 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 .spent-row>.amt { font-family:var(--body); font-weight:600; text-align:right; min-width:72px }
 .spent-head { border-top:0; padding:0; font-size:.8125rem; color:var(--muted) } .spent-head>span:not(:first-child) { text-align:right; min-width:72px }
 .row-btn .amt { font-family:var(--body); font-weight:700; font-size:1rem; font-variant-numeric:tabular-nums }
+/* Quick expense form */
+.form-who { display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:var(--sunken); border:0; border-radius:10px; padding:12px 14px; color:var(--ink); min-height:48px }
+.form-who .link { flex:none }
+.form-save { width:100% }
+/* Joining steps */
+.steps { list-style:none; display:flex; gap:6px; margin:0; padding:0; font-size:.8125rem; color:var(--muted) }
+.steps li { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center }
+.steps span { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; background:var(--sunken); font-weight:700 }
+.steps [aria-current] { color:var(--ink); font-weight:600 } .steps [aria-current] span { background:var(--accent); color:var(--accent-ink) }
+.steps .done span { background:var(--owed); color:var(--surface) }
+/* Home */
+.home-actions { display:flex; align-items:center; gap:8px; margin-left:auto }
+.how { text-align:left; margin:0 auto; padding-left:20px; display:grid; gap:6px; max-width:320px; color:var(--muted) }
+.row.center { justify-content:center }

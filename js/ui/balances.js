@@ -2,7 +2,8 @@
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CURRENCIES, LIMITS } from '../config/app.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
-import { coveredBy, exactRate, sendFor } from '../core/settle.js';
+import { coveredBy, exactRate, sendFor, venmoLink } from '../core/settle.js';
+import { reminderText, wrapUpText } from '../core/messages.js';
 import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
 import { myPayments, needsRate, netBalances, personLedger, spendingBreakdown, tripDebts } from '../core/debts.js';
@@ -19,7 +20,7 @@ export function debtsFor(trip) {
 /** A small moment once a trip with real expenses reaches zero. */
 function settledHtml(trip) {
   const has = liveEntries(A.entries[trip.id]).length > 0;
-  if (!has) return '<div class="empty"><h3>Nothing to settle yet</h3><p class="muted small">Balances appear after the first expense.</p></div>';
+  if (!has) return '<div class="empty"><h3>Nothing to settle yet</h3><p class="muted small">Add an expense and this will show who owes whom.</p><button class="btn primary" data-action="add-expense">Add expense</button></div>';
   const shelved = A.device.archived().includes(trip.id);
   return `<div class="empty settled" id="settledUp"><span class="settled-mark" aria-hidden="true">✓</span><h3>Everyone is settled up</h3><p class="muted small">Nobody owes anything on this trip. Nice work.</p>${shelved ? '' : '<button class="btn small" data-action="archive-toggle">Archive this trip</button>'}</div>`;
 }
@@ -52,7 +53,7 @@ function historyHtml(trip) {
     return `<button class="row-btn" data-action="open-entry" data-id="${e.id}"><span class="grow"><strong>${esc(who(trip, from))}</strong> paid <strong>${esc(who(trip, to))}</strong><span class="block small muted">${fmtDate(e.date)}</span></span><span class="amt">${money(e.total, e.currency)}</span></button>`;
   }).join('')}</section>` : '';
   const rows = activeMembers(trip).filter(m => s.paid[m.id] || s.share[m.id]).map(m => `<div class="spent-row"><span class="wrap-any">${avatar(trip, m.id)} ${esc(m.name)}</span><span class="amt">${money(s.paid[m.id] || 0, c)}</span><span class="amt">${money(s.share[m.id] || 0, c)}</span></div>`).join('');
-  return `${pays}<section class="panel pad stack" id="tripTotals"><h2>Trip totals</h2><p class="small muted">${money(s.total, c)} spent on this trip.</p><div class="spent-row spent-head"><span>Person</span><span>Paid</span><span>Their share</span></div>${rows}</section>`;
+  return `${pays}<section class="panel pad stack" id="tripTotals"><div class="row between wrap"><h2>Trip totals</h2><button class="btn small" data-action="share-wrapup">Share wrap-up</button></div><p class="small muted">${money(s.total, c)} spent on this trip.</p><div class="spent-row spent-head"><span>Person</span><span>Paid</span><span>Their share</span></div>${rows}</section>`;
 }
 
 export function balancesView(trip) {
@@ -64,7 +65,7 @@ export function balancesView(trip) {
   const names = ids => ids.map(i => esc(memberName(trip, i))).join(' and ');
   const row = (d, kind) => `<div class="debt ${kind}"><div class="debt-who">${avatar(trip, d.from)}<span class="wrap-any"><strong>${esc(who(trip, d.from))}</strong></span><span class="arrow" aria-label="pays">→</span>${avatar(trip, d.to)}<span class="wrap-any"><strong>${esc(who(trip, d.to))}</strong></span></div>
       <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
-      ${d.to !== me ? handles(trip, d.to) : ''}</div>`;
+      ${d.to !== me ? handles(trip, d.to) : ''}${kind === 'get' && write ? `<div><button class="btn small" data-action="remind" data-from="${d.from}" data-amt="${d.amount}">Send a reminder</button></div>` : ''}</div>`;
   const group = (title, rows, kind, note) => (rows.length ? `<div class="debt-group"><span class="label group-title">${title}</span>${note ? `<p class="small muted group-note">${note}</p>` : ''}<div class="list">${rows.map(d => row(d, kind)).join('')}</div></div>` : '');
   return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
     ${debts.length ? `${group('You pay', mine.pays, 'pay', mine.alsoOwed.length ? `This also covers what you owe ${names(mine.alsoOwed)}.` : '')}
@@ -86,6 +87,20 @@ export function balancesView(trip) {
   ${historyHtml(trip)}`;
 }
 
+async function shareText(title, text, note) {
+  try {
+    if (navigator.share) { await navigator.share({ title, text }); return; }
+  } catch (e) { if (e?.name === 'AbortError') return; }
+  textSheet(title, text, note);
+}
+actions.remind = el => {
+  const t = A.trips[A.route.tripId], m = t.members[getMe(t)] || {};
+  shareText('Send a reminder', reminderText({ tripName: t.name, toName: memberName(t, el.dataset.from), amount: money(+el.dataset.amt, t.currency), venmo: m.venmo, zelle: m.zelle, link: `${location.origin}${location.pathname}#join-${t.id}` }), 'Copy this and send it to them.');
+};
+actions['share-wrapup'] = () => {
+  const t = A.trips[A.route.tripId];
+  shareText('Trip wrap-up', wrapUpText(t.name, liveEntries(A.entries[t.id]), t.currency, activeMembers(t)), 'Copy this and paste it into your group chat.');
+};
 actions.simplify = el => { const t = A.trips[A.route.tripId]; send(A.repo.updateTrip(t.id, { simplify: el.checked }, getMe(t))); };
 actions['share-summary'] = () => {
   const t = A.trips[A.route.tripId], debts = debtsFor(t);
@@ -105,7 +120,10 @@ const METHODS = [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['oth
 function payHtml(trip, to, sendMinor, currency) {
   const m = trip.members[to] || {}, name = esc(memberName(trip, to));
   const rows = [['Venmo', m.venmo], ['Zelle', m.zelle]].filter(([, v]) => v);
-  const details = rows.map(([label, v]) => `<div class="handle"><span>${label}: <strong>${esc(v)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(v)}">Copy</button></div>`).join('');
+  const details = rows.map(([label, v]) => {
+    const open = label === 'Venmo' ? venmoLink(v, sendMinor, currency, trip.name) : '';
+    return `<div class="handle"><span>${label}: <strong>${esc(v)}</strong></span><span class="row gap8">${open ? `<a class="btn small primary" id="openVenmo" href="${esc(open)}" target="_blank" rel="noopener noreferrer">Open Venmo</a>` : ''}<button type="button" class="btn small" data-action="copy-handle" data-value="${esc(v)}">Copy</button></span></div>`;
+  }).join('');
   const amountRow = sendMinor ? `<div class="handle"><span>Send: <strong class="amt">${money(sendMinor, currency)}</strong></span><button type="button" class="btn small" data-action="copy-handle" data-value="${esc(fromMinor(sendMinor, currency))}">Copy</button></div>` : '';
   return `${amountRow}${details || `<p class="small muted">${name} hasn't added Venmo or Zelle yet. Ask them for the best way to pay, or they can add it under People → Payment.</p>`}`;
 }

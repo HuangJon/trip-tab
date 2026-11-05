@@ -6,13 +6,14 @@ import { money } from '../core/money.js';
 import { myPayments, needsRate } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
 import { alerts } from './home.js';
+import { joinSteps } from './account.js';
 
 export function tripHeader(trip) {
   const me = getMe(trip);
   return `<div class="topbar"><button class="icon-btn" data-action="back" aria-label="Back">${svg(ICON.back)}</button><button class="icon-btn" data-action="home" aria-label="All trips">${svg(ICON.home)}</button><h1 class="grow">${esc(trip.name)}</h1>${getMe(trip) ? `<button class="ava-btn" data-action="edit-avatar" data-id="${getMe(trip)}" aria-label="Change your color and picture">${avatar(trip, getMe(trip))}</button>` : ''}</div>
     ${alerts()}
     ${trip.fromNewerApp ? '<div class="notice">A friend is on a newer version of this app. Update yours to make changes. Close and reopen the app to update.</div>' : ''}
-    ${me ? '' : `<section class="panel pad stack"><div><h3>Which one is you?</h3><p class="small muted">Your name is tied to your account, so only you can add expenses as that person. Names already taken aren't shown. If yours is missing, ask the trip's admin to free it.</p></div>
+    ${me ? '' : `<section class="panel pad stack">${joinSteps(3)}<div><h3>Which one is you?</h3><p class="small muted">Your name is tied to your account, so only you can add expenses as that person. Names already taken aren't shown. If yours is missing, ask the trip's admin to free it.</p></div>
       <div class="chips">${activeMembers(trip).filter(m => !m.claimed).map(m => `<button class="chip" data-action="set-me" data-id="${m.id}">${avatar(trip, m.id)}${esc(m.name)}</button>`).join('')}</div>
       <form class="row" data-form="join-self"><input id="joinName" aria-label="Your name" value="${esc(A.user?.displayName || '')}" placeholder="Not listed? Enter your name" maxlength="${LIMITS.personName}" required><button class="btn">Join</button></form></section>`}`;
 }

@@ -14,3 +14,13 @@ export const coveredBy = (sendMinor, payCurrency, tripCurrency, rate) => convert
 export function exactRate(debtMinor, tripCurrency, sendMinor, payCurrency) {
   return (debtMinor / 10 ** decimals(tripCurrency)) / (sendMinor / 10 ** decimals(payCurrency));
 }
+
+/** A link that opens Venmo ready to pay. Venmo only moves dollars, so other currencies leave the amount blank. */
+export function venmoLink(handle, minor, currency, note = '') {
+  const name = String(handle || '').trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(name)) return '';
+  const params = new URLSearchParams({ txn: 'pay' });
+  if (minor > 0 && currency === 'USD') params.set('amount', (minor / 100).toFixed(2));
+  if (note) params.set('note', note);
+  return `https://venmo.com/${name}?${params}`;
+}

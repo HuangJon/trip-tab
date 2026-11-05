@@ -201,7 +201,7 @@ check('details are tucked away, and recent choices are suggested');
 
 /* Feedback and navigation */
 await page.click('[data-action=add-expense]');
-assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'a new expense starts in the description');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'fAmt', 'a new expense starts in the amount');
 await page.fill('#fDesc', 'Fresh row');
 await page.fill('#fAmt', '20');
 await page.click('#fSave');
@@ -410,6 +410,7 @@ await friend.waitForFunction(() => !/Which one is you/.test(document.getElementB
 await tab(friend, 'people');
 await friend.waitForSelector('input[value="Rui"]', { timeout: 8000 }).catch(async e => {
   console.log('Friend sees:', friend.url(), (await text(friend)).slice(0, 700));
+  console.log('Name boxes:', await friend.evaluate(() => [...document.querySelectorAll('input[id^=mem-]')].map(i => [i.getAttribute('value'), i.value, i.offsetWidth, i.offsetHeight, getComputedStyle(i).visibility])));
   throw e;
 });
 assert.deepEqual(friend.errors, []);
@@ -770,6 +771,9 @@ check('blue is the default, and other looks can be chosen and are remembered');
 /* Home totals in USD, and each trip chooses what new expenses start in */
 await page.click('[data-action=home]');
 await page.waitForSelector('#homeBalance');
+await page.click('[data-action=home-theme]');
+await page.waitForSelector('[data-action=set-look][data-id=pride]');
+await page.click('[data-action=close-sheet]');
 assert.match(await page.textContent('#homeBalance'), /\$/);
 assert.equal(await page.locator('#homeCur').count(), 0);
 await page.click('.tap >> nth=0');
@@ -806,6 +810,33 @@ assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonath
 await page.click('[data-action=form-cancel]');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 check('paid by starts on you each time');
+
+/* The quick form: amount and description first, the rest tucked away */
+await page.evaluate(() => { sessionStorage.setItem('quick-form', '1'); localStorage.setItem('triptab:form-open', 'false'); });
+await tab(page, 'expenses');
+await page.click('[data-action=add-expense]');
+assert.equal(await page.evaluate(() => document.activeElement.id), 'fAmt');
+assert.equal(await page.isVisible('#fPayer'), false);
+await page.fill('#fAmt', '12');
+await page.fill('#fDesc', 'Quick lunch');
+assert.match(await page.textContent('#fWhoSummary'), /You paid, split equally with everyone/);
+assert.match(await page.textContent('#fWhoSummary'), /Food/);
+await page.click('[data-action=form-who]');
+assert.equal(await page.isVisible('#fPayer'), true);
+await page.click('[data-action=form-who]');
+await page.click('.form-save');
+await page.waitForSelector('.tap:has-text("Quick lunch")');
+await page.evaluate(() => { sessionStorage.removeItem('quick-form'); localStorage.setItem('triptab:form-open', 'true'); });
+await tab(page, 'balances');
+if (await page.locator('[data-action=remind]').count()) {
+  await page.click('[data-action=remind] >> nth=0');
+  await page.waitForFunction(() => /you owe me/.test(document.getElementById('dlg').textContent));
+  await page.click('[data-action=close-sheet]');
+}
+await page.click('[data-action=share-wrapup]');
+await page.waitForFunction(() => /wrap-up/.test(document.getElementById('dlg').textContent));
+await page.click('[data-action=close-sheet]');
+check('a quick expense takes only an amount and a description; reminders and wrap-ups can be shared');
 
 /* Clicking outside closes what's open */
 await tab(page, 'expenses');

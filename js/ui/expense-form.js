@@ -42,12 +42,14 @@ export function openExpenseForm(trip, entry) {
   } else if (draft) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
+    const showWho = A.device.formOpen();
     const currency = trip.defaultCurrency || A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
     const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
-    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { showWho, startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
+  if (!entry) document.getElementById('fAmt')?.focus();
 }
 
 function collect() {
@@ -111,6 +113,8 @@ function rateWarning(t) {
 const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button type="button" class="cat-pick" data-action="cat-pick" data-id="${k}" aria-pressed="${F.category === k}"><span class="tile cat-${k}">${catIcon(k)}</span><span>${esc(label)}</span></button>`).join('');
 function drawCats() {
   const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
+  const summary = document.getElementById('fWhoSummary');
+  if (summary) summary.textContent = whoSummary(tripOf());
   if (picker) picker.innerHTML = catButtons(F);
   if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
 }
@@ -118,6 +122,17 @@ function drawCats() {
 /** What's tucked under More details, so a glance shows whether the defaults are right. */
 function detailSummary(F) {
   return [F.date === today() ? 'Today' : F.date, F.receipt ? 'Receipt' : '', F.note ? 'Note' : ''].filter(Boolean).join(' · ');
+}
+
+/** The whole form shows when editing, or for anyone who keeps it open. A quick "I paid, split equally" needs none of it. */
+const whoOpen = F => Boolean(F.id || F.isCopy || F.kind === 'refund' || F.showWho);
+function whoSummary(t) {
+  const F = A.form, S = F.split, me = getMe(t), all = ids(t);
+  const picked = document.getElementById('fPayer')?.value || F.payer;
+  const payer = F.multi ? 'Several people' : picked === me ? 'You' : memberName(t, picked);
+  const people = (S.selected || all).length;
+  const how = S.mode !== 'equal' ? 'split your way' : people === all.length ? 'split equally with everyone' : `split equally among ${people}`;
+  return `${payer} paid, ${how} · ${CATEGORIES[F.category] || 'Other'}`;
 }
 
 function drawForm() {
@@ -128,24 +143,28 @@ function drawForm() {
   openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"><button class="btn small primary" id="fSave">Save</button></div></div>
   <div class="sheet-body">
     ${F.isDraft ? `<div class="notice row between wrap"><span>Picked up your unsaved expense.</span><button type="button" class="btn small" data-action="draft-discard">${F.discardArmed ? 'Tap again to discard' : 'Discard'}</button></div>` : ''}
-    ${F.id ? '' : `<div class="seg" role="group" aria-label="Type"><button type="button" data-action="form-kind" data-id="expense" aria-pressed="${!refund}">Expense</button><button type="button" data-action="form-kind" data-id="refund" aria-pressed="${refund}">Refund</button></div>`}
-    ${refund ? '<p class="small muted">Use this when money comes back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
-    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
-    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
     <label class="f"><span>Amount</span><input id="fAmt" class="amount-input" inputmode="decimal" required placeholder="0" value="${esc(F.amount)}" data-input="amount"></label></div>
     <span class="conv mono" id="fUsd">${usdHint(t)}</span>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
+    <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
+    <button type="button" class="form-who" data-action="form-who" aria-expanded="${whoOpen(F)}"><span class="grow small" id="fWhoSummary">${esc(whoSummary(t))}</span><span class="link small">${whoOpen(F) ? 'Show less' : 'Change'}</span></button>
+    <div class="stack" id="fWho" ${whoOpen(F) ? '' : 'hidden'}>
+    ${F.id ? '' : `<div class="seg" role="group" aria-label="Type"><button type="button" data-action="form-kind" data-id="expense" aria-pressed="${!refund}">Expense</button><button type="button" data-action="form-kind" data-id="refund" aria-pressed="${refund}">Refund</button></div>`}
+    ${refund ? '<p class="small muted">Use this when money comes back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
+    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
     : `<select id="fPayer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
     <div class="stack"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
+    </div>
     <button type="button" class="more-toggle" data-action="form-more" aria-expanded="${Boolean(F.showMore)}"><span>${F.showMore ? 'Hide details' : 'More details'}</span><span class="small muted wrap-any">${esc(detailSummary(F))}</span></button>
     <div class="stack" id="formMore" ${F.showMore ? '' : 'hidden'}>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="draft">${esc(F.note)}</textarea></label>
     </div>
+    <button class="btn primary form-save">${F.id ? 'Save changes' : refund ? 'Add refund' : 'Add expense'}</button>
     ${F.id ? `<button type="button" class="btn danger" data-action="delete-entry" data-id="${F.id}">Delete ${refund ? 'refund' : 'expense'}</button>` : ''}
   </div></form>`);
   const b = document.querySelector('#dlg .sheet-body');
@@ -167,6 +186,8 @@ function refresh() {
   if (pc) pc.innerHTML = payCheck(t);
   const us = document.getElementById('fUsd');
   if (us) us.textContent = usdHint(t);
+  const ws = document.getElementById('fWhoSummary');
+  if (ws) ws.textContent = whoSummary(t);
   const cv = document.getElementById('fConv');
   if (cv) cv.textContent = rateNote(t);
   const rw = document.getElementById('fRateWarn');
@@ -214,6 +235,15 @@ changes['form-currency'] = el => {
 };
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
+actions['form-who'] = el => {
+  const F = A.form, box = document.getElementById('fWho'), open = box.hidden;
+  box.hidden = !open;
+  F.showWho = open;
+  A.device.setFormOpen(open);
+  el.setAttribute('aria-expanded', String(open));
+  el.querySelector('.link').textContent = open ? 'Show less' : 'Change';
+  document.getElementById('fWhoSummary').textContent = whoSummary(tripOf());
+};
 actions['form-more'] = () => { collect(); A.form.showMore = !A.form.showMore; drawForm(); };
 actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {

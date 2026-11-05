@@ -9,7 +9,7 @@
 .bar-row .amt { font-family:var(--body); font-weight:700; font-size:.9375rem; color:var(--ink); font-variant-numeric:tabular-nums }
 .track { height:10px }
 .look-row { display:flex; justify-content:space-between; align-items:center; gap:12px }
-.look-row .seg { min-width:170px }
+.look-row .seg { flex:1; min-width:0; max-width:280px }
 .me-actions { display:grid; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--line) }
 .me-settings { display:flex; align-items:center; justify-content:center; gap:8px; width:100% }
 .me-settings svg { width:18px; height:18px }
@@ -235,3 +235,5 @@
 :root[data-look="pride"] .sheet-head { background:rgba(255,255,255,.7) }
 :root[data-look="pride"] dialog .seg { background:rgba(255,255,255,.6) }
 :root[data-look="pride"] .hero-line .amt { background:#241C33; padding:2px 6px; border-radius:6px; margin-right:-6px }
+
+:root[data-look="pride"] .form-who { background:rgba(255,255,255,.7) }

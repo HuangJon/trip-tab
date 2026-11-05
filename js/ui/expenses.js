@@ -51,7 +51,7 @@ function listHtml(trip) {
   const list = applyFilters(all, trip, A.search, A.filters);
   if (!list.length) {
     const none = !all.length;
-    return `<section class="panel empty"><h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something, or invite your friends first.' : 'Try another word, or clear the filters.'}</p>${none ? '<button class="btn" data-action="invite-first">Invite friends</button>' : '<button class="btn" data-action="filters-clear">Clear filters</button>'}</section>`;
+    return `<section class="panel empty"><h2>${none ? 'Nothing on the tab yet' : 'No matches'}</h2><p class="muted">${none ? 'Add the first expense when someone pays for something, or invite your friends first.' : 'Try another word, or clear the filters.'}</p>${none ? '<div class="row wrap center"><button class="btn primary" data-action="add-expense">Add expense</button><button class="btn" data-action="invite-first">Invite friends</button></div>' : '<button class="btn" data-action="filters-clear">Clear filters</button>'}</section>`;
   }
   const filtered = A.search.trim() || activeFilterCount(A.filters);
   const summary = filtered ? `<p class="small muted" id="filterSummary">${list.length} of ${all.length} · ${money(filteredTotal(list, trip.currency), trip.currency)} total</p>` : '';

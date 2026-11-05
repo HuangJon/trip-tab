@@ -17,10 +17,14 @@ const friendly = code => ({
   'auth/operation-not-supported-in-this-environment': "Google sign-in doesn't work here. Use email below.",
 }[code] || "That didn't work. Check your connection and try again.");
 
+/** Where someone joining a trip is, so the sign-up doesn't feel endless. */
+export const joinSteps = current => `<ol class="steps" aria-label="Joining the trip">${['Sign in', 'Verify email', 'Pick your name'].map((label, i) => `<li ${i + 1 === current ? 'aria-current="step"' : ''} class="${i + 1 < current ? 'done' : ''}"><span>${i + 1}</span>${label}</li>`).join('')}</ol>`;
+
 export function signInView() {
   const mode = A.authMode || 'in', joining = /#join-/.test(location.hash);
   const title = joining ? 'Sign in to join this trip' : 'Sign in to The Trip Tab';
   return `<header class="brand tall"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${title}</h1><p class="muted">Every person verifies an email or Google account, so names on a trip can be trusted. Your trips follow your account to any phone or browser.</p></div></header>
+  ${joining ? `${joinSteps(1)}<p class="small muted">A friend invited you to split the costs of a trip. It's free, and takes about a minute.</p>` : ''}
   ${A.repo.auth.simulated ? '<div class="notice">Preview: this sign-in is simulated, and nothing is emailed. Use any email and a password of 6 or more characters.</div>' : ''}
   <section class="panel pad stack">
     <button class="btn primary" data-action="auth-google">Continue with Google</button>
@@ -37,8 +41,10 @@ export function signInView() {
 }
 
 export function verifyView(user) {
-  return `<header class="brand tall"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>Check your email</h1><p class="muted">We sent a link to <strong class="wrap-any">${esc(user.email)}</strong>. Tap it to verify your account, then come back here. It may be in your spam folder.</p></div></header>
+  const joining = /#join-/.test(location.hash);
+  return `${joining ? joinSteps(2) : ''}<header class="brand tall"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>Check your email</h1><p class="muted">We sent a link to <strong class="wrap-any">${esc(user.email)}</strong>. Tap it to verify your account, then come back here. It may be in your spam folder.</p></div></header>
   <section class="panel pad stack">
+    <p class="small muted">It can take a minute to arrive. If you don't see it, check your spam or junk folder.</p>
     <button class="btn primary" data-action="auth-check">I tapped the link</button>
     ${A.repo.auth.simulated ? '<button class="btn" data-action="auth-simulate">Preview: pretend I tapped the link</button>' : ''}
     <button class="btn" data-action="auth-resend">Send the email again</button>

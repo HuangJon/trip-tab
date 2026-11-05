@@ -15,7 +15,7 @@ const bars = (rows, fmt) => {
 export function insightsView(trip) {
   const c = trip.currency, f = v => money(v, c), members = activeMembers(trip);
   const s = spendingBreakdown(liveEntries(A.entries[trip.id]), c);
-  if (!s.count) return '<section class="panel empty"><h2>Nothing to chart yet</h2><p class="muted">Spending breakdowns appear after the first expense.</p></section>';
+  if (!s.count) return '<section class="panel empty"><h2>No spending yet</h2><p class="muted">Add an expense to see where the money goes and who has paid what.</p><button class="btn primary" data-action="add-expense">Add expense</button></section>';
   const me = getMe(trip), days = Object.keys(s.byDay).sort();
   const max = Math.max(1, ...members.flatMap(m => [s.paid[m.id] || 0, s.share[m.id] || 0]));
   const unrated = liveEntries(A.entries[trip.id]).filter(e => needsRate(e, c)).length;

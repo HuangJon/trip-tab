@@ -7,7 +7,7 @@ import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { goHome, goTrip } from './routes.js';
-import { currentLook } from './look.js';
+import { lookPicker } from './look.js';
 
 const inviteUrl = id => `${location.origin}${location.pathname}#join-${id}`;
 
@@ -89,8 +89,7 @@ function avatarBody(trip, id) {
   const m = trip.members[id], shown = displayColors(trip, AVATAR_COLORS), color = A.avatarEdit.color ?? shown[id], pic = A.avatarEdit.pic ?? m.pic ?? '';
   const taken = new Set(activeMembers(trip).filter(o => o.id !== id).map(o => shown[o.id]));
   const preview = { ...trip, members: { ...trip.members, [id]: { ...m, color, pic } } };
-  const look = currentLook();
-  const mine = id === getMe(trip) ? `<div class="me-actions"><div class="look-row"><span>Theme</span><div class="seg" role="group" aria-label="Theme"><button type="button" data-action="set-look" data-id="blue" aria-pressed="${look === 'blue'}">Blue</button><button type="button" data-action="set-look" data-id="light" aria-pressed="${look === 'light'}">Light</button><button type="button" data-action="set-look" data-id="dark" aria-pressed="${look === 'dark'}">Dark</button><button type="button" data-action="set-look" data-id="pride" aria-pressed="${look === 'pride'}">Pride</button></div></div><button type="button" class="btn me-settings" data-action="open-settings">${svg(ICON.gear)}Trip settings</button></div>` : '';
+  const mine = id === getMe(trip) ? `<div class="me-actions">${lookPicker()}<button type="button" class="btn me-settings" data-action="open-settings">${svg(ICON.gear)}Trip settings</button></div>` : '';
   return `${mine}<div class="ava-preview">${avatar(preview, id, true)}<strong class="wrap-any">${esc(m.name)}</strong></div>
     <span class="flabel">Color</span><p class="tiny muted">Dimmed colors belong to someone else on this trip.</p><div class="color-grid" role="group" aria-label="Color">${Array.from({ length: AVATAR_COLORS }, (_, i) => `<button type="button" class="color-pick" style="background:var(--m${i + 1})" data-action="pick-color" data-id="${i + 1}" aria-label="Color ${i + 1}${taken.has(i + 1) ? ', taken' : ''}" aria-pressed="${color === i + 1}" ${taken.has(i + 1) ? 'disabled' : ''}></button>`).join('')}</div>
     <span class="flabel">Picture</span><div class="pic-grid" role="group" aria-label="Picture"><button type="button" class="pic-pick initial" data-action="pick-pic" data-id="" aria-pressed="${!pic}">${esc([...m.name][0] || '?').toUpperCase()}</button>${AVATARS.map(e => `<button type="button" class="pic-pick" style="--pick:var(--m${color})" data-action="pick-pic" data-id="${e}" aria-label="${e}" aria-pressed="${pic === e}">${avatarArt(e)}</button>`).join('')}</div>`;
