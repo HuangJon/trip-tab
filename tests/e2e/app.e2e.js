@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { serve } from './serve.js';
-import { addExpense, check, createTrip, launch, openPage, signUp, tab, text } from './helpers.js';
+import { addExpense, check, createTrip, launch, noSideScroll, openPage, signUp, tab, text } from './helpers.js';
 
 const server = await serve('.'), browser = await launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -992,6 +992,44 @@ await page.waitForFunction(() => /link doesn't work/.test(document.getElementByI
 await page.click('[data-action=forget-trip]');
 await page.waitForSelector('.home-head');
 check('a dead link explains itself');
+
+/* The owner page: hidden from everyone else, and shows every trip to the owner */
+assert.equal(await page.locator('[data-action=owner-open]').count(), 0, "other people don't get the link");
+await page.evaluate(() => { location.hash = '#owner'; });
+await page.waitForSelector('.home-head');
+assert.equal(await page.locator('#ownerTrips').count(), 0, 'typing the address shows them nothing');
+await page.evaluate(() => { location.hash = ''; });
+await createTrip(page, 'For the owner', 'Jonathan\nMia');
+await addExpense(page, 'Owner can see this', '50');
+await page.evaluate(async () => {
+  const { A } = await import('./js/ui/state.js');
+  A.logProblem('failed-save', 'Test save: permission-denied for mia@example.com');
+});
+const ownerPhone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const ownerPage = await openPage(ownerPhone, server.url);
+await ownerPage.evaluate(d => localStorage.setItem('triptab:localdb', d), await page.evaluate(() => localStorage.getItem('triptab:localdb')));
+await ownerPage.reload();
+await signUp(ownerPage, 'Owner', 'owner@example.com');
+await ownerPage.click('[data-action=owner-open]');
+await ownerPage.waitForSelector('#ownerTrips');
+assert.match(await ownerPage.textContent('#ownerTrips'), /For the owner/);
+await noSideScroll(ownerPage, 'owner page');
+await ownerPage.click('[data-action=owner-tab][data-id=people]');
+assert.match(await ownerPage.textContent('#ownerPeople'), /@example\.com/);
+await ownerPage.click('[data-action=owner-tab][data-id=errors]');
+const reported = await ownerPage.textContent('#ownerErrors');
+assert.match(reported, /permission-denied/);
+assert.doesNotMatch(reported, /mia@example/, 'emails are taken out of the message');
+await ownerPage.click('[data-action=owner-tab][data-id=trips]');
+await ownerPage.click('.tap:has-text("For the owner")');
+await ownerPage.waitForFunction(() => /Owner can see this/.test(document.getElementById('ownerDetail')?.textContent || ''));
+await ownerPage.click('[data-action=close-sheet]');
+await ownerPage.reload();
+await ownerPage.evaluate(() => { location.hash = '#owner'; });
+await ownerPage.waitForSelector('#ownerTrips');
+assert.deepEqual(ownerPage.errors, []);
+await ownerPhone.close();
+check('the owner page shows every trip, person and problem, only to the owner');
 
 assert.deepEqual(page.errors, [], 'no JavaScript errors');
 await browser.close();

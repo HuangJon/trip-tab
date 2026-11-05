@@ -43,6 +43,7 @@ export function readHash() {
     goTrip(join[1]);
     return;
   }
+  if (h === '#owner') { A.route = { name: 'owner' }; return; }
   const m = /^#t-([a-z0-9]+)-([a-z]+)$/.exec(h);
   if (m && TRIP_ID_PATTERN.test(m[1]) && TABS.includes(m[2])) {
     A.route = { name: 'trip', tripId: m[1], tab: m[2] };

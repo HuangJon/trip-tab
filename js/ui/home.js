@@ -9,6 +9,7 @@ import { environment } from '../config/firebase.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { isIos, shouldSuggestInstall } from '../core/platform.js';
 import { goTrip } from './routes.js';
+import { amOwner } from './owner.js';
 
 export function modeNotice() {
   if (environment === 'staging') return '<div class="notice">Staging site: test data only. Anything here can be deleted at any time.</div>';
@@ -63,6 +64,7 @@ export function homeView() {
   return `<header class="home-head"><div class="brand"><span class="mark" aria-hidden="true"></span><div class="stack tight"><h1>${APP_NAME}</h1><p class="muted">Split the costs now. Settle up once you're home.</p></div></div>
     <button class="btn primary" data-action="new-trip">New trip</button></header>
     <div class="signed-in small muted"><span>Signed in as ${esc(A.user?.email || A.user?.displayName || '')}</span><button class="link small" data-action="auth-signout">Sign out</button></div>
+    ${amOwner() ? '<button class="link small" data-action="owner-open">Owner page</button>' : ''}
     ${modeNotice()}${alerts()}${summary}
     ${trips.length ? `<section class="panel"><div class="list">${rows}</div></section>`
     : shelved.length ? '' : waiting ? '<section class="panel empty"><h2>Opening your trips</h2><p class="muted">One moment.</p></section>'

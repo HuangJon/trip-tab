@@ -171,6 +171,30 @@ try {
   await noFailures(host);
   check('an admin can remove an unused name on the real rules');
 
+  /* The owner page, with the real rules and a test owner made just for this run. */
+  assert.equal(await host.locator('[data-action=owner-open]').count(), 0);
+  const refusedList = await host.evaluate(async () => {
+    const { A } = await import('./js/ui/state.js');
+    try { await A.repo.ownerTrips(); return false; } catch (e) { return e.code; }
+  });
+  assert.equal(refusedList, 'permission-denied', 'a normal account cannot list trips');
+  await auth.getUserByEmail('owner-staging@example.com').then(u => auth.deleteUser(u.uid)).catch(() => {});
+  const ownerUser = await auth.createUser({ email: 'owner-staging@example.com', password, emailVerified: true, displayName: 'Owner' });
+  accounts.push(ownerUser.uid);
+  const ownerPage = await person(ownerUser);
+  await ownerPage.signIn(SITE);
+  await ownerPage.waitForSelector('[data-action=owner-open]', { timeout: 30000 });
+  await ownerPage.click('[data-action=owner-open]');
+  await ownerPage.waitForSelector('#ownerTrips', { timeout: 30000 });
+  assert.match(await ownerPage.textContent('#ownerTrips'), new RegExp(`Staging ${run}`));
+  await ownerPage.click(`.tap:has-text("Staging ${run}") >> nth=0`);
+  await ownerPage.waitForFunction(() => /From friend/.test(document.getElementById('ownerDetail')?.textContent || ''), null, { timeout: 20000 });
+  await ownerPage.click('[data-action=close-sheet]');
+  await ownerPage.click('[data-action=owner-tab][data-id=errors]');
+  await ownerPage.waitForSelector('#ownerErrors');
+  assert.deepEqual(ownerPage.errors, []);
+  check('the owner sees every trip on the real rules, and a normal account is refused');
+
   await host.reload();
   await tab(host, 'expenses');
   await host.waitForSelector('.tap:has-text("From friend")', { timeout: 20000 });
