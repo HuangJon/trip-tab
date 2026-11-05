@@ -23,6 +23,8 @@ import { attachReceipt } from './ui/expense-form.js';
 import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
+import { amOwner, ownerView } from './ui/owner.js';
+import { setUpErrorLog } from './ui/error-log.js';
 import { watchForUpdates } from './ui/updates.js';
 
 const PREVIEW = Boolean(globalThis.__TRIP_TAB_PREVIEW__);
@@ -51,7 +53,7 @@ function draw() {
   if (A.route.name !== 'trip') {
     tabs.hidden = true;
     fab.innerHTML = '';
-    app.innerHTML = homeView();
+    app.innerHTML = A.route.name === 'owner' && amOwner() ? ownerView() : homeView();
   } else if (!trip || trip.deletedAt || trip.retiredAt || A.denied[A.route.tripId]) {
     tabs.hidden = true;
     fab.innerHTML = '';
@@ -181,6 +183,7 @@ addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
 
 setUpRowMenu();
+setUpErrorLog();
 
 /* ---------- Start ---------- */
 /** The real Firebase code against the local emulators. Only the browser tests reach this. */

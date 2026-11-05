@@ -184,6 +184,29 @@ export function createRepository(backend, now = () => Date.now()) {
       const id = randomId();
       return { id, written: backend.set(`${col(tripId, 'receipts')}/${id}`, { id, dataUrl, at: now(), ...stamp(actorId, 'byId') }) };
     },
+    /* The owner page. Each only runs when the page is opened or refreshed, and the rules limit them to the owner. */
+    async ownerTrips() {
+      const trips = await backend.list('trips', { limit: 500 });
+      const full = await Promise.all(trips.map(async t => {
+        const [entryCount, joined, latest] = await Promise.all([
+          backend.count(col(t.id, 'entries')),
+          backend.list(col(t.id, 'joined')),
+          backend.list(col(t.id, 'activity'), { orderBy: 'at', limit: 1 }),
+        ]);
+        return { ...t, entryCount, joined, lastActivity: latest[0] || null };
+      }));
+      return full.sort((a, b) => (b.lastActivity?.at || b.createdAt || 0) - (a.lastActivity?.at || a.createdAt || 0));
+    },
+    async ownerTrip(tripId) {
+      const [entries, activity] = await Promise.all([
+        backend.list(col(tripId, 'entries')),
+        backend.list(col(tripId, 'activity'), { orderBy: 'at', limit: 100 }),
+      ]);
+      return { entries, activity };
+    },
+    ownerErrors: () => backend.list('errorLog', { orderBy: 'at', limit: 100 }),
+    logError: record => backend.set(`errorLog/${record.id}`, record),
+
     getReceipt: (tripId, id) => backend.get(`${col(tripId, 'receipts')}/${id}`),
 
     logActivity,

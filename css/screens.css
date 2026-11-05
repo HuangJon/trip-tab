@@ -180,3 +180,5 @@ dialog.menu { width:min(420px,100%); height:auto; margin:auto auto 0; border-rad
 /* A strip in the payer's color down each expense. */
 .payer-strip { box-shadow:inset 5px 0 0 var(--payer) }
 .ava.pic svg { width:68%; height:68%; display:block }
+/* Owner page rows. */
+.owner-row { padding-bottom:10px; border-bottom:1px solid var(--line) }

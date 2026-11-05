@@ -144,7 +144,14 @@ export function createLocalBackend({ area = globalThis.localStorage, hangWrites 
       return Promise.resolve();
     },
     get(path) { refresh(); return Promise.resolve(clone(docs[path]) ?? null); },
-    list(col) { refresh(); return Promise.resolve(clone(docsIn(col))); },
+    list(col, { orderBy, limit } = {}) {
+      refresh();
+      let list = docsIn(col);
+      if (orderBy) list = list.sort((a, b) => (b[orderBy] || 0) - (a[orderBy] || 0));
+      if (limit) list = list.slice(0, limit);
+      return Promise.resolve(clone(list));
+    },
+    count(col) { refresh(); return Promise.resolve(docsIn(col).length); },
     watchDoc(path, cb) {
       const off = add(docWatchers, path, cb);
       queueMicrotask(() => { refresh(); cb(clone(docs[path]) ?? null); });
