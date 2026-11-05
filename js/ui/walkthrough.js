@@ -82,6 +82,9 @@ const HOLD_MS = 500;
 /** The small question mark in the top bar. Hovering or holding it says Tutorial, and tapping it starts the tour. */
 export const helpButton = () => `<button class="icon-btn help-btn" data-action="tour-start" aria-label="Tutorial" data-tip="Tutorial">?</button>`;
 
+const DAY_MS = 86400000;
+let markedAt = 0;
+
 /**
  * Shows the tour the first time someone signs in on this device, and asks whether they'd
  * like it again if they've been away over 90 days. Waits until they've picked their name on a trip.
@@ -91,7 +94,7 @@ export function maybeStartTour() {
   if (!A.user?.verified || A.route.name === 'owner' || (A.route.name === 'trip' && !(trip && getMe(trip)))) return;
   const now = Date.now();
   if (A.returning === undefined) A.returning = backAfterAWhile(A.device.lastSeen(), now); // before this visit counts
-  A.device.markSeen(now);
+  if (now - markedAt > DAY_MS) { markedAt = now; A.device.markSeen(now); } // a day's accuracy is plenty
   if (A.tour || document.getElementById('dlg').open) return;
   if (!A.device.tourDone()) { A.returning = false; A.device.setTourDone(); setTimeout(startTour); return; }
   if (!A.returning) return;
