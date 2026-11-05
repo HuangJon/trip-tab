@@ -57,6 +57,11 @@ function showStep(i) {
   placeTour();
   setTimeout(placeTour, 80); // once the new screen has drawn
 }
+// Changing the theme or turning the phone moves things, so the highlight follows.
+const replace = () => { if (A.tour) setTimeout(placeTour, 60); };
+addEventListener('resize', replace);
+addEventListener('click', replace);
+
 export function startTour() {
   closeSheet();
   A.tour = { steps: buildSteps(), i: 0, from: A.route.name === 'trip' ? A.route.tab : null };
