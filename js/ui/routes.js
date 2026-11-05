@@ -5,7 +5,7 @@ import { EMPTY_FILTERS } from '../core/filters.js';
 
 export const TABS = ['expenses', 'balances', 'insights', 'activity', 'people', 'settings'];
 /** These three share the More tab. */
-export const MORE_TABS = ['people', 'activity', 'settings'];
+export const MORE_TABS = ['insights', 'activity', 'settings'];
 
 function setHash(h, addToHistory) {
   try {

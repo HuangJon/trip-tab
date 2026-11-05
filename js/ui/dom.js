@@ -9,7 +9,7 @@ export const svg = paths => `<svg viewBox="0 0 24 24" fill="none" stroke="curren
 export const val = id => document.getElementById(id)?.value ?? '';
 
 export const ICON = {
-  plus: '<path d="M12 5v14M5 12h14"/>', back: '<path d="M15 5l-7 7 7 7"/>',
+  check: '<path d="M5 12.500l4.500 4.500L19 7.500"/>', plus: '<path d="M12 5v14M5 12h14"/>', back: '<path d="M15 5l-7 7 7 7"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
   scale: '<path d="M12 3v18M7 21h10M4 7h16M6.5 7L3 14a3.5 3.5 0 0 0 7 0zM17.500 7L14 14a3.500 3.500 0 0 0 7 0z"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

@@ -53,7 +53,7 @@ await addExpense(page, 'Aquarium', '7500', async () => {
 });
 await tab(page, 'balances');
 let t = await text(page);
-assert.match(t, /You receive\s*NT\$1,150/);
+assert.match(t, /You get\s*NT\$1,150/);
 assert.match(t, /小偉\s*→[^N]*You\s*NT\$1,150/);
 assert.match(t, /小偉\s*→[^N]*Mia\s*NT\$225/);
 check('splits, currency and simplified debts add up');
@@ -571,9 +571,6 @@ await addExpense(page, 'Credit test', '90', async () => {
   await page.uncheck('[id^=sel-] >> nth=2');
 });
 {
-  const row = await page.textContent('.tap:has-text("Credit test")');
-  assert.match(row, /Added by You/);
-  assert.match(row, /Split among you, Mia Chen/);
   await page.click('.tap:has-text("Credit test")');
   assert.match(await page.textContent('#dlg'), /Added by Jonathan on/);
   await page.click('[data-action=close-sheet]');
@@ -735,6 +732,29 @@ assert.ok(await page.locator('.color-pick[disabled]').count() >= 1, "other peopl
 await page.click('[data-action=close-sheet]');
 check('you can pick your own color and picture');
 
+/* Clicking outside closes what's open */
+await tab(page, 'expenses');
+await page.setViewportSize({ width: 1000, height: 800 });
+await page.click('.tap:has-text("Credit test")', { button: 'right' });
+await page.waitForSelector('#rowMenu');
+await page.mouse.click(5, 5);
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.click('[data-action=add-expense]');
+await page.fill('#fDesc', 'Kept by clicking away');
+await page.mouse.click(5, 400);
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.click('[data-action=add-expense]');
+assert.equal(await page.inputValue('#fDesc'), 'Kept by clicking away');
+await page.fill('#fDesc', '');
+await page.click('[data-action=form-cancel]');
+await page.waitForFunction(() => !document.getElementById('dlg').open);
+await page.click('[data-action=filters-toggle]');
+await page.waitForSelector('.filters');
+await page.click('.date-head >> nth=0');
+await page.waitForFunction(() => !document.querySelector('.filters'));
+await page.setViewportSize({ width: 390, height: 844 });
+check('clicking outside closes menus, forms and filters, keeping what was typed');
+
 /* Quick actions: right-click and long press */
 await tab(page, 'expenses');
 await page.click('.tap:has-text("Credit test")', { button: 'right' });
@@ -778,7 +798,6 @@ assert.equal(await page.inputValue('#fDesc'), 'Credit test');
 await page.fill('#fDesc', 'Credit copy');
 await page.click('#fSave');
 await page.waitForSelector('.tap:has-text("Credit copy")');
-assert.match(await page.textContent('.tap:has-text("Credit copy")'), /Split among you, Mia Chen/);
 assert.ok(await page.locator('.tap:has-text("Credit test")').count());
 check('duplicate makes a new expense and leaves the original');
 

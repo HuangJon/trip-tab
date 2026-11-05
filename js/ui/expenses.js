@@ -27,25 +27,16 @@ function line(trip, e) {
   if (missing) side = '<span class="tag warn">Needs rate</span>';
   else if (me) {
     const lent = (b.paid[me] || 0) - (b.owed[me] || 0);
-    if (lent > 0) side = `<div class="tiny muted">you get back</div><div class="amt owed">${money(lent, trip.currency)}</div>`;
-    else if (lent < 0) side = `<div class="tiny muted">your share</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
+    if (lent > 0) side = `<div class="tiny muted">You get</div><div class="amt owed">${money(lent, trip.currency)}</div>`;
+    else if (lent < 0) side = `<div class="tiny muted">You owe</div><div class="amt owe">${money(-lent, trip.currency)}</div>`;
     else side = `<div class="tiny muted">${b.owed[me] ? 'you covered yours' : 'not involved'}</div>`;
   }
   return `<button class="tap payer-strip" style="--payer:${handlers.length === 1 && trip.members[handlers[0]] ? `var(--m${displayColors(trip, AVATAR_COLORS)[handlers[0]]})` : 'var(--line)'}" data-action="open-entry" data-id="${e.id}"><span class="payer-mark ${handlers.length > 1 ? 'many' : ''}">${handlers.slice(0, 2).map(h => avatar(trip, h)).join('')}<span class="tile ${refund ? 'pay' : `cat-${esc(e.category)}`}">${refund ? svg(ICON.swap) : catIcon(e.category)}</span></span>
     <span class="grow"><strong class="block wrap-any">${esc(e.desc)}${refund ? ' <span class="tag good">Refund</span>' : ''}${waiting(trip, e)}</strong><span class="payer-line"><span class="small"><b>${esc(payer)}</b> ${refund ? 'received' : 'paid'} <b>${money(e.total, e.currency)}</b></span></span>
-    ${e.receipt || commentCount ? `<span class="tiny muted block">${[e.receipt ? 'Receipt' : '', commentCount ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ')}</span>` : ''}
-    <span class="tiny muted credit">${creditLine(trip, e)}</span></span>
+    ${e.receipt || commentCount ? `<span class="tiny muted block">${[e.receipt ? 'Receipt' : '', commentCount ? `${commentCount} comment${commentCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ')}</span>` : ''}</span>
     <span class="right">${side}</span></button>`;
 }
 
-/** Everyone sees who added an expense and who shares it, right in the list. */
-function creditLine(trip, e) {
-  // The database returns names in its own order, so put them back in trip order.
-  const order = i => trip.members[i]?.order ?? 999;
-  const names = Object.keys(sharesOf(e)).sort((x, y) => order(x) - order(y)).map(i => (i === getMe(trip) ? 'you' : memberName(trip, i)));
-  const adder = e.createdById ? who(trip, e.createdById) : e.updatedBy;
-  return `${adder ? `Added by ${esc(adder)} · ` : ''}Split among ${esc(names.join(', '))}`;
-}
 const waiting = (trip, e) => (A.pending[trip.id]?.includes(e.id) ? ' <span class="tag">Waiting to sync</span>' : '');
 
 function listHtml(trip) {

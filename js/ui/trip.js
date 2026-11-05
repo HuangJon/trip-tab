@@ -26,18 +26,18 @@ export function summaryCard(trip) {
   const unrated = list.filter(e => needsRate(e, c)).length, waiting = A.pending[trip.id]?.length;
   const sum = rows => rows.reduce((s, d) => s + d.amount, 0);
   const write = canWrite(trip);
-  const payButton = d => (write ? `<button class="hero-btn" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">Pay</button>` : '');
+  const payButton = d => (write ? `<button class="hero-btn" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">Pay ${esc(memberName(trip, d.to))}</button>` : '');
   const name = id => esc(memberName(trip, id));
   let main;
   if (pays.length === 1 && !gets.length) {
-    main = `<span class="label">You pay ${name(pays[0].to)}</span><div class="hero-row"><div class="big">${money(pays[0].amount, c)}</div>${payButton(pays[0])}</div>`;
+    main = `<div class="hero-say">You owe ${name(pays[0].to)}</div><div class="hero-row"><div class="big">${money(pays[0].amount, c)}</div>${payButton(pays[0])}</div>`;
   } else if (pays.length) {
-    main = `<span class="label">You pay</span><div class="big">${money(sum(pays), c)}</div>
+    main = `<div class="hero-say">You owe</div><div class="big">${money(sum(pays), c)}</div>
       ${pays.map(d => `<div class="hero-line"><span class="wrap-any">${name(d.to)}</span><span class="amt">${money(d.amount, c)}</span>${payButton(d)}</div>`).join('')}`;
   }
-  const receive = gets.length ? `<span class="label">You receive</span><div class="big">${money(sum(gets), c)}</div>
+  const receive = gets.length ? `<div class="hero-say">You get</div><div class="big">${money(sum(gets), c)}</div>
     ${gets.map(d => `<div class="hero-line"><span class="wrap-any">${name(d.from)} pays you</span><span class="amt">${money(d.amount, c)}</span></div>`).join('')}` : '';
-  const settled = !pays.length && !gets.length ? `<span class="label">Your balance</span><div class="big">${list.length ? "You're all settled" : 'Nothing yet'}</div>` : '';
+  const settled = !pays.length && !gets.length ? (list.length ? `<div class="hero-settled">${svg(ICON.check)}You're all settled</div>` : `<div class="hero-settled">Nothing yet</div>`) : '';
   const tone = pays.length ? 'is-owing' : gets.length ? 'is-owed' : '';
   return `<section class="hero ${tone}">${main || ''}${receive}${settled}
     ${unrated ? `<p class="small">Leaves out ${unrated} expense${unrated > 1 ? 's' : ''} waiting for an exchange rate.</p>` : ''}

@@ -59,7 +59,7 @@ function draw() {
   } else {
     const tab = A.route.tab;
     const inMore = MORE_TABS.includes(tab);
-    const moreNav = inMore ? `<div class="seg" role="group" aria-label="More">${[['people', 'People'], ['activity', 'Activity'], ['settings', 'Settings']].map(([k, l]) => `<button data-action="tab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>` : '';
+    const moreNav = inMore ? `<div class="seg" role="group" aria-label="More">${[['insights', 'Insights'], ['activity', 'Activity'], ['settings', 'Settings']].map(([k, l]) => `<button data-action="tab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>` : '';
     app.innerHTML = tripHeader(trip) + moreNav + VIEWS[tab](trip);
     tabs.hidden = false;
     const item = (k, label, icon, current) => `<button data-action="tab" data-tab="${k}" ${current ? 'aria-current="page"' : ''}>${svg(icon)}${label}</button>`;
@@ -67,8 +67,8 @@ function draw() {
       ${item('expenses', 'Expenses', ICON.list, tab === 'expenses')}
       ${item('balances', 'Balances', ICON.scale, tab === 'balances')}
       ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" >${svg(ICON.plus)}<span>Add expense</span></button>` : '<span></span>'}
-      ${item('insights', 'Insights', ICON.chart, tab === 'insights')}
-      <button id="moreTab" data-action="tab" data-tab="people" ${inMore ? 'aria-current="page"' : ''}>${svg(ICON.more)}More</button>
+      ${item('people', 'People', ICON.people, tab === 'people')}
+      <button id="moreTab" data-action="tab" data-tab="insights" ${inMore ? 'aria-current="page"' : ''}>${svg(ICON.more)}More</button>
     </div>`;
     fab.innerHTML = '';
   }
@@ -181,6 +181,7 @@ addEventListener('offline', () => render());
 addEventListener('hashchange', () => { readHash(); render(); });
 
 setUpRowMenu();
+setUpClickOutside();
 
 /* ---------- Start ---------- */
 /** The real Firebase code against the local emulators. Only the browser tests reach this. */
@@ -261,6 +262,25 @@ async function boot() {
     try { A.onUser(await backend.auth.refresh()); } catch { /* they can still tap the button */ }
   });
   registerUpdates();
+}
+
+/** Clicking outside whatever is open closes it, unless that would lose something typed. */
+function setUpClickOutside() {
+  const d = document.getElementById('dlg');
+  d.addEventListener('click', ev => {
+    if (ev.target !== d) return;
+    const r = d.getBoundingClientRect();
+    if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return;
+    if (A.form) { actions['form-cancel'](); return; } // keeps a draft
+    const typed = [...d.querySelectorAll('input,textarea')].some(el => el.value !== el.defaultValue);
+    if (!typed) closeSheet();
+  });
+  document.addEventListener('click', ev => {
+    if (!A.showFilters || d.open || !ev.target.isConnected) return; // a click that re-rendered its own button stays open
+    if (ev.target.closest('.filters,#search,[data-action="filters-toggle"],#toast,nav.tabs,.tap')) return;
+    A.showFilters = false;
+    render();
+  });
 }
 
 function registerUpdates() {
