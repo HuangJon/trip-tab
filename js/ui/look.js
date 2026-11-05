@@ -1,6 +1,6 @@
-/** Blue, light or dark, chosen behind your icon. Blue unless someone picks another, and remembered on this device. */
+/** Blue, light, dark or pride, chosen behind your icon. Blue unless someone picks another, and remembered on this device. */
 const KEY = 'triptab:look';
-const COLORS = { blue: '#edf3f8', light: '#E3DED3', dark: '#1C1B19' };
+const COLORS = { blue: '#edf3f8', light: '#E3DED3', dark: '#1C1B19', pride: '#F8F5FB' };
 
 export function currentLook() {
   try { const v = localStorage.getItem(KEY); return COLORS[v] ? v : 'blue'; } catch { return 'blue'; }

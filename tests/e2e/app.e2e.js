@@ -760,6 +760,8 @@ assert.equal(await page.evaluate(() => document.documentElement.dataset.look), '
 await page.click('.topbar [data-action=edit-avatar]');
 await page.click('[data-action=set-look][data-id=light]');
 assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'light');
+await page.click('[data-action=set-look][data-id=pride]');
+assert.equal(await page.evaluate(() => document.documentElement.dataset.look), 'pride');
 await page.click('[data-action=set-look][data-id=blue]');
 await page.click('[data-action=open-settings]');
 await page.waitForSelector('#tripName');
