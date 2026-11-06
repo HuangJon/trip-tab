@@ -36,8 +36,6 @@ export function createDevice(storage, now = () => Date.now()) {
     },
     paymentNudgeDismissed: tripId => storage.get(`payment-nudge:${tripId}`, false),
     dismissPaymentNudge: tripId => storage.trySet(`payment-nudge:${tripId}`, true),
-    formOpen: () => storage.get('form-open', false),
-    setFormOpen: on => storage.trySet('form-open', on),
     tourDone: () => storage.get('tour-done', false),
     setTourDone: (done = true) => storage.trySet('tour-done', done),
     installTipDismissed: () => storage.get('install-tip-dismissed', false),

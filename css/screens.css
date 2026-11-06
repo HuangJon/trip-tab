@@ -199,8 +199,19 @@ dialog.menu { width:min(420px,100%); height:fit-content; max-height:88%; overflo
 .spent-head { border-top:0; padding:0; font-size:.8125rem; color:var(--muted) } .spent-head>span:not(:first-child) { text-align:right; min-width:72px }
 .row-btn .amt { font-family:var(--body); font-weight:700; font-size:1rem; font-variant-numeric:tabular-nums }
 /* Quick expense form */
-.form-who { display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:var(--sunken); border:0; border-radius:10px; padding:12px 14px; color:var(--ink); min-height:48px }
-.form-who .link { flex:none }
+/* Add expense: one row of choices, each opening just itself */
+.form-picks { display:flex; flex-wrap:wrap; gap:6px }
+.form-pick { display:inline-flex; align-items:center; gap:4px; min-height:44px; max-width:100%; padding:6px 10px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); font-size:.875rem; font-weight:500; cursor:pointer }
+.form-pick::after { content:'\25BE'; color:var(--muted); flex:none }
+.form-pick[aria-expanded="true"] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) }
+.form-pick[aria-expanded="true"]::after { content:'\25B4' }
+.form-pick-text { display:inline-flex; align-items:center; gap:6px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis }
+.form-pick .tile { width:20px; height:20px; flex:none }
+.form-pick .tile svg { width:13px; height:13px }
+.form-panel { padding:12px; border-radius:12px; background:var(--sunken) }
+.form-details { justify-self:start; align-self:flex-start; min-height:32px; text-align:left }
+.sheet-foot { flex:none; padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line) }
+.sheet-foot .btn { width:100% }
 .form-save { width:100% }
 /* Joining steps */
 .steps { list-style:none; display:flex; gap:6px; margin:0; padding:0; font-size:.8125rem; color:var(--muted) }

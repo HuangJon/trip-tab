@@ -237,7 +237,7 @@
 :root[data-look="pride"] dialog .seg { background:rgba(255,255,255,.6) }
 :root[data-look="pride"] .hero-line .amt { background:#241C33; padding:2px 6px; border-radius:6px; margin-right:-6px }
 
-:root[data-look="pride"] .form-who { background:rgba(255,255,255,.7) }
+:root[data-look="pride"] .form-panel { background:rgba(255,255,255,.7) }
 
 .topbar .icon-btn { flex:none }
 :root[data-look="pride"] .topbar .ava-btn { background:#FFFFFF }
