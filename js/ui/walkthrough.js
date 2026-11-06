@@ -1,9 +1,8 @@
 /** A short, skippable tour: once at first sign-in, offered after 90 days away, and always behind the question mark. */
 import { A, actions, render } from './state.js';
-import { closeSheet, getMe, openSheet } from './dom.js';
+import { closeSheet, getMe } from './dom.js';
 import { goHome, goTrip } from './routes.js';
 import { lookPicker } from './look.js';
-import { backAfterAWhile } from '../core/platform.js';
 
 const HOME_STEPS = [
   { home: true, at: '.home-actions .btn.primary', title: 'Start a trip', text: 'Create a trip here, or paste an invite link below to join one. Your trips stay in this list.' },
@@ -88,27 +87,17 @@ const HOLD_MS = 500;
 /** The small question mark in the top bar. Hovering or holding it says Tutorial, and tapping it starts the tour. */
 export const helpButton = () => `<button class="icon-btn help-btn" data-action="tour-start" aria-label="Tutorial" data-tip="Tutorial">?</button>`;
 
-const DAY_MS = 86400000;
-let markedAt = 0;
-
 /**
  * Shows the tour the first time someone signs in on this device, and asks whether they'd
- * like it again if they've been away over 90 days. Waits until they've picked their name on a trip.
+ * Runs once after signing in, and again after signing out and back in. Waits until they've picked their name on a trip.
  */
 export function maybeStartTour() {
   const trip = A.route.name === 'trip' ? A.trips[A.route.tripId] : null;
   // A link can open a trip you haven't joined mid-tour. The join screen comes first, so nothing may cover it.
   if (A.tour && A.route.name === 'trip' && !(trip && getMe(trip))) { clearTour(); return; }
   if (!A.user?.verified || A.route.name === 'owner' || (A.route.name === 'trip' && !(trip && getMe(trip)))) return;
-  const now = Date.now();
-  if (A.returning === undefined) A.returning = backAfterAWhile(A.device.lastSeen(), now); // before this visit counts
-  if (now - markedAt > DAY_MS) { markedAt = now; A.device.markSeen(now); } // a day's accuracy is plenty
   if (A.tour || document.getElementById('dlg').open) return;
-  if (!A.device.tourDone()) { A.returning = false; A.device.setTourDone(); setTimeout(() => { if (!document.getElementById('dlg').open) startTour(); }); return; }
-  if (!A.returning) return;
-  A.returning = false;
-  openSheet(`<div class="tour" id="tourAsk"><h2>Welcome back!</h2><p>It's been a while. Would you like a quick walkthrough?</p><div class="tour-nav"><button type="button" class="btn" data-action="close-sheet">No thanks</button><button type="button" class="btn primary" data-action="tour-start">Show me</button></div></div>`);
-  document.getElementById('dlg').classList.add('menu');
+  if (!A.device.tourDone()) { A.device.setTourDone(); setTimeout(() => { if (!document.getElementById('dlg').open) startTour(); }); return; }
 }
 
 /** Long press shows the label on a phone, and doesn't also start the tour. */

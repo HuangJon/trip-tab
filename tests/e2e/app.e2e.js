@@ -853,7 +853,7 @@ await page.waitForFunction(() => /wrap-up/.test(document.getElementById('dlg').t
 await page.click('[data-action=close-sheet]');
 check('a quick expense takes only an amount and a description; reminders and wrap-ups can be shared');
 
-/* The walkthrough: once at first sign-in, offered after 90 days, and behind the question mark */
+/* The walkthrough: once after signing in, and behind the question mark */
 await page.evaluate(() => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); });
 await page.reload();
 await page.waitForSelector('#tour');
@@ -898,17 +898,6 @@ await page.waitForFunction(() => !document.getElementById('tour'));
 await page.reload();
 await page.waitForSelector('[data-tab=expenses]');
 assert.equal(await page.locator('#tour').count(), 0, 'it shows only once');
-await page.evaluate(() => localStorage.setItem('triptab:last-seen', String(Date.now() - 100 * 86400000)));
-await page.reload();
-await page.waitForSelector('#tourAsk');
-assert.equal(await page.locator('#tour').count(), 0, 'after 90 days it asks first');
-await page.click('#tourAsk [data-action=tour-start]');
-await page.waitForSelector('#tour');
-await page.click('#tourSkip');
-await page.waitForFunction(() => !document.getElementById('tour'));
-await page.reload();
-await page.waitForSelector('[data-tab=expenses]');
-assert.equal(await page.locator('#tourAsk').count(), 0, 'and asks just once');
 
 /* A long trip name stops at two lines, and doesn't push anything off the screen */
 const topbar = await page.evaluate(() => {
@@ -951,9 +940,15 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   await pal.waitForSelector('#tour');
   await pal.evaluate(l => { location.href = l; }, `${new URL(link).pathname}#join-${'x'.repeat(24)}`);
   await pal.waitForFunction(() => !document.getElementById('tourLayer'));
+  await pal.goto(link);
+  assert.equal(await pal.evaluate(() => JSON.parse(localStorage.getItem('triptab:tour-done'))), true);
+  await pal.click('[data-action=home]');
+  await pal.click('footer.signed-in [data-action*=sign]');
+  await pal.waitForFunction(() => document.querySelector('#authEmail'));
+  assert.equal(await pal.evaluate(() => JSON.parse(localStorage.getItem('triptab:tour-done'))), false, 'signing out means the tutorial runs at the next sign-in');
   await phone.close();
 }
-check('the walkthrough shows at first sign-in, asks after 90 days, and is behind the question mark');
+check('the walkthrough shows after signing in and is behind the question mark');
 
 /* Press and hold a trip on the home page */
 await page.click('[data-action=home]');
