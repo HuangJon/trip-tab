@@ -45,6 +45,10 @@ export async function tab(page, name) {
 }
 /** Opens one choice on the expense form, unless it's open already. */
 export async function openPanel(page, name) {
+  if (name === 'split') {
+    if (await page.locator('[data-action=split-modes]').count()) await page.click('[data-action=split-modes]');
+    return;
+  }
   if (!await page.locator(`#dlg [data-panel=${name}]:not([hidden])`).count()) await page.click(`[data-action=form-panel][data-id=${name}]`);
 }
 export async function addExpense(page, desc, amount, during) {
