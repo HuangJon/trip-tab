@@ -47,9 +47,9 @@ export async function tab(page, name) {
 export async function openDetails(page) {
   if (await page.locator('#formMore[hidden]').count()) await page.click('[data-action=form-details]');
 }
-/** Opens the category grid, which starts folded down to the chosen one. */
+/** Opens the category grid, which starts closed with the chosen one showing in its row. */
 export async function openCategories(page) {
-  if (await page.locator('#catPicker[data-closed=true]').count()) await page.click('.cat-pick[aria-pressed=true]');
+  if (await page.locator('#catPicker[hidden]').count()) await page.click('#catRow');
 }
 export async function addExpense(page, desc, amount, during) {
   await tab(page, 'expenses');
