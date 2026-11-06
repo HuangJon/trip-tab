@@ -24,7 +24,6 @@ import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
 import { applyLook, setLook } from './ui/look.js';
-import { keyboardFit } from './core/platform.js';
 import { maybeStartTour, placeTour, setUpHelpButton } from './ui/walkthrough.js';
 import { amOwner, ownerView } from './ui/owner.js';
 import { setUpErrorLog } from './ui/error-log.js';
@@ -194,7 +193,7 @@ addEventListener('hashchange', () => { readHash(); render(); });
 applyLook();
 setUpRowMenu();
 setUpHelpButton();
-setUpKeyboardFit();
+setUpTypingBlur();
 setUpClickOutside();
 setUpErrorLog();
 
@@ -306,17 +305,11 @@ actions['apply-update'] = () => location.reload();
 
 boot();
 
-/** Keeps a sheet's save button above the on-screen keyboard, and what's being typed in view. */
-function setUpKeyboardFit() {
-  const view = window.visualViewport;
-  if (!view) return;
-  const fit = () => {
-    const size = keyboardFit(view.height, view.offsetTop, innerHeight), root = document.documentElement.style;
-    if (!size) { root.removeProperty('--kb-height'); root.removeProperty('--kb-top'); return; }
-    root.setProperty('--kb-height', `${size.height}px`);
-    root.setProperty('--kb-top', `${size.top}px`);
-    document.activeElement?.closest?.('dialog') && document.activeElement.scrollIntoView({ block: 'nearest' });
-  };
-  view.addEventListener('resize', fit);
-  view.addEventListener('scroll', fit);
+/** On a phone, tapping away from a box closes the keyboard, which brings the save button back. */
+function setUpTypingBlur() {
+  document.addEventListener('pointerdown', ev => {
+    const typing = document.activeElement;
+    if (!matchMedia('(pointer:coarse)').matches || !typing?.closest?.('dialog') || !typing.matches('input,textarea')) return;
+    if (!ev.target.closest?.('input,textarea,select,label')) typing.blur();
+  });
 }
