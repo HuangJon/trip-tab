@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { serve } from './serve.js';
-import { addExpense, createTrip, launch, noSideScroll, openPage, signUp, tab, text, check } from './helpers.js';
+import { addExpense, createTrip, launch, noSideScroll, openPage, signUp, tab, text, check, openPanel } from './helpers.js';
 
 const VIEWPORTS = [{ width: 320, height: 640, colorScheme: 'light' }, { width: 390, height: 844, colorScheme: 'dark' }, { width: 768, height: 1024, colorScheme: 'light' }];
 let root = '.', file = '';
@@ -54,6 +54,7 @@ for (const v of VIEWPORTS) {
   await page.click('[data-action=add-expense]');
   await noSideScroll(page, `${label} form`);
   for (const mode of ['exact', 'percent', 'shares', 'adjust', 'items']) {
+    await openPanel(page, 'split');
     await page.click(`[data-action=split-mode][data-id=${mode}]`);
     const over = await page.evaluate(() => { const b = document.querySelector('#dlg .sheet-body'); return b.scrollWidth - b.clientWidth; });
     assert.ok(over <= 0, `${label} form ${mode} overflows by ${over}`);

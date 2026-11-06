@@ -42,11 +42,10 @@ export function openExpenseForm(trip, entry) {
   } else if (draft) {
     A.form = { ...draft, tripId: trip.id, isDraft: true };
   } else {
-    const showWho = A.device.formOpen();
     const currency = trip.defaultCurrency || A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
     const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
-    A.form = { showWho, startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
   if (!entry) document.getElementById('fAmt')?.focus();
@@ -113,34 +112,52 @@ function rateWarning(t) {
 const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button type="button" class="cat-pick" data-action="cat-pick" data-id="${k}" aria-pressed="${F.category === k}"><span class="tile cat-${k}">${catIcon(k)}</span><span>${esc(label)}</span></button>`).join('');
 function drawCats() {
   const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
-  const summary = document.getElementById('fWhoSummary');
-  if (summary) summary.textContent = whoSummary(tripOf());
+  drawPicks();
   if (picker) picker.innerHTML = catButtons(F);
   if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
 }
 
-/** What's tucked under More details, so a glance shows whether the defaults are right. */
-function detailSummary(F) {
-  return [F.date === today() ? 'Today' : F.date, F.receipt ? 'Receipt' : '', F.note ? 'Note' : ''].filter(Boolean).join(' · ');
+/** The row of choices under the description. Each shows what's set now, and tapping one opens just that choice. */
+function payerLabel(t) {
+  const F = A.form, picked = document.getElementById('fPayer')?.value || F.payer;
+  const who = F.multi ? 'several' : picked === getMe(t) ? 'You' : memberName(t, picked);
+  return `${F.kind === 'refund' ? 'Received by' : 'Paid by'} ${who}`;
 }
-
-/** The whole form shows when editing, or for anyone who keeps it open. A quick "I paid, split equally" needs none of it. */
-const whoOpen = F => Boolean(F.id || F.isCopy || F.kind === 'refund' || F.showWho);
-function whoSummary(t) {
-  const F = A.form, S = F.split, me = getMe(t), all = ids(t);
-  const picked = document.getElementById('fPayer')?.value || F.payer;
-  const payer = F.multi ? 'Several people' : picked === me ? 'You' : memberName(t, picked);
-  const people = (S.selected || all).length;
-  const how = S.mode !== 'equal' ? 'split your way' : people === all.length ? 'split equally with everyone' : `split equally among ${people}`;
-  return `${payer} paid, ${how} · ${CATEGORIES[F.category] || 'Other'}`;
+function splitLabel(t) {
+  const F = A.form, S = F.split, all = ids(t), n = (S.selected || all).length;
+  const how = S.mode !== 'equal' ? SPLIT_MODES.find(([k]) => k === S.mode)?.[1] : n === all.length ? 'Everyone' : n === 1 ? '1 person' : `${n} people`;
+  return `${F.kind === 'refund' ? 'Shared' : 'Split'}: ${how}`;
+}
+const pick = (F, id, inner) => `<button type="button" class="form-pick" data-action="form-panel" data-id="${id}" aria-expanded="${F.panel === id}"><span class="form-pick-text">${inner}</span></button>`;
+function picksHtml(t) {
+  const F = A.form;
+  return pick(F, 'payer', esc(payerLabel(t))) + pick(F, 'split', esc(splitLabel(t)))
+    + pick(F, 'category', `<span class="tile cat-${esc(F.category)}">${catIcon(F.category)}</span>${esc(CATEGORIES[F.category] || 'Other')}`);
+}
+/** Names whatever isn't the usual, so a glance shows the date, note and photo are as expected. */
+function detailsLabel(F) {
+  const set = [F.date && F.date !== today() ? F.date : '', F.note ? 'Note' : '', F.receipt ? 'Photo' : ''].filter(Boolean).join(' · ');
+  return set || 'Add date, note or photo';
+}
+function drawPicks() {
+  const row = document.getElementById('formPicks'), t = tripOf();
+  if (row && t) row.innerHTML = picksHtml(t);
+  const more = document.getElementById('formDetails');
+  if (more) { more.textContent = detailsLabel(A.form); more.setAttribute('aria-expanded', String(A.form.panel === 'details')); }
+}
+function showPanel(name) {
+  A.form.panel = name;
+  document.querySelectorAll('#dlg [data-panel]').forEach(el => { el.hidden = el.dataset.panel !== name; });
+  drawPicks();
 }
 
 function drawForm() {
   const F = A.form, t = tripOf();
   if (!t) return closeSheet();
   const refund = F.kind === 'refund';
+  const panel = name => (F.panel === name ? '' : 'hidden');
   const people = activeMembers(t), scroll = document.querySelector('#dlg .sheet-body')?.scrollTop || 0;
-  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"><button class="btn small primary" id="fSave">Save</button></div></div>
+  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"></div></div>
   <div class="sheet-body">
     ${F.isDraft ? `<div class="notice row between wrap"><span>Picked up your unsaved expense.</span><button type="button" class="btn small" data-action="draft-discard">${F.discardArmed ? 'Tap again to discard' : 'Discard'}</button></div>` : ''}
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...Object.keys(t.rates || {}).sort(), ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
@@ -148,25 +165,23 @@ function drawForm() {
     <span class="conv mono" id="fUsd">${usdHint(t)}</span>
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
-    <button type="button" class="form-who" data-action="form-who" aria-expanded="${whoOpen(F)}"><span class="grow small" id="fWhoSummary">${esc(whoSummary(t))}</span><span class="link small">${whoOpen(F) ? 'Show less' : 'Change'}</span></button>
-    <div class="stack" id="fWho" ${whoOpen(F) ? '' : 'hidden'}>
-    ${F.id ? '' : `<div class="seg" role="group" aria-label="Type"><button type="button" data-action="form-kind" data-id="expense" aria-pressed="${!refund}">Expense</button><button type="button" data-action="form-kind" data-id="refund" aria-pressed="${refund}">Refund</button></div>`}
-    ${refund ? '<p class="small muted">Use this when money comes back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
-    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
-    <div class="stack"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
+    ${refund ? '<p class="small muted">A refund is for money coming back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
+    <div class="form-picks" id="formPicks" role="group" aria-label="Who paid, how it's split and category">${picksHtml(t)}</div>
+    <div class="stack form-panel" data-panel="payer" ${panel('payer')}><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
-    : `<select id="fPayer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
-    <div class="stack"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
-    </div>
-    <button type="button" class="more-toggle" data-action="form-more" aria-expanded="${Boolean(F.showMore)}"><span>${F.showMore ? 'Hide details' : 'More details'}</span><span class="small muted wrap-any">${esc(detailSummary(F))}</span></button>
-    <div class="stack" id="formMore" ${F.showMore ? '' : 'hidden'}>
-    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}"></label>
+    : `<select id="fPayer" data-change="form-payer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
+    <div class="stack form-panel" data-panel="split" ${panel('split')}><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
+    <div class="stack tight form-panel" data-panel="category" ${panel('category')}><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
+    <button type="button" class="link small form-details" id="formDetails" data-action="form-panel" data-id="details" aria-expanded="${F.panel === 'details'}">${esc(detailsLabel(F))}</button>
+    <div class="stack form-panel" data-panel="details" ${panel('details')}>
+    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
-    <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="draft">${esc(F.note)}</textarea></label>
+    <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="note">${esc(F.note)}</textarea></label>
+    ${F.id ? '' : `<button type="button" class="link small form-details" data-action="form-kind" data-id="${refund ? 'expense' : 'refund'}">${refund ? 'Make this a regular expense' : 'This is a refund (money came back)'}</button>`}
     </div>
-    <button class="btn primary form-save">${F.id ? 'Save changes' : refund ? 'Add refund' : 'Add expense'}</button>
     ${F.id ? `<button type="button" class="btn danger" data-action="delete-entry" data-id="${F.id}">Delete ${refund ? 'refund' : 'expense'}</button>` : ''}
-  </div></form>`);
+  </div>
+  <div class="sheet-foot"><button class="btn primary form-save" id="fSave">${F.id ? 'Save changes' : refund ? 'Add refund' : 'Add expense'}</button></div></form>`);
   const b = document.querySelector('#dlg .sheet-body');
   if (b) b.scrollTop = scroll;
   if (!F.id && !F.focused && !F.desc) { F.focused = true; document.getElementById('fDesc')?.focus(); }
@@ -186,8 +201,7 @@ function refresh() {
   if (pc) pc.innerHTML = payCheck(t);
   const us = document.getElementById('fUsd');
   if (us) us.textContent = usdHint(t);
-  const ws = document.getElementById('fWhoSummary');
-  if (ws) ws.textContent = whoSummary(t);
+  drawPicks();
   const cv = document.getElementById('fConv');
   if (cv) cv.textContent = rateNote(t);
   const rw = document.getElementById('fRateWarn');
@@ -195,7 +209,7 @@ function refresh() {
   keepDraft();
 }
 
-inputs.draft = () => keepDraft();
+inputs.note = el => { A.form.note = el.value; drawPicks(); keepDraft(); };
 // Typing suggests a category, until the person picks one themselves.
 inputs.desc = el => {
   const F = A.form;
@@ -210,6 +224,7 @@ inputs.desc = el => {
 actions['cat-pick'] = el => {
   collect();
   Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false });
+  showPanel(null);
   drawCats();
   keepDraft();
 };
@@ -235,16 +250,9 @@ changes['form-currency'] = el => {
 };
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
-actions['form-who'] = el => {
-  const F = A.form, box = document.getElementById('fWho'), open = box.hidden;
-  box.hidden = !open;
-  F.showWho = open;
-  A.device.setFormOpen(open);
-  el.setAttribute('aria-expanded', String(open));
-  el.querySelector('.link').textContent = open ? 'Show less' : 'Change';
-  document.getElementById('fWhoSummary').textContent = whoSummary(tripOf());
-};
-actions['form-more'] = () => { collect(); A.form.showMore = !A.form.showMore; drawForm(); };
+actions['form-panel'] = el => { collect(); showPanel(A.form.panel === el.dataset.id ? null : el.dataset.id); };
+changes['form-payer'] = el => { A.form.payer = el.value; showPanel(null); keepDraft(); };
+changes['form-detail'] = () => { collect(); drawPicks(); keepDraft(); };
 actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {
   const hadText = A.form && !A.form.id && (document.getElementById('fDesc')?.value || document.getElementById('fAmt')?.value);
@@ -298,7 +306,7 @@ export async function attachReceipt(file) {
     const dataUrl = await shrinkPhoto(file);
     const { id, written } = A.repo.saveReceipt(A.form.tripId, dataUrl, getMe(A.trips[A.form.tripId]));
     send(written);
-    if (A.form) { A.form.receipt = id; drawForm(); toast('Receipt attached'); }
+    if (A.form) { A.form.receipt = id; A.form.panel = 'details'; drawForm(); toast('Receipt attached'); }
   } catch { toast("That image couldn't be opened. Try a JPG or PNG."); }
 }
 
@@ -318,11 +326,12 @@ submits.expense = () => {
     }
   }
   const res = computeSplit(total, F.currency, F.split, everyone);
-  if (res.error) return toast(res.error);
+  if (res.error) { showPanel('split'); return toast(res.error); }
   let paid = {};
   if (F.multi) {
     for (const i of everyone) { const v = toMinor(F.payers[i], F.currency); if (v > 0) paid[i] = v; }
     const s = Object.values(paid).reduce((a, b) => a + b, 0);
+    if (s !== total) showPanel('payer');
     if (s !== total) return toast(`Payments add up to ${money(s, F.currency)}. They need to reach ${money(total, F.currency)}.`);
   } else paid = { [F.payer]: total };
   const isNew = !F.id, id = F.id || randomId(), at = Date.now(), name = actor(t);

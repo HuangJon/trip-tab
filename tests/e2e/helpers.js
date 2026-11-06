@@ -9,7 +9,7 @@ export async function openPage(context, url) {
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  await page.addInitScript(() => { if (!sessionStorage.getItem('quick-form')) localStorage.setItem('triptab:form-open', 'true'); if (!sessionStorage.getItem('tour-test')) localStorage.setItem('triptab:tour-done', 'true'); });
+  await page.addInitScript(() => { if (!sessionStorage.getItem('tour-test')) localStorage.setItem('triptab:tour-done', 'true'); });
   await page.goto(url);
   return page;
 }
@@ -43,10 +43,13 @@ export async function tab(page, name) {
   if (!await page.locator(`[data-tab=${name}]`).count()) await page.click('#moreTab');
   await page.click(`[data-tab=${name}]`);
 }
+/** Opens one choice on the expense form, unless it's open already. */
+export async function openPanel(page, name) {
+  if (!await page.locator(`#dlg [data-panel=${name}]:not([hidden])`).count()) await page.click(`[data-action=form-panel][data-id=${name}]`);
+}
 export async function addExpense(page, desc, amount, during) {
   await tab(page, 'expenses');
   await page.click('[data-action=add-expense]');
-  if (await page.locator('#fWho[hidden]').count()) await page.click('[data-action=form-who]');
   await page.fill('#fDesc', desc);
   await page.fill('#fAmt', amount);
   if (during) await during();
