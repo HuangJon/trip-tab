@@ -78,6 +78,7 @@ actions['auth-reset'] = () => {
 };
 actions['auth-signout'] = () => attempt(async () => {
   A.device.forgetAccount();
+  A.device.setTourDone(false); // the tutorial runs again at the next sign-in
   await A.repo.auth.signOut();
   location.reload();
 });
