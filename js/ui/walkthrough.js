@@ -9,7 +9,7 @@ const HOME_STEPS = [
 ];
 const THEME_TEXT = 'Try one now. You can change it any time from this button.';
 const TRIP_STEPS = [
-  { tab: 'expenses', at: '.add-tab', title: 'Add what you pay for', text: 'Tap Add expense whenever you pay for something. Enter the amount and a description. It splits equally with everyone unless you change it in the row below.' },
+  { tab: 'expenses', at: '.add-tab', title: 'Add what you pay for', text: 'Tap Add expense whenever you pay for something. Enter the amount and a description. It splits equally with everyone, so untick anyone who should not share it.' },
   { tab: 'expenses', at: '[data-action="open-entry"],[data-action="filters-toggle"]', title: 'See every expense', text: 'Each one shows who paid and what you owe or get. Search or filter to find things, and press and hold one for quick actions.' },
   { tab: 'balances', at: '.hero', title: 'Settle up', text: 'Balances shows who pays whom. Pay with Venmo or Zelle, then mark it as paid so everyone can see.' },
   { tab: 'people', sub: 'payment', at: 'input[aria-label*="Venmo"]:not([disabled])', title: 'Add your Venmo or Zelle', text: 'Add your details here so friends can pay you back easily.' },

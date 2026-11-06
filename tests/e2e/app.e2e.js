@@ -852,15 +852,20 @@ await page.fill('#fAmt', '12');
 await page.fill('#fDesc', 'Quick lunch');
 const picks = await page.textContent('#formPicks');
 assert.match(picks, /Paid by You/);
-assert.match(picks, /Split: Everyone/);
 assert.match(picks, /Food/);
 await page.click('[data-action=form-panel][data-id=payer]');
 assert.equal(await page.isVisible('#fPayer'), true);
-await page.click('[data-action=form-panel][data-id=split]');
+await page.click('[data-action=form-panel][data-id=category]');
 assert.equal(await page.isVisible('#fPayer'), false, 'only one choice is open at a time');
-assert.equal(await page.isVisible('#splitArea'), true);
-await page.click('[data-action=form-panel][data-id=split]');
-assert.equal(await page.isVisible('#splitArea'), false, 'and it closes again');
+assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), true, 'who it is split among is always in view');
+assert.match(await page.textContent('#splitArea'), /\d/);
+await page.click('[data-action=form-panel][data-id=category]');
+await page.setViewportSize({ width: 390, height: 360 });
+{
+  const box = await page.locator('#fSave').boundingBox();
+  assert.ok(box && box.y + box.height <= 360, 'save stays on screen, however short the screen is');
+}
+await page.setViewportSize({ width: 390, height: 844 });
 await page.fill('#fDesc', 'Quick lunch');
 await page.click('.form-save');
 await page.waitForSelector('.tap:has-text("Quick lunch")');

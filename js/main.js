@@ -24,6 +24,7 @@ import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
 import { applyLook, setLook } from './ui/look.js';
+import { keyboardFit } from './core/platform.js';
 import { maybeStartTour, placeTour, setUpHelpButton } from './ui/walkthrough.js';
 import { amOwner, ownerView } from './ui/owner.js';
 import { setUpErrorLog } from './ui/error-log.js';
@@ -193,6 +194,7 @@ addEventListener('hashchange', () => { readHash(); render(); });
 applyLook();
 setUpRowMenu();
 setUpHelpButton();
+setUpKeyboardFit();
 setUpClickOutside();
 setUpErrorLog();
 
@@ -303,3 +305,18 @@ function registerUpdates() {
 actions['apply-update'] = () => location.reload();
 
 boot();
+
+/** Keeps a sheet's save button above the on-screen keyboard, and what's being typed in view. */
+function setUpKeyboardFit() {
+  const view = window.visualViewport;
+  if (!view) return;
+  const fit = () => {
+    const size = keyboardFit(view.height, view.offsetTop, innerHeight), root = document.documentElement.style;
+    if (!size) { root.removeProperty('--kb-height'); root.removeProperty('--kb-top'); return; }
+    root.setProperty('--kb-height', `${size.height}px`);
+    root.setProperty('--kb-top', `${size.top}px`);
+    document.activeElement?.closest?.('dialog') && document.activeElement.scrollIntoView({ block: 'nearest' });
+  };
+  view.addEventListener('resize', fit);
+  view.addEventListener('scroll', fit);
+}
