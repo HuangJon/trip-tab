@@ -45,7 +45,7 @@ export function openExpenseForm(trip, entry) {
     const currency = trip.defaultCurrency || A.device.lastCurrency(trip.id) || trip.currency;
     const recent = A.device.recent(trip.id);
     const startCategory = CATEGORIES[recent.category] ? recent.category : 'food';
-    A.form = { startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
+    A.form = { catClosed: true, startCategory, tripId: trip.id, kind: 'expense', desc: '', category: startCategory, date: today(), currency, rate: currency === trip.currency ? '' : storedToTyped(trip.rates?.[currency], currency, trip.currency), amount: '', payers: {}, multi: false, payer: me, split: { mode: 'equal', selected: [...all], inputs: {}, items: [] }, note: '', receipt: '' };
   }
   drawForm();
   if (!entry) document.getElementById('fAmt')?.focus();
@@ -129,10 +129,10 @@ function drawCats() {
   if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
 }
 
-/** Names whatever isn't the usual, so a glance shows the date, note and photo are as expected. */
+/** Names what's been added, so a glance shows it without opening the section. */
 function detailsLabel(F) {
-  const set = [F.date && F.date !== today() ? F.date : '', F.note ? 'Note' : '', F.receipt ? 'Photo' : ''].filter(Boolean).join(' · ');
-  return set || 'Add date, note or photo';
+  const set = [F.note ? 'Note' : '', F.receipt ? 'Photo' : ''].filter(Boolean).join(' · ');
+  return set || 'Add note or photo';
 }
 function drawDetailsLink() {
   const more = document.getElementById('formDetails');
@@ -154,13 +154,16 @@ function drawForm() {
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
     ${refund ? '<p class="small muted">A refund is for money coming back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
     <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" data-closed="${!!F.catClosed}" role="group" aria-label="Category">${catButtons(F)}</div></div>
-    <div class="stack tight"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
+    <div class="who-when ${F.multi ? 'multi' : ''}">
+    <div class="stack tight"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
     : `<select id="fPayer" data-change="form-payer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
+    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
+    </div>
+    <button type="button" class="link small form-details" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button>
     <div class="stack tight"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
     <button type="button" class="link small form-details" id="formDetails" data-action="form-details" aria-expanded="${!!F.showDetails}">${esc(detailsLabel(F))}</button>
     <div class="stack form-panel" id="formMore" ${F.showDetails ? '' : 'hidden'}>
-    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="note">${esc(F.note)}</textarea></label>
     ${F.id ? '' : `<button type="button" class="link small form-details" data-action="form-kind" data-id="${refund ? 'expense' : 'refund'}">${refund ? 'Make this a regular expense' : 'This is a refund (money came back)'}</button>`}

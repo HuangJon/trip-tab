@@ -47,6 +47,10 @@ export async function tab(page, name) {
 export async function openDetails(page) {
   if (await page.locator('#formMore[hidden]').count()) await page.click('[data-action=form-details]');
 }
+/** Opens the category grid, which starts folded down to the chosen one. */
+export async function openCategories(page) {
+  if (await page.locator('#catPicker[data-closed=true]').count()) await page.click('.cat-pick[aria-pressed=true]');
+}
 export async function addExpense(page, desc, amount, during) {
   await tab(page, 'expenses');
   await page.click('[data-action=add-expense]');

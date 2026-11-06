@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { serve } from './serve.js';
-import { addExpense, check, createTrip, launch, noSideScroll, openPage, signUp, tab, text, openDetails } from './helpers.js';
+import { addExpense, check, createTrip, launch, noSideScroll, openPage, signUp, tab, text, openDetails, openCategories } from './helpers.js';
 
 const server = await serve('.'), browser = await launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -48,6 +48,7 @@ await addExpense(page, 'Aquarium', '7500', async () => {
   assert.match(await page.textContent('#dlg'), /1 TWD = how many JPY/);
   await page.fill('#fRate', '5');
   assert.match(await page.textContent('#fConv'), /NT\$1,500/);
+  await openCategories(page);
   await page.click('[data-action=cat-pick][data-id=activities]');
   await page.selectOption('#fPayer', { index: 2 });
 });
@@ -172,6 +173,7 @@ assert.equal(await page.inputValue('#fDesc'), 'Beers', 'typing keeps the text');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'typing keeps the cursor');
 await page.fill('#fDesc', 'Zxqv');
 assert.equal(await pressed(), startingCategory, 'with nothing to go on, it returns to the last category');
+await openCategories(page);
 await page.click('.cat-pick[data-id=shopping]');
 await page.fill('#fDesc', 'Hotel');
 assert.equal(await pressed(), 'shopping', 'your own choice is never overridden');
@@ -185,8 +187,8 @@ check('categories are easy to tap, and suggested as you type');
 /* Shorter form with recent defaults */
 await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
-assert.equal(await page.isVisible('#fDate'), false, 'details start tucked away');
-assert.match(await page.textContent('#formDetails'), /Add date, note or photo/);
+assert.equal(await page.isVisible('#fNote'), false, 'notes start tucked away');
+assert.match(await page.textContent('#formDetails'), /Add note or photo/);
 assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonathan', 'paid by starts on you');
 await page.fill('#fDesc', 'Kept typing');
 await openDetails(page);
@@ -849,14 +851,17 @@ await page.click('[data-action=split-mode][aria-pressed=true]');
 await page.click('[data-action=split-mode][data-id=shares]');
 assert.equal(await page.isVisible('[id^=inp-] >> nth=0'), true, 'choosing another way opens the list');
 await page.click('[data-action=split-mode][data-id=equal]');
-await page.click('.cat-pick[aria-pressed=true]');
-assert.equal(await page.locator('.cat-pick:visible').count(), 1, 'tapping the chosen category folds the grid');
+assert.equal(await page.locator('.cat-pick:visible').count(), 1, 'the category starts folded to the suggestion');
 await page.fill('#fDesc', 'Beers');
-assert.match(await page.textContent('.cat-pick:visible'), /Drinks/, 'folding it does not stop the suggestions');
+assert.match(await page.textContent('.cat-pick:visible'), /Drinks/, 'and the suggestion still shows as you type');
 await page.click('.cat-pick:visible');
 assert.equal(await page.locator('.cat-pick:visible').count(), 10);
+await page.click('.cat-pick[aria-pressed=true]');
+assert.equal(await page.locator('.cat-pick:visible').count(), 1, 'tapping the chosen category folds the grid');
+await page.click('.cat-pick:visible');
 await page.click('.cat-pick[data-id=shopping]');
 assert.equal(await page.locator('.cat-pick:visible').count(), 10, 'choosing another one leaves the grid open');
+assert.equal(await page.isVisible('#fDate'), true, 'the date is always in view');
 await page.setViewportSize({ width: 390, height: 360 });
 await page.waitForFunction(() => innerHeight === 360 && document.getElementById('fSave').getBoundingClientRect().bottom <= 360, null, { timeout: 3000 }); // save stays on screen, however short the screen
 await page.setViewportSize({ width: 390, height: 844 });
