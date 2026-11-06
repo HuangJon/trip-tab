@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { serve } from './serve.js';
-import { addExpense, check, createTrip, launch, noSideScroll, openPage, signUp, tab, text, openPanel } from './helpers.js';
+import { addExpense, check, createTrip, launch, noSideScroll, openPage, signUp, tab, text, openDetails } from './helpers.js';
 
 const server = await serve('.'), browser = await launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -37,12 +37,10 @@ check('sign-in is required, and an unverified email stays out');
 await createTrip(page);
 await addExpense(page, 'Rental car', '4800');
 await addExpense(page, 'Izakaya', '3100', async () => {
-  await openPanel(page, 'split');
   await page.click('[data-action=split-mode][data-id=shares]');
   await page.fill('[id^=inp-] >> nth=0', '2');
   await page.fill('[id^=inp-] >> nth=1', '1');
   await page.fill('[id^=inp-] >> nth=2', '1');
-  await openPanel(page, 'payer');
   await page.selectOption('#fPayer', { index: 1 });
 });
 await addExpense(page, 'Aquarium', '7500', async () => {
@@ -50,9 +48,7 @@ await addExpense(page, 'Aquarium', '7500', async () => {
   assert.match(await page.textContent('#dlg'), /1 TWD = how many JPY/);
   await page.fill('#fRate', '5');
   assert.match(await page.textContent('#fConv'), /NT\$1,500/);
-  await openPanel(page, 'category');
   await page.click('[data-action=cat-pick][data-id=activities]');
-  await openPanel(page, 'payer');
   await page.selectOption('#fPayer', { index: 2 });
 });
 await tab(page, 'balances');
@@ -132,21 +128,15 @@ await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
 await page.fill('#fDesc', 'Items test');
 await page.fill('#fAmt', '1100');
-await openPanel(page, 'split');
 await page.click('[data-action=split-mode][data-id=items]');
 assert.equal(await page.inputValue('#fDesc'), 'Items test', 'description kept');
 assert.equal(await page.inputValue('#fAmt'), '1100');
-await openPanel(page, 'split');
 await page.click('[data-action=item-add]');
-await openPanel(page, 'split');
 await page.fill('#it-n-0', 'Beer');
-await openPanel(page, 'split');
 await page.fill('#it-a-0', '1000');
-await openPanel(page, 'split');
 await page.click('[data-action=item-person] >> nth=0');
 assert.equal(await page.inputValue('#it-a-0'), '1000', 'price kept after tapping a person');
 assert.match(await page.textContent('#splitArea'), /extra of NT\$100/);
-await openPanel(page, 'split');
 await page.click('[data-action=split-mode][data-id=items]');
 assert.equal(await page.getAttribute('[data-action=split-mode][data-id=items]', 'aria-pressed'), 'true', 'tapping the selected mode keeps it');
 assert.equal(await page.inputValue('#it-n-0'), 'Beer');
@@ -182,7 +172,6 @@ assert.equal(await page.inputValue('#fDesc'), 'Beers', 'typing keeps the text');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'fDesc', 'typing keeps the cursor');
 await page.fill('#fDesc', 'Zxqv');
 assert.equal(await pressed(), startingCategory, 'with nothing to go on, it returns to the last category');
-await openPanel(page, 'category');
 await page.click('.cat-pick[data-id=shopping]');
 await page.fill('#fDesc', 'Hotel');
 assert.equal(await pressed(), 'shopping', 'your own choice is never overridden');
@@ -199,9 +188,8 @@ await page.click('[data-action=add-expense]');
 assert.equal(await page.isVisible('#fDate'), false, 'details start tucked away');
 assert.match(await page.textContent('#formDetails'), /Add date, note or photo/);
 assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonathan', 'paid by starts on you');
-assert.match(await page.textContent('#formPicks'), /Paid by You/);
 await page.fill('#fDesc', 'Kept typing');
-await openPanel(page, 'details');
+await openDetails(page);
 assert.equal(await page.isVisible('#fDate'), true);
 assert.equal(await page.inputValue('#fDesc'), 'Kept typing');
 await page.click('[data-action=form-cancel]');
@@ -228,7 +216,6 @@ check('saving highlights the new row; the phone back button returns to your trip
 await page.click('[data-action=add-expense]');
 await page.fill('#fDesc', 'Shared hotel');
 await page.fill('#fAmt', '1000');
-await openPanel(page, 'payer');
 await page.click('[data-action=toggle-multi]');
 await page.fill('[id^=pay-] >> nth=2', '');
 await page.fill('[id^=pay-] >> nth=1', '400');
@@ -336,8 +323,8 @@ writeFileSync('/tmp/receipt-test.png', Buffer.from(pngB64, 'base64'));
 await page.click('[data-action=add-expense]');
 await page.fill('#fDesc', 'With photo');
 await page.fill('#fAmt', '10');
-await openPanel(page, 'details');
-await openPanel(page, 'details');
+await openDetails(page);
+await openDetails(page);
 await page.setInputFiles('#fPhoto', '/tmp/receipt-test.png');
 await page.waitForSelector('.tag.good');
 assert.equal(await page.inputValue('#fDesc'), 'With photo');
@@ -581,7 +568,6 @@ check('names and descriptions cannot inject markup');
 await tab(page, 'expenses');
 await addExpense(page, 'Credit test', '90', async () => {
   await page.selectOption('#fCur', 'TWD');
-  await openPanel(page, 'split');
   await page.uncheck('[id^=sel-] >> nth=2');
 });
 {
@@ -645,13 +631,12 @@ await tab(page, 'balances');
 const beforeRefund = await text(page);
 await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
-await openPanel(page, 'details');
+await openDetails(page);
 await page.click('[data-action=form-kind][data-id=refund]');
 await page.fill('#fDesc', 'Deposit back');
 await page.fill('#fAmt', '300');
 assert.match(await page.textContent('#dlg'), /Received by/);
 assert.match(await page.textContent('#dlg'), /Shared by/);
-await openPanel(page, 'payer');
 await page.selectOption('#fPayer', { index: 0 });
 await page.click('#fSave');
 await page.waitForSelector('.tap:has-text("Deposit back")');
@@ -836,35 +821,25 @@ await page.waitForSelector('[data-tab=expenses]');
 check('back returns to the last screen, and All trips goes home');
 
 /* Paid by starts on you, not whoever paid last */
-await addExpense(page, 'Paid by someone else', '10', async () => { await openPanel(page, 'payer'); await page.selectOption('#fPayer', { index: 1 }); });
+await addExpense(page, 'Paid by someone else', '10', async () => { await page.selectOption('#fPayer', { index: 1 }); });
 await page.click('[data-action=add-expense]');
 assert.equal(await page.locator('#fPayer option:checked').textContent(), 'Jonathan');
 await page.click('[data-action=form-cancel]');
 await page.waitForFunction(() => !document.getElementById('dlg').open);
 check('paid by starts on you each time');
 
-/* The quick form: amount and description first, the rest tucked away */
+/* The expense form: everything laid out except date, note and photo */
 await tab(page, 'expenses');
 await page.click('[data-action=add-expense]');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'fAmt');
-assert.equal(await page.isVisible('#fPayer'), false);
 await page.fill('#fAmt', '12');
 await page.fill('#fDesc', 'Quick lunch');
-const picks = await page.textContent('#formPicks');
-assert.match(picks, /Paid by You/);
-assert.match(picks, /Food/);
-await page.click('[data-action=form-panel][data-id=payer]');
-assert.equal(await page.isVisible('#fPayer'), true);
-await page.click('[data-action=form-panel][data-id=category]');
-assert.equal(await page.isVisible('#fPayer'), false, 'only one choice is open at a time');
-assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), true, 'who it is split among is always in view');
-assert.match(await page.textContent('#splitArea'), /\d/);
-await page.click('[data-action=form-panel][data-id=category]');
+assert.equal(await page.isVisible('#fPayer'), true, 'who paid, the split and the category are all laid out');
+assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), true);
+assert.equal(await page.isVisible('#catPicker'), true);
+assert.equal(await page.isVisible('#fNote'), false, 'only date, note and photo are tucked away');
 await page.setViewportSize({ width: 390, height: 360 });
-{
-  const box = await page.locator('#fSave').boundingBox();
-  assert.ok(box && box.y + box.height <= 360, 'save stays on screen, however short the screen is');
-}
+await page.waitForFunction(() => innerHeight === 360 && document.getElementById('fSave').getBoundingClientRect().bottom <= 360, null, { timeout: 3000 }); // save stays on screen, however short the screen
 await page.setViewportSize({ width: 390, height: 844 });
 await page.fill('#fDesc', 'Quick lunch');
 await page.click('.form-save');
