@@ -110,7 +110,8 @@ h2 { color:var(--heading) }
 ul.plain { margin:0; padding-left:18px; display:grid; gap:6px }
 .cat-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px }
 .cat-pick { background:none; border:2px solid transparent; border-radius:12px; padding:6px 2px; display:grid; justify-items:center; gap:4px; font-size:.68rem; font-weight:600; line-height:1.15; color:var(--muted); text-align:center; min-height:72px; align-content:start }
-.cat-pick .tile { width:38px; height:38px }
+.cat-pick .tile { width:30px; height:30px }
+.cat-pick .tile svg { width:17px; height:17px }
 .cat-pick[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--ink) }
 /* The bottom bar: solid and clearly separate from the page, with an unmistakable current tab. */
 nav.tabs { background:var(--tabs-bg); border-top:2px solid var(--tabs-line); box-shadow:var(--tabs-shadow) }
@@ -202,6 +203,17 @@ dialog.menu { width:min(420px,100%); height:fit-content; max-height:88%; overflo
 .split-seg button[aria-expanded]::after { content:' \25B4'; font-size:.7em }
 .split-seg button[aria-expanded="false"]::after { content:' \25BE' }
 .cat-grid[data-closed="true"] .cat-pick:not([aria-pressed="true"]) { display:none }
+.cat-grid[data-closed="true"] { display:flex }
+.cat-grid[data-closed="true"] .cat-pick { display:flex; align-items:center; gap:6px; min-height:44px; padding:4px 10px 4px 5px; font-size:.875rem }
+.cat-grid[data-closed="true"] .cat-pick .tile { width:26px; height:26px }
+.cat-grid[data-closed="true"] .cat-pick .tile svg { width:15px; height:15px }
+/* Who paid and when share a row, except when several people paid and need the width */
+.who-when { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:start }
+.who-when > * { gap:4px }
+.who-when select,.who-when input[type=date] { box-sizing:border-box; height:44px; min-height:44px; margin:0 }
+.who-when.multi { grid-template-columns:minmax(0,1fr) }
+.who-when input[type=date] { min-width:0; width:100%; box-sizing:border-box }
+.cat-grid[data-closed="true"] .cat-pick::after { content:'Change \25BE'; margin-left:8px; color:var(--muted); font-size:.8rem; font-weight:500 }
 .form-panel { padding:12px; border-radius:12px; background:var(--sunken) }
 .form-details { justify-self:start; align-self:flex-start; min-height:32px; text-align:left }
 .sheet-foot { flex:none; padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line) }
