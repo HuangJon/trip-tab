@@ -61,16 +61,6 @@ const keepDraft = () => {
   if (F && !F.id) { collect(); if (F.desc || F.amount) A.device.saveDraft(F.tripId, F); else A.device.clearDraft(F.tripId); }
 };
 
-/** What the collapsed split still tells you: who's in, and for how much. */
-function splitSummary(t, res, total) {
-  const F = A.form, S = F.split, c = F.currency, all = ids(t), owed = res.owed || {};
-  if (S.mode === 'equal') {
-    const names = S.selected.length === all.length ? 'Everyone' : S.selected.map(id => memberName(t, id)).join(', ');
-    return total > 0 && res.owed && S.selected.length ? `${names} · ${money(owed[S.selected[0]] || 0, c)} each` : names;
-  }
-  return all.filter(id => owed[id]).map(id => `${memberName(t, id)} ${money(owed[id], c)}`).join(' · ') || 'Tap to fill this in';
-}
-
 function splitEditor(t) {
   const F = A.form, S = F.split, mode = S.mode, c = F.currency, total = toMinor(F.amount, c), res = computeSplit(total, c, S, ids(t)), owed = res.owed || {}, people = activeMembers(t);
   const shown = id => (total > 0 && res.owed ? `<span class="res amt muted">${money(owed[id] || 0, c)}</span>` : '<span class="res"></span>');
@@ -88,10 +78,8 @@ function splitEditor(t) {
     body = people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="inp-${p.id}" inputmode="decimal" placeholder="${mode === 'percent' ? '%' : '0'}" aria-label="${esc(p.name)}" value="${esc(S.inputs[p.id] || '')}" data-input="split" data-id="${p.id}">${shown(p.id)}</div>`).join('');
   }
   const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one.' }[mode];
-  const closed = !!F.splitClosed;
-  return `<div class="seg split-seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}" ${mode === k ? `aria-expanded="${!closed}"` : ''}>${l}</button>`).join('')}</div>
-    ${closed ? `<p class="small muted wrap-any" id="splitSummary">${esc(splitSummary(t, res, total))}</p>` : ''}
-    <div class="stack" ${closed ? 'hidden' : ''} id="splitList">${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div></div>
+  return `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
+    ${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div>
     ${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}`;
 }
 
@@ -122,11 +110,17 @@ function rateWarning(t) {
 }
 
 const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button type="button" class="cat-pick" data-action="cat-pick" data-id="${k}" aria-pressed="${F.category === k}"><span class="tile cat-${k}">${catIcon(k)}</span><span>${esc(label)}</span></button>`).join('');
+const catRow = F => `<span class="form-row-label">Category${F.suggested ? ' <span class="tiny muted" id="catHint">Suggested</span>' : ''}</span><span class="form-row-value"><span class="tile cat-${esc(F.category)}">${catIcon(F.category)}</span>${esc(CATEGORIES[F.category] || 'Other')}</span>`;
+function dateShown(date) {
+  if (date === today()) return 'Today';
+  const d = new Date(`${date}T12:00:00`);
+  return Number.isNaN(+d) ? 'Choose a date' : d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 function drawCats() {
-  const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
+  const F = A.form, picker = document.getElementById('catPicker'), row = document.getElementById('catRow');
   drawDetailsLink();
-  if (picker) { picker.innerHTML = catButtons(F); picker.dataset.closed = !!F.catClosed; }
-  if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
+  if (picker) { picker.innerHTML = catButtons(F); picker.hidden = !!F.catClosed; }
+  if (row) { row.innerHTML = catRow(F); row.setAttribute('aria-expanded', String(!F.catClosed)); }
 }
 
 /** Names what's been added, so a glance shows it without opening the section. */
@@ -153,14 +147,14 @@ function drawForm() {
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
     ${refund ? '<p class="small muted">A refund is for money coming back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
-    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" data-closed="${!!F.catClosed}" role="group" aria-label="Category">${catButtons(F)}</div></div>
-    <div class="who-when ${F.multi ? 'multi' : ''}">
-    <div class="stack tight"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span>
-    ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
-    : `<select id="fPayer" data-change="form-payer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
-    <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
+    <div class="form-rows">
+      <button type="button" class="form-row" id="catRow" data-action="cat-row" aria-expanded="${!F.catClosed}">${catRow(F)}</button>
+      <div class="cat-grid" id="catPicker" role="group" aria-label="Category" ${F.catClosed ? 'hidden' : ''}>${catButtons(F)}</div>
+      ${F.multi ? `<div class="form-row"><span class="form-row-label">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">One person ${refund ? 'received it' : 'paid'}</button></div>
+      <div class="form-row-more">${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}<div id="payCheck">${payCheck(t)}</div></div>`
+    : `<label class="form-row"><span class="form-row-label">${refund ? 'Received by' : 'Paid by'}</span><select id="fPayer" data-change="form-payer">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.id === getMe(t) ? `You (${p.name})` : p.name)}</option>`).join('')}<option value="several">More than one person…</option></select></label>`}
+      <label class="form-row form-row-date" data-action="date-open"><span class="form-row-label">Date</span><span class="form-row-value" id="fDateShown">${esc(dateShown(F.date))}</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
     </div>
-    <button type="button" class="link small form-details" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button>
     <div class="stack tight"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
     <button type="button" class="link small form-details" id="formDetails" data-action="form-details" aria-expanded="${!!F.showDetails}">${esc(detailsLabel(F))}</button>
     <div class="stack form-panel" id="formMore" ${F.showDetails ? '' : 'hidden'}>
@@ -212,9 +206,9 @@ inputs.desc = el => {
 };
 actions['cat-pick'] = el => {
   collect();
-  // Tapping the chosen one folds the grid down to it, and tapping again opens it. Only a different one counts as choosing.
+  // Tapping the chosen one closes the grid. Only a different one counts as choosing.
   const F = A.form;
-  if (el.dataset.id === F.category) F.catClosed = !F.catClosed;
+  if (el.dataset.id === F.category) F.catClosed = true;
   else Object.assign(F, { category: el.dataset.id, categoryPicked: true, suggested: false, catClosed: false });
   drawCats();
   keepDraft();
@@ -241,12 +235,24 @@ changes['form-currency'] = el => {
 };
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
+actions['cat-row'] = () => { A.form.catClosed = !A.form.catClosed; drawCats(); };
+actions['date-open'] = el => { try { el.querySelector('input').showPicker(); } catch { /* the tap itself opens it on phones */ } };
 actions['form-details'] = () => {
   A.form.showDetails = !A.form.showDetails;
   document.getElementById('formMore').hidden = !A.form.showDetails;
   drawDetailsLink();
 };
-changes['form-detail'] = () => { collect(); drawDetailsLink(); keepDraft(); };
+changes['form-payer'] = el => {
+  if (el.value !== 'several') { A.form.payer = el.value; keepDraft(); return; }
+  el.value = A.form.payer; // the choice is a way in, not a person
+  actions['toggle-multi']();
+};
+changes['form-detail'] = () => {
+  collect();
+  document.getElementById('fDateShown').textContent = dateShown(A.form.date);
+  drawDetailsLink();
+  keepDraft();
+};
 actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {
   const hadText = A.form && !A.form.id && (document.getElementById('fDesc')?.value || document.getElementById('fAmt')?.value);
@@ -265,8 +271,7 @@ actions['draft-discard'] = () => {
 actions['split-mode'] = el => {
   collect();
   const F = A.form, mode = el.dataset.id;
-  if (mode === F.split.mode) { F.splitClosed = !F.splitClosed; refresh(); return; }
-  F.splitClosed = false;
+  if (mode === F.split.mode) return;
   F.split.inputs = {};
   F.split.mode = mode;
   if ((mode === 'equal' || mode === 'adjust') && !F.split.selected.length) F.split.selected = ids(tripOf());
@@ -321,7 +326,7 @@ submits.expense = () => {
     }
   }
   const res = computeSplit(total, F.currency, F.split, everyone);
-  if (res.error) { A.form.splitClosed = false; refresh(); return toast(res.error); }
+  if (res.error) return toast(res.error);
   let paid = {};
   if (F.multi) {
     for (const i of everyone) { const v = toMinor(F.payers[i], F.currency); if (v > 0) paid[i] = v; }
