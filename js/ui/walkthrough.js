@@ -40,7 +40,11 @@ export function placeTour() {
   const r = el.getBoundingClientRect(), pad = 6;
   spot.hidden = false;
   Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${Math.min(r.height, innerHeight * 0.4) + pad * 2}px` });
-  card.dataset.place = r.top + r.height / 2 > innerHeight / 2 ? 'top' : 'bottom';
+  if (!matchMedia('(min-width:900px)').matches) { card.dataset.place = r.top + r.height / 2 > innerHeight / 2 ? 'top' : 'bottom'; return; }
+  // A big screen has a home corner for the card. It only leaves if it would cover what's highlighted.
+  card.dataset.place = 'bottom';
+  const c = card.getBoundingClientRect();
+  card.dataset.place = c.left < r.right + pad && r.left - pad < c.right && c.top < r.bottom + pad && r.top - pad < c.bottom ? 'top' : 'bottom';
 }
 
 function showStep(i) {

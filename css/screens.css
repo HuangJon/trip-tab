@@ -270,6 +270,12 @@ a.btn { text-decoration:none; display:inline-flex; align-items:center; justify-c
 .tour-card p { margin:0 } .tour-card h2 { margin:0 } .tour-card .link { justify-self:center }
 .tour-card[data-place="bottom"] { bottom:calc(16px + env(safe-area-inset-bottom,0px)) }
 .tour-card[data-place="top"] { top:calc(16px + env(safe-area-inset-top,0px)) }
+/* On a big screen the card stays in the corner and only the highlight moves */
+@media (min-width:900px) {
+  .tour-card { left:auto; right:24px; width:300px; margin:0 }
+  .tour-card[data-place="bottom"] { bottom:24px }
+  .tour-card[data-place="top"] { top:24px }
+}
 @media (prefers-reduced-motion:reduce) { .tour-spot { transition:none } }
 /* The question mark */
 .help-btn { position:relative; font-weight:700; font-size:1.0625rem; flex:none }
