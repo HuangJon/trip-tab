@@ -78,11 +78,9 @@ function splitEditor(t) {
     body = people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="inp-${p.id}" inputmode="decimal" placeholder="${mode === 'percent' ? '%' : '0'}" aria-label="${esc(p.name)}" value="${esc(S.inputs[p.id] || '')}" data-input="split" data-id="${p.id}">${shown(p.id)}</div>`).join('');
   }
   const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one.' }[mode];
-  const modes = F.showModes || mode !== 'equal';
-  return `${modes ? `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>` : ''}
+  return `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
     ${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div>
-    ${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}
-    ${modes ? '' : '<button type="button" class="link small form-details" data-action="split-modes">Split another way</button>'}`;
+    ${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}`;
 }
 
 const paidTotal = t => activeMembers(t).reduce((s, m) => s + toMinor(A.form.payers[m.id], A.form.currency), 0);
@@ -114,45 +112,25 @@ function rateWarning(t) {
 const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button type="button" class="cat-pick" data-action="cat-pick" data-id="${k}" aria-pressed="${F.category === k}"><span class="tile cat-${k}">${catIcon(k)}</span><span>${esc(label)}</span></button>`).join('');
 function drawCats() {
   const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
-  drawPicks();
+  drawDetailsLink();
   if (picker) picker.innerHTML = catButtons(F);
   if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
 }
 
-/** The row of choices under the split. Each shows what's set now, and tapping one opens just that choice. */
-function payerLabel(t) {
-  const F = A.form, picked = document.getElementById('fPayer')?.value || F.payer;
-  const who = F.multi ? 'several' : picked === getMe(t) ? 'You' : memberName(t, picked);
-  return `${F.kind === 'refund' ? 'Received by' : 'Paid by'} ${who}`;
-}
-const pick = (F, id, inner) => `<button type="button" class="form-pick" data-action="form-panel" data-id="${id}" aria-expanded="${F.panel === id}"><span class="form-pick-text">${inner}</span></button>`;
-function picksHtml(t) {
-  const F = A.form;
-  return pick(F, 'payer', esc(payerLabel(t)))
-    + pick(F, 'category', `<span class="tile cat-${esc(F.category)}">${catIcon(F.category)}</span>${esc(CATEGORIES[F.category] || 'Other')}`);
-}
 /** Names whatever isn't the usual, so a glance shows the date, note and photo are as expected. */
 function detailsLabel(F) {
   const set = [F.date && F.date !== today() ? F.date : '', F.note ? 'Note' : '', F.receipt ? 'Photo' : ''].filter(Boolean).join(' · ');
   return set || 'Add date, note or photo';
 }
-function drawPicks() {
-  const row = document.getElementById('formPicks'), t = tripOf();
-  if (row && t) row.innerHTML = picksHtml(t);
+function drawDetailsLink() {
   const more = document.getElementById('formDetails');
-  if (more) { more.textContent = detailsLabel(A.form); more.setAttribute('aria-expanded', String(A.form.panel === 'details')); }
-}
-function showPanel(name) {
-  A.form.panel = name;
-  document.querySelectorAll('#dlg [data-panel]').forEach(el => { el.hidden = el.dataset.panel !== name; });
-  drawPicks();
+  if (more) { more.textContent = detailsLabel(A.form); more.setAttribute('aria-expanded', String(!!A.form.showDetails)); }
 }
 
 function drawForm() {
   const F = A.form, t = tripOf();
   if (!t) return closeSheet();
   const refund = F.kind === 'refund';
-  const panel = name => (F.panel === name ? '' : 'hidden');
   const people = activeMembers(t), scroll = document.querySelector('#dlg .sheet-body')?.scrollTop || 0;
   openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"></div></div>
   <div class="sheet-body">
@@ -163,14 +141,13 @@ function drawForm() {
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
     ${refund ? '<p class="small muted">A refund is for money coming back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
-    <div class="stack tight"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
-    <div class="form-picks" id="formPicks" role="group" aria-label="Who paid and category">${picksHtml(t)}</div>
-    <div class="stack form-panel" data-panel="payer" ${panel('payer')}><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
+    <div class="stack tight"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
     : `<select id="fPayer" data-change="form-payer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
-    <div class="stack tight form-panel" data-panel="category" ${panel('category')}><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
-    <button type="button" class="link small form-details" id="formDetails" data-action="form-panel" data-id="details" aria-expanded="${F.panel === 'details'}">${esc(detailsLabel(F))}</button>
-    <div class="stack form-panel" data-panel="details" ${panel('details')}>
+    <div class="stack tight"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
+    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
+    <button type="button" class="link small form-details" id="formDetails" data-action="form-details" aria-expanded="${!!F.showDetails}">${esc(detailsLabel(F))}</button>
+    <div class="stack form-panel" id="formMore" ${F.showDetails ? '' : 'hidden'}>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
     <div class="row wrap"><label class="btn" for="fPhoto">${F.receipt ? 'Replace receipt photo' : 'Add a receipt photo'}</label><input id="fPhoto" hidden type="file" accept="image/*" data-file="receipt">${F.receipt ? '<span class="tag good">Receipt attached</span><button type="button" class="link small" data-action="receipt-clear">Remove</button>' : ''}</div>
     <label class="f"><span>Notes</span><textarea id="fNote" maxlength="${LIMITS.note}" placeholder="Optional" data-input="note">${esc(F.note)}</textarea></label>
@@ -198,7 +175,7 @@ function refresh() {
   if (pc) pc.innerHTML = payCheck(t);
   const us = document.getElementById('fUsd');
   if (us) us.textContent = usdHint(t);
-  drawPicks();
+  drawDetailsLink();
   const cv = document.getElementById('fConv');
   if (cv) cv.textContent = rateNote(t);
   const rw = document.getElementById('fRateWarn');
@@ -206,7 +183,7 @@ function refresh() {
   keepDraft();
 }
 
-inputs.note = el => { A.form.note = el.value; drawPicks(); keepDraft(); };
+inputs.note = el => { A.form.note = el.value; drawDetailsLink(); keepDraft(); };
 // Typing suggests a category, until the person picks one themselves.
 inputs.desc = el => {
   const F = A.form;
@@ -221,7 +198,6 @@ inputs.desc = el => {
 actions['cat-pick'] = el => {
   collect();
   Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false });
-  showPanel(null);
   drawCats();
   keepDraft();
 };
@@ -247,10 +223,12 @@ changes['form-currency'] = el => {
 };
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
-actions['split-modes'] = () => { A.form.showModes = true; refresh(); };
-actions['form-panel'] = el => { collect(); showPanel(A.form.panel === el.dataset.id ? null : el.dataset.id); };
-changes['form-payer'] = el => { A.form.payer = el.value; showPanel(null); keepDraft(); };
-changes['form-detail'] = () => { collect(); drawPicks(); keepDraft(); };
+actions['form-details'] = () => {
+  A.form.showDetails = !A.form.showDetails;
+  document.getElementById('formMore').hidden = !A.form.showDetails;
+  drawDetailsLink();
+};
+changes['form-detail'] = () => { collect(); drawDetailsLink(); keepDraft(); };
 actions['form-kind'] = el => { collect(); A.form.kind = el.dataset.id; drawForm(); keepDraft(); };
 actions['form-cancel'] = () => {
   const hadText = A.form && !A.form.id && (document.getElementById('fDesc')?.value || document.getElementById('fAmt')?.value);
@@ -304,7 +282,7 @@ export async function attachReceipt(file) {
     const dataUrl = await shrinkPhoto(file);
     const { id, written } = A.repo.saveReceipt(A.form.tripId, dataUrl, getMe(A.trips[A.form.tripId]));
     send(written);
-    if (A.form) { A.form.receipt = id; A.form.panel = 'details'; drawForm(); toast('Receipt attached'); }
+    if (A.form) { A.form.receipt = id; A.form.showDetails = true; drawForm(); toast('Receipt attached'); }
   } catch { toast("That image couldn't be opened. Try a JPG or PNG."); }
 }
 
@@ -329,7 +307,6 @@ submits.expense = () => {
   if (F.multi) {
     for (const i of everyone) { const v = toMinor(F.payers[i], F.currency); if (v > 0) paid[i] = v; }
     const s = Object.values(paid).reduce((a, b) => a + b, 0);
-    if (s !== total) showPanel('payer');
     if (s !== total) return toast(`Payments add up to ${money(s, F.currency)}. They need to reach ${money(total, F.currency)}.`);
   } else paid = { [F.payer]: total };
   const isNew = !F.id, id = F.id || randomId(), at = Date.now(), name = actor(t);

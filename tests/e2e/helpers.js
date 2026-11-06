@@ -43,13 +43,9 @@ export async function tab(page, name) {
   if (!await page.locator(`[data-tab=${name}]`).count()) await page.click('#moreTab');
   await page.click(`[data-tab=${name}]`);
 }
-/** Opens one choice on the expense form, unless it's open already. */
-export async function openPanel(page, name) {
-  if (name === 'split') {
-    if (await page.locator('[data-action=split-modes]').count()) await page.click('[data-action=split-modes]');
-    return;
-  }
-  if (!await page.locator(`#dlg [data-panel=${name}]:not([hidden])`).count()) await page.click(`[data-action=form-panel][data-id=${name}]`);
+/** Opens the date, note and photo section of the expense form, unless it's open already. */
+export async function openDetails(page) {
+  if (await page.locator('#formMore[hidden]').count()) await page.click('[data-action=form-details]');
 }
 export async function addExpense(page, desc, amount, during) {
   await tab(page, 'expenses');
