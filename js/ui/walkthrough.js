@@ -64,7 +64,7 @@ addEventListener('click', replace);
 
 export function startTour() {
   closeSheet();
-  A.tour = { steps: buildSteps(), i: 0 };
+  A.tour = { steps: buildSteps(), i: 0, from: { route: A.route, peopleTab: A.peopleTab, scroll: scrollY } };
   let layer = document.getElementById('tourLayer');
   if (!layer) { layer = document.createElement('div'); layer.id = 'tourLayer'; document.body.append(layer); }
   showStep(0);
@@ -74,10 +74,13 @@ function clearTour() {
   A.tour = null;
   A.peopleTab = 'people'; // the tour opened other People tabs, so put it back on the names
 }
-/** The tour always finishes on the home page. */
+/** The tour finishes where it was started: the same screen, at the same spot. */
 function endTour() {
+  const { route, peopleTab, scroll } = A.tour.from;
   clearTour();
-  goHome();
+  A.peopleTab = peopleTab;
+  if (route.name === 'trip') goTrip(route.tripId, route.tab); else goHome();
+  scrollTo(0, scroll);
 }
 
 const HOLD_MS = 500;
