@@ -209,9 +209,10 @@ inputs.desc = el => {
 };
 actions['cat-pick'] = el => {
   collect();
-  // Picking one folds the grid down to it; tapping that one opens the grid again.
-  if (A.form.catClosed) A.form.catClosed = false;
-  else Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false, catClosed: true });
+  // Tapping the chosen one folds the grid down to it, and tapping again opens it. Only a different one counts as choosing.
+  const F = A.form;
+  if (el.dataset.id === F.category) F.catClosed = !F.catClosed;
+  else Object.assign(F, { category: el.dataset.id, categoryPicked: true, suggested: false, catClosed: false });
   drawCats();
   keepDraft();
 };

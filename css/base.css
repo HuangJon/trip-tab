@@ -43,6 +43,8 @@ label.f>span:first-child,.flabel { font-size:.84rem; font-weight:600; color:var(
 .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px }
 .grid-cur { display:grid; grid-template-columns:104px minmax(0,1fr); gap:12px }
 .amount-input { font-family:var(--body); font-size:1.7rem; font-weight:600; min-height:56px }
+.grid-cur { align-items:end }
+.grid-cur select,.grid-cur input { box-sizing:border-box; height:48px; min-height:48px; margin:0; font-family:var(--body); font-size:1rem; font-weight:600 }
 .chips { display:flex; flex-wrap:wrap; gap:8px }
 .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:5px 12px; font-size:.875rem; font-weight:500; display:inline-flex; align-items:center; gap:6px; min-height:36px; overflow-wrap:anywhere }
 .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }

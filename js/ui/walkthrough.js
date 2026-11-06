@@ -61,9 +61,16 @@ const replace = () => { if (A.tour) setTimeout(placeTour, 60); };
 addEventListener('resize', replace);
 addEventListener('click', replace);
 
-export function startTour() {
+export function startTour({ firstVisit } = {}) {
   closeSheet();
-  A.tour = { steps: buildSteps(), i: 0, from: { route: A.route, peopleTab: A.peopleTab, scroll: scrollY } };
+  const steps = buildSteps();
+  // Nothing to walk through without a trip yet, so the rest waits for their first one.
+  if (firstVisit && !steps.some(st => st.trip)) {
+    A.device.setTourTripPending(true);
+    const last = steps[steps.length - 1];
+    steps[steps.length - 1] = { ...last, text: `${last.text} The rest of the tutorial starts when you open your first trip.` };
+  }
+  A.tour = { steps, i: 0, from: { route: A.route, peopleTab: A.peopleTab, scroll: scrollY } };
   let layer = document.getElementById('tourLayer');
   if (!layer) { layer = document.createElement('div'); layer.id = 'tourLayer'; document.body.append(layer); }
   showStep(0);
@@ -97,7 +104,8 @@ export function maybeStartTour() {
   if (A.tour && A.route.name === 'trip' && !(trip && getMe(trip))) { clearTour(); return; }
   if (!A.user?.verified || A.route.name === 'owner' || (A.route.name === 'trip' && !(trip && getMe(trip)))) return;
   if (A.tour || document.getElementById('dlg').open) return;
-  if (!A.device.tourDone()) { A.device.setTourDone(); setTimeout(() => { if (!document.getElementById('dlg').open) startTour(); }); return; }
+  if (!A.device.tourDone()) { A.device.setTourDone(); setTimeout(() => { if (!document.getElementById('dlg').open) startTour({ firstVisit: true }); }); return; }
+  if (A.route.name === 'trip' && A.device.tourTripPending()) { A.device.setTourTripPending(false); setTimeout(startTour); return; }
 }
 
 /** Long press shows the label on a phone, and doesn't also start the tour. */
@@ -119,5 +127,8 @@ export function setUpHelpButton() {
   }, true);
 }
 actions['tour-step'] = el => showStep(+el.dataset.id);
-actions['tour-close'] = () => endTour();
+actions['tour-close'] = el => {
+  if (el.id === 'tourSkip') A.device.setTourTripPending(false); // they know what they're doing
+  endTour();
+};
 actions['tour-start'] = () => startTour();

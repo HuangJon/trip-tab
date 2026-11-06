@@ -849,11 +849,14 @@ await page.click('[data-action=split-mode][aria-pressed=true]');
 await page.click('[data-action=split-mode][data-id=shares]');
 assert.equal(await page.isVisible('[id^=inp-] >> nth=0'), true, 'choosing another way opens the list');
 await page.click('[data-action=split-mode][data-id=equal]');
-await page.click('.cat-pick[data-id=drinks]');
-assert.equal(await page.locator('.cat-pick:visible').count(), 1);
-assert.match(await page.textContent('.cat-pick:visible'), /Drinks/);
+await page.click('.cat-pick[aria-pressed=true]');
+assert.equal(await page.locator('.cat-pick:visible').count(), 1, 'tapping the chosen category folds the grid');
+await page.fill('#fDesc', 'Beers');
+assert.match(await page.textContent('.cat-pick:visible'), /Drinks/, 'folding it does not stop the suggestions');
 await page.click('.cat-pick:visible');
 assert.equal(await page.locator('.cat-pick:visible').count(), 10);
+await page.click('.cat-pick[data-id=shopping]');
+assert.equal(await page.locator('.cat-pick:visible').count(), 10, 'choosing another one leaves the grid open');
 await page.setViewportSize({ width: 390, height: 360 });
 await page.waitForFunction(() => innerHeight === 360 && document.getElementById('fSave').getBoundingClientRect().bottom <= 360, null, { timeout: 3000 }); // save stays on screen, however short the screen
 await page.setViewportSize({ width: 390, height: 844 });
@@ -964,6 +967,41 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   await pal.click('footer.signed-in [data-action*=sign]');
   await pal.waitForFunction(() => document.querySelector('#authEmail'));
   assert.equal(await pal.evaluate(() => JSON.parse(localStorage.getItem('triptab:tour-done'))), false, 'signing out means the tutorial runs at the next sign-in');
+  await phone.close();
+}
+/* A brand-new person with no trips: the home steps first, and the rest at their first trip */
+{
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const fresh = await openPage(phone, page.url().split('#')[0]);
+  await fresh.evaluate(() => { sessionStorage.setItem('tour-test', '1'); localStorage.removeItem('triptab:tour-done'); });
+  await signUp(fresh, 'Fresh Fay', 'fay@example.com');
+  await fresh.waitForSelector('#tour');
+  assert.match(await fresh.textContent('#tour'), /1 of 2/);
+  await fresh.click('#tour [data-action=tour-step]');
+  assert.match(await fresh.textContent('#tour'), /rest of the tutorial starts when you open your first trip/);
+  await fresh.click('#tour [data-action=tour-close]');
+    await fresh.click('[data-action=new-trip] >> nth=0');
+    await fresh.fill('#ntName', 'First trip');
+    await fresh.fill('#ntPeople', 'Fresh Fay\nMia');
+    await fresh.selectOption('#ntCur', 'TWD');
+    await fresh.click('form[data-form=new-trip] .btn.primary');
+    await fresh.waitForSelector('[data-action=invite-first]');
+  await fresh.waitForSelector('#tour');
+  assert.match(await fresh.textContent('#tour'), /1 of 6/, 'the rest of the tutorial runs in the first trip');
+  await fresh.click('#tourSkip');
+  await fresh.waitForFunction(() => !document.getElementById('tour'));
+  await fresh.reload();
+  await fresh.waitForSelector('.topbar h1');
+  await fresh.waitForTimeout(200);
+  assert.equal(await fresh.locator('#tour').count(), 0, 'and only once');
+
+  /* On a phone the save button steps aside while the keyboard is up, then comes back */
+  await fresh.click('[data-action=add-expense]');
+  await fresh.tap('#fDesc');
+  assert.equal(await fresh.isVisible('#fSave'), false);
+  await fresh.tap('#dlg h2');
+  await fresh.waitForFunction(() => document.activeElement.id !== 'fDesc');
+  assert.equal(await fresh.isVisible('#fSave'), true);
   await phone.close();
 }
 check('the walkthrough shows after signing in and is behind the question mark');
