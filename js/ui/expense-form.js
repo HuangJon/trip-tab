@@ -61,6 +61,16 @@ const keepDraft = () => {
   if (F && !F.id) { collect(); if (F.desc || F.amount) A.device.saveDraft(F.tripId, F); else A.device.clearDraft(F.tripId); }
 };
 
+/** What the collapsed split still tells you: who's in, and for how much. */
+function splitSummary(t, res, total) {
+  const F = A.form, S = F.split, c = F.currency, all = ids(t), owed = res.owed || {};
+  if (S.mode === 'equal') {
+    const names = S.selected.length === all.length ? 'Everyone' : S.selected.map(id => memberName(t, id)).join(', ');
+    return total > 0 && res.owed && S.selected.length ? `${names} · ${money(owed[S.selected[0]] || 0, c)} each` : names;
+  }
+  return all.filter(id => owed[id]).map(id => `${memberName(t, id)} ${money(owed[id], c)}`).join(' · ') || 'Tap to fill this in';
+}
+
 function splitEditor(t) {
   const F = A.form, S = F.split, mode = S.mode, c = F.currency, total = toMinor(F.amount, c), res = computeSplit(total, c, S, ids(t)), owed = res.owed || {}, people = activeMembers(t);
   const shown = id => (total > 0 && res.owed ? `<span class="res amt muted">${money(owed[id] || 0, c)}</span>` : '<span class="res"></span>');
@@ -78,8 +88,10 @@ function splitEditor(t) {
     body = people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="inp-${p.id}" inputmode="decimal" placeholder="${mode === 'percent' ? '%' : '0'}" aria-label="${esc(p.name)}" value="${esc(S.inputs[p.id] || '')}" data-input="split" data-id="${p.id}">${shown(p.id)}</div>`).join('');
   }
   const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one.' }[mode];
-  return `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
-    ${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div>
+  const closed = !!F.splitClosed;
+  return `<div class="seg split-seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}" ${mode === k ? `aria-expanded="${!closed}"` : ''}>${l}</button>`).join('')}</div>
+    ${closed ? `<p class="small muted wrap-any" id="splitSummary">${esc(splitSummary(t, res, total))}</p>` : ''}
+    <div class="stack" ${closed ? 'hidden' : ''} id="splitList">${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div></div>
     ${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}`;
 }
 
@@ -113,7 +125,7 @@ const catButtons = F => Object.entries(CATEGORIES).map(([k, label]) => `<button 
 function drawCats() {
   const F = A.form, picker = document.getElementById('catPicker'), hint = document.getElementById('catHint');
   drawDetailsLink();
-  if (picker) picker.innerHTML = catButtons(F);
+  if (picker) { picker.innerHTML = catButtons(F); picker.dataset.closed = !!F.catClosed; }
   if (hint) hint.textContent = F.suggested ? 'Suggested from the description' : '';
 }
 
@@ -141,11 +153,11 @@ function drawForm() {
     ${F.currency !== t.currency ? `<label class="f"><span>Exchange rate: 1 ${esc(rateQuestion(F.currency, t.currency).one)} = how many ${esc(rateQuestion(F.currency, t.currency).many)}? <span class="optional">Optional for now</span></span><input id="fRate" class="mono" inputmode="decimal" placeholder="Add it later if you don't know yet" value="${esc(F.rate)}" data-input="rate"><span class="conv mono" id="fConv">${esc(rateNote(t))}</span><span id="fRateWarn">${rateWarning(t)}</span></label>` : ''}
     <label class="f"><span>Description</span><input id="fDesc" required maxlength="${LIMITS.description}" placeholder="${refund ? 'Hotel deposit returned' : 'Dinner at the night market'}" value="${esc(F.desc)}" data-input="desc"></label>
     ${refund ? '<p class="small muted">A refund is for money coming back, such as a deposit or cancelled ticket. Whoever received it will owe the others their share.</p>' : ''}
+    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" data-closed="${!!F.catClosed}" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <div class="stack tight"><div class="row between"><span class="flabel">${refund ? 'Received by' : 'Paid by'}</span><button type="button" class="link small" data-action="toggle-multi">${F.multi ? `One person ${refund ? 'received it' : 'paid'}` : `More than one person ${refund ? 'received it' : 'paid'}`}</button></div>
     ${F.multi ? `<div>${people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="pay-${p.id}" inputmode="decimal" placeholder="0" aria-label="${esc(p.name)} paid" value="${esc(F.payers[p.id] || '')}" data-input="payer" data-id="${p.id}"></div>`).join('')}</div><div id="payCheck">${payCheck(t)}</div>`
     : `<select id="fPayer" data-change="form-payer" aria-label="${refund ? 'Received by' : 'Paid by'}">${people.map(p => `<option value="${p.id}" ${F.payer === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`}</div>
     <div class="stack tight"><span class="flabel">${refund ? 'Shared by' : 'Split among'}</span><div class="stack" id="splitArea">${splitEditor(t)}</div></div>
-    <div class="stack tight"><div class="row between"><span class="flabel">Category</span><span class="tiny muted" id="catHint">${F.suggested ? 'Suggested from the description' : ''}</span></div><div class="cat-grid" id="catPicker" role="group" aria-label="Category">${catButtons(F)}</div></div>
     <button type="button" class="link small form-details" id="formDetails" data-action="form-details" aria-expanded="${!!F.showDetails}">${esc(detailsLabel(F))}</button>
     <div class="stack form-panel" id="formMore" ${F.showDetails ? '' : 'hidden'}>
     <label class="f"><span>Date</span><input id="fDate" type="date" required max="${today()}" value="${esc(F.date)}" data-change="form-detail"></label>
@@ -197,7 +209,9 @@ inputs.desc = el => {
 };
 actions['cat-pick'] = el => {
   collect();
-  Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false });
+  // Picking one folds the grid down to it; tapping that one opens the grid again.
+  if (A.form.catClosed) A.form.catClosed = false;
+  else Object.assign(A.form, { category: el.dataset.id, categoryPicked: true, suggested: false, catClosed: true });
   drawCats();
   keepDraft();
 };
@@ -247,7 +261,8 @@ actions['draft-discard'] = () => {
 actions['split-mode'] = el => {
   collect();
   const F = A.form, mode = el.dataset.id;
-  if (mode === F.split.mode) return;
+  if (mode === F.split.mode) { F.splitClosed = !F.splitClosed; refresh(); return; }
+  F.splitClosed = false;
   F.split.inputs = {};
   F.split.mode = mode;
   if ((mode === 'equal' || mode === 'adjust') && !F.split.selected.length) F.split.selected = ids(tripOf());
@@ -302,7 +317,7 @@ submits.expense = () => {
     }
   }
   const res = computeSplit(total, F.currency, F.split, everyone);
-  if (res.error) return toast(res.error);
+  if (res.error) { A.form.splitClosed = false; refresh(); return toast(res.error); }
   let paid = {};
   if (F.multi) {
     for (const i of everyone) { const v = toMinor(F.payers[i], F.currency); if (v > 0) paid[i] = v; }

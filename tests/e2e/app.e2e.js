@@ -838,6 +838,22 @@ assert.equal(await page.isVisible('#fPayer'), true, 'who paid, the split and the
 assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), true);
 assert.equal(await page.isVisible('#catPicker'), true);
 assert.equal(await page.isVisible('#fNote'), false, 'only date, note and photo are tucked away');
+/* The people and the category grid fold away; the split tabs stay */
+await page.click('[data-action=split-mode][aria-pressed=true]');
+assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), false);
+assert.equal(await page.isVisible('[data-action=split-mode][data-id=exact]'), true);
+assert.match(await page.textContent('#splitSummary'), /Everyone · .* each/);
+await page.click('[data-action=split-mode][aria-pressed=true]');
+assert.equal(await page.isVisible('[id^=sel-] >> nth=0'), true);
+await page.click('[data-action=split-mode][aria-pressed=true]');
+await page.click('[data-action=split-mode][data-id=shares]');
+assert.equal(await page.isVisible('[id^=inp-] >> nth=0'), true, 'choosing another way opens the list');
+await page.click('[data-action=split-mode][data-id=equal]');
+await page.click('.cat-pick[data-id=drinks]');
+assert.equal(await page.locator('.cat-pick:visible').count(), 1);
+assert.match(await page.textContent('.cat-pick:visible'), /Drinks/);
+await page.click('.cat-pick:visible');
+assert.equal(await page.locator('.cat-pick:visible').count(), 10);
 await page.setViewportSize({ width: 390, height: 360 });
 await page.waitForFunction(() => innerHeight === 360 && document.getElementById('fSave').getBoundingClientRect().bottom <= 360, null, { timeout: 3000 }); // save stays on screen, however short the screen
 await page.setViewportSize({ width: 390, height: 844 });
