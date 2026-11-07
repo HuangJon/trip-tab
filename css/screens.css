@@ -217,6 +217,12 @@ button.form-row .form-row-value { margin-left:auto }
 .form-row select { flex:1; width:auto; min-height:36px; padding:0 2px; border:0; background:none; color:var(--ink); font-weight:600; text-align:right; text-align-last:right; appearance:none; -webkit-appearance:none }
 .form-row-date .form-row-value { margin-left:auto }
 .form-row-date input { position:absolute; inset:0; width:100%; height:100%; opacity:0; padding:0; border:0; cursor:pointer }
+/* With a mouse, the browser's own date box works better: type the date or use its calendar button */
+@media (pointer:fine) {
+  .form-row-date .form-row-value,.form-row-date::after { display:none }
+  .form-row-date input { position:static; opacity:1; width:auto; height:auto; min-height:36px; margin-left:auto; padding:0 4px; background:none; color:var(--ink); font-weight:600; text-align:right }
+  .form-row-date input,.form-row-date input:focus { border:0; outline:none; box-shadow:none }
+}
 .form-row:focus-within,.form-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; border-radius:12px }
 .form-panel { padding:12px; border-radius:12px; background:var(--sunken) }
 .form-details { justify-self:start; align-self:flex-start; min-height:32px; text-align:left }

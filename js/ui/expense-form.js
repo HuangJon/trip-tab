@@ -236,7 +236,11 @@ changes['form-currency'] = el => {
 
 actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
 actions['cat-row'] = () => { A.form.catClosed = !A.form.catClosed; drawCats(); };
-actions['date-open'] = el => { try { el.querySelector('input').showPicker(); } catch { /* the tap itself opens it on phones */ } };
+actions['date-open'] = (el, ev) => {
+  const input = el.querySelector('input');
+  if (ev?.target === input) return; // the browser's own date box handles clicks on itself
+  try { input.showPicker(); } catch { input.focus(); } // some embedded pages block the picker, so typing still works
+};
 actions['form-details'] = () => {
   A.form.showDetails = !A.form.showDetails;
   document.getElementById('formMore').hidden = !A.form.showDetails;
