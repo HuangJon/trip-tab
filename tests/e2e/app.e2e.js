@@ -1002,33 +1002,6 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   assert.equal(await fresh.isVisible('#fSave'), true);
   await phone.close();
 }
-/* In the home-screen app, a swipe from the left edge goes back; one that starts elsewhere does not */
-{
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  await phone.addInitScript(() => {
-    const real = window.matchMedia.bind(window);
-    window.matchMedia = q => (q.includes('display-mode: standalone') ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : real(q));
-  });
-  const app = await openPage(phone, page.url().split('#')[0]);
-  await signUp(app, 'Swipe Sam', 'sam@example.com');
-  await createTrip(app, 'Swipe trip', 'Swipe Sam\nMia');
-  await app.evaluate(() => document.querySelector('#tour [data-action=tour-close]')?.click());
-  await app.waitForSelector('[data-tab=expenses]');
-  const drag = (fromX, toX) => app.evaluate(([a, b]) => {
-    const el = document.elementFromPoint(a, 400) || document.body;
-    const touch = x => new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
-    el.dispatchEvent(new TouchEvent('touchstart', { touches: [touch(a)], bubbles: true }));
-    for (let x = a; x <= b; x += 30) el.dispatchEvent(new TouchEvent('touchmove', { touches: [touch(x)], bubbles: true, cancelable: true }));
-    el.dispatchEvent(new TouchEvent('touchend', { touches: [], bubbles: true }));
-  }, [fromX, toX]);
-  await drag(120, 360);
-  await app.waitForTimeout(400);
-  assert.match(await app.evaluate(() => location.hash), /-people$/, 'a swipe from the middle does nothing');
-  const before = await app.evaluate(() => location.hash);
-  await drag(4, 300);
-  await app.waitForFunction(h => location.hash !== h, before, { timeout: 3000 }); // the same as tapping the back arrow
-  await phone.close();
-}
 check('the walkthrough shows after signing in and is behind the question mark');
 
 /* Press and hold a trip on the home page */

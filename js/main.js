@@ -24,7 +24,6 @@ import { signInView, verifyView } from './ui/account.js';
 import { openDetail } from './ui/detail.js';
 import { setUpRowMenu } from './ui/row-menu.js';
 import { applyLook, setLook } from './ui/look.js';
-import { setUpSwipeBack } from './ui/swipe-back.js';
 import { maybeStartTour, placeTour, setUpHelpButton } from './ui/walkthrough.js';
 import { amOwner, ownerView } from './ui/owner.js';
 import { setUpErrorLog } from './ui/error-log.js';
@@ -195,7 +194,6 @@ applyLook();
 setUpRowMenu();
 setUpHelpButton();
 setUpTypingBlur();
-setUpSwipeBack();
 setUpClickOutside();
 setUpErrorLog();
 
