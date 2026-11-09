@@ -81,6 +81,8 @@ export function closeSheet() {
   if (d.open) d.close();
   d.innerHTML = '';
 }
+/** Anyone on a trip can add a rate for a new currency; only an admin can change one already set. */
+export const canSetRate = (trip, currency) => amAdmin(trip) || !(trip.rates || {})[currency];
 export const sheetHead = (title, right = '', left = 'Cancel') => `<div class="sheet-head"><button type="button" class="btn small" data-action="close-sheet">${left}</button><h2>${esc(title)}</h2><div class="sheet-right">${right}</div></div>`;
 
 let toastTimer;

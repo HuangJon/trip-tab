@@ -2,7 +2,7 @@
 import { A, actions, changes, render, submits } from './state.js';
 import { AVATAR_COLORS, CURRENCIES, LIMITS } from '../config/app.js';
 import { AVATARS, avatarArt } from './avatars.js';
-import { ICON, actor, ago, amAdmin, avatar, canWrite, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, svg, toast, val } from './dom.js';
+import { ICON, actor, ago, amAdmin, avatar, canWrite, canSetRate, closeSheet, copyText, esc, getMe, openSheet, saveFile, send, sheetHead, svg, toast, val } from './dom.js';
 import { activeMembers, displayColors, isAdminId, isInUse } from '../core/model.js';
 import { backupFilename, createBackup, parseBackup } from '../core/backup.js';
 import { looksBackwards, rateQuestion, roughRate, storedToTyped, typedToStored } from '../core/rates.js';
@@ -113,15 +113,16 @@ actions['pick-pic'] = el => pickAvatar('pic', el.dataset.id);
 /** The currencies this trip uses, each with its rate. Removing one never changes expenses already saved. */
 function ratesSection(trip) {
   const can = Boolean(getMe(trip)), saved = trip.rates || {}, base = trip.currency;
+  const admin = amAdmin(trip);
   const used = Object.keys(saved).filter(c => c !== base).sort();
   const others = CURRENCIES.filter(c => c !== base && !saved[c]);
   const adding = others.includes(A.rateCur) ? A.rateCur : others[0];
   const ask = c => { const q = rateQuestion(c, base); return `1 ${q.one} = how many ${q.many}?`; };
   const about = c => { const r = roughRate(c, base); return r ? `About ${Number(storedToTyped(r, c, base)).toPrecision(3)}` : ''; };
   return `<div class="stack"><span class="flabel">Other currencies on this trip</span>
-    ${used.length ? used.map(c => `<div class="rate-row"><label class="f grow"><span><strong>${esc(c)}</strong> · ${esc(ask(c))}</span><input class="mono" inputmode="decimal" id="savedRate-${esc(c)}" value="${esc(storedToTyped(saved[c], c, base))}" data-change="saved-rate" data-id="${esc(c)}" ${can ? '' : 'disabled'}></label>${can ? `<button type="button" class="btn small" data-action="remove-rate" data-id="${esc(c)}" aria-label="Remove ${esc(c)}">Remove</button>` : ''}</div>`).join('') : `<p class="small muted">None yet. This trip uses only ${esc(base)}. Add a currency if you'll pay in something else.</p>`}
+    ${used.length ? used.map(c => `<div class="rate-row"><label class="f grow"><span><strong>${esc(c)}</strong> · ${esc(ask(c))}</span><input class="mono" inputmode="decimal" id="savedRate-${esc(c)}" value="${esc(storedToTyped(saved[c], c, base))}" data-change="saved-rate" data-id="${esc(c)}" ${admin ? '' : 'disabled'}></label>${admin ? `<button type="button" class="btn small" data-action="remove-rate" data-id="${esc(c)}" aria-label="Remove ${esc(c)}">Remove</button>` : ''}</div>`).join('') : `<p class="small muted">None yet. This trip uses only ${esc(base)}. Add a currency if you'll pay in something else.</p>`}
     ${can && adding ? `<form class="stack tight" data-form="add-rate"><span class="flabel">Add a currency</span><div class="rate-row"><select id="newRateCur" aria-label="Currency" data-change="new-rate-currency">${others.map(c => `<option ${c === adding ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><input class="mono grow" id="newRate" inputmode="decimal" required aria-label="${esc(ask(adding))}" placeholder="${esc(about(adding))}"><button class="btn">Add</button></div><span class="tiny muted">${esc(ask(adding))}</span></form>` : ''}
-    <p class="tiny muted">New expenses in that currency start with this rate. Removing or changing one doesn't touch expenses already saved.</p></div>`;
+    <p class="tiny muted">New expenses in that currency start with this rate. Removing or changing one doesn't touch expenses already saved.${admin ? '' : " Anyone can add a currency; only the trip's admin can change or remove one."}</p></div>`;
 }
 actions['remove-rate'] = el => {
   const t = A.trips[A.route.tripId], c = el.dataset.id, rates = { ...(t.rates || {}) };
@@ -133,6 +134,7 @@ actions['remove-rate'] = el => {
 
 /** Saves a rate, unless it's a number or looks upside down. A second try keeps a backwards-looking one. */
 function saveRate(trip, currency, typed) {
+  if (!canSetRate(trip, currency)) { toast("Only the trip's admin can change a rate."); return false; }
   const rate = typedToStored(typed, currency, trip.currency);
   if (!rate) { toast('Enter a number above zero.'); return false; }
   const q = rateQuestion(currency, trip.currency);

@@ -83,6 +83,17 @@ await admin.repo.setEntryDeleted(trip, benEntry.id, true, 'Ana', 'x', a);
 await admin.repo.setEntryDeleted(trip, benEntry.id, false, 'Ana', 'x', a);
 await friend.repo.addComment(trip, anaEntry, 'Ben', 'Hi', b);
 await refused(friend.backend.update(`trips/${trip.id}/entries/${anaEntry.id}`, { comments: {}, commentedBy: b }), 'cannot wipe comments');
+/* Comments: anyone on the trip adds one; only whoever wrote it changes or removes it. */
+await admin.repo.addComment(trip, anaEntry, 'Ana', 'Mine', a);
+const withComments = await admin.backend.get(`trips/${trip.id}/entries/${anaEntry.id}`);
+const benComment = Object.keys(withComments.comments).find(k => withComments.comments[k].byId === b);
+const anaComment = Object.keys(withComments.comments).find(k => withComments.comments[k].byId === a);
+await friend.repo.changeComment(trip, withComments, benComment, { text: 'Hi again' }, b);
+await friend.repo.changeComment(trip, withComments, benComment, { removed: true }, b);
+await refused(friend.repo.changeComment(trip, withComments, anaComment, { text: 'Hacked' }, b), "cannot change someone else's comment");
+await refused(admin.repo.changeComment(trip, withComments, benComment, { text: 'Hacked' }, a), 'not even an admin');
+await refused(friend.backend.update(`trips/${trip.id}/entries/${anaEntry.id}`, { [`comments.${anaComment}`]: { ...withComments.comments[anaComment], byId: b, text: 'x' }, commentId: anaComment, commentedBy: b }), 'cannot take over a comment');
+await refused(save(admin, { ...anaEntry, comments: {}, desc: 'Wiped', updatedAt: 6 }, { isNew: true, actorId: a }), 'editing an expense cannot wipe its comments');
 const saved = (await admin.backend.list(`trips/${trip.id}/entries`)).find(e => e.id === benEntry.id);
 assert.equal(saved.desc, 'Admin fixed'); assert.equal(saved.createdById, b); assert.equal(saved.createdAt, 5);
 assert.equal((await admin.repo.listRevisions(trip.id, benEntry.id)).length, 2);
@@ -96,6 +107,8 @@ await save(friend, { ...refund, desc: 'Refund fixed' }, { isNew: false, previous
 await friend.repo.renameMember(trip.id, b, 'Benny', b);
 await friend.repo.setMemberPayment(trip.id, b, 'venmo', '@ben', b);
 await friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.21 }, b);
+await refused(friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.3 }, b), 'only an admin changes a rate already set');
+await refused(friend.repo.updateTrip(trip.id, { rates: {} }, b), 'or removes one');
 await refused(friend.repo.renameMember(trip.id, a, 'Hacked', b), "cannot rename someone else");
 await refused(friend.repo.setMemberPayment(trip.id, a, 'venmo', '@scam', b), "cannot change someone else's Venmo");
 await refused(friend.repo.setAdmin(trip.id, b, friend.backend.uid(), true, b), 'cannot promote yourself');
@@ -232,6 +245,7 @@ await refused(friend.repo.logError(report('report0000000004', friend, { message:
 await refused(friend.repo.logError(report('report0000000005', friend, { kind: 'other' })), 'or an unknown kind');
 await refused(friend.repo.logError(report('report0000000006', friend, { extra: 'x' })), 'or with extra fields');
 await refused(friend.repo.logError(report('short', friend, { id: 'short' })), 'or a bad id');
+await refused(unverified.set('errorLog/report0000000009', { ...report('report0000000009', friend), uid: unverified.uid(), email: 'unverified@example.com' }), 'an unverified account cannot add reports');
 await refused(friend.repo.ownerErrors(), 'friends cannot read reports');
 await refused(friend.backend.get('errorLog/report0000000001'), 'not even their own');
 await refused(friend.backend.update('errorLog/report0000000001', { message: 'x' }), 'or change them');

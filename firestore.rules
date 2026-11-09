@@ -66,6 +66,19 @@ service cloud.firestore {
         && (d.kind != 'payment' || (d.paid.size() == 1 && d.owed.size() == 1));
     }
 
+    // A comment can be added by anyone on the trip, and changed or removed only by whoever wrote it.
+    // Each write names the one comment it touches, and nothing is ever taken out of the list.
+    function commentOk(tripId) {
+      let d = request.resource.data;
+      let actor = d.get('commentedBy', '');
+      let k = d.get('commentId', '');
+      let change = d.comments.diff(resource.data.comments);
+      return isMe(tripId, actor) && k is string && k.size() > 0
+        && change.affectedKeys().hasOnly([k]) && change.removedKeys().size() == 0
+        && d.comments[k].byId == actor && short(d.comments[k].text, 500)
+        && (!(k in resource.data.comments) || resource.data.comments[k].get('byId', '') == actor);
+    }
+
     // Who can change an existing expense: whoever added it, whoever handled the money, or an admin.
     function canChange(tripId, old, actor) {
       return isAdmin(tripId, actor) || (isMe(tripId, actor) && (
@@ -84,7 +97,7 @@ service cloud.firestore {
     // A short note when something breaks. Anyone signed in can add their own; only the owner can read them.
     match /errorLog/{id} {
       allow read: if isOwner();
-      allow create: if request.auth != null && okId(id)
+      allow create: if signedIn() && okId(id)
         && request.resource.data.keys().hasOnly(['id', 'kind', 'message', 'where', 'tripId', 'agent', 'uid', 'email', 'at'])
         && request.resource.data.keys().hasAll(['id', 'kind', 'message', 'where', 'tripId', 'agent', 'uid', 'email', 'at'])
         && request.resource.data.id == id
@@ -110,11 +123,13 @@ service cloud.firestore {
         && request.resource.data.members.size() >= resource.data.members.size()
         && (
           isAdmin(tripId, request.resource.data.changedBy)
-          // Everyone else changes only their own name, Venmo and Zelle, and shares new exchange rates.
-          // No admin lists change here, so nobody can promote themselves.
+          // Everyone else changes only their own name, Venmo and Zelle, and adds rates for new currencies.
+          // Only an admin changes or removes a rate. No admin lists change here, so nobody can promote themselves.
           || (isMe(tripId, request.resource.data.changedBy)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'rates', 'changedBy'])
-            && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.resource.data.changedBy]))
+            && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.resource.data.changedBy])
+            && request.resource.data.rates.diff(resource.data.rates).changedKeys().size() == 0
+            && request.resource.data.rates.diff(resource.data.rates).removedKeys().size() == 0)
         );
       allow delete: if false;
 
@@ -151,11 +166,15 @@ service cloud.firestore {
           // Claiming a freed name.
           (resource.data.released == true && onTrip(tripId)
             && request.resource.data.uid == request.auth.uid
-            && request.resource.data.released == false)
+            && request.resource.data.released == false
+            && request.resource.data.memberId == resource.data.memberId
+            && request.resource.data.tripId == resource.data.tripId)
           // An admin freeing the name.
           || (isAdmin(tripId, request.resource.data.releasedBy)
             && request.resource.data.released == true
-            && request.resource.data.uid == '')
+            && request.resource.data.uid == ''
+            && request.resource.data.memberId == resource.data.memberId
+            && request.resource.data.tripId == resource.data.tripId)
         );
         allow delete: if false;
       }
@@ -172,10 +191,11 @@ service cloud.firestore {
           && request.resource.data.get('createdById', '') == resource.data.get('createdById', '')
           && request.resource.data.comments.size() >= resource.data.comments.size()
           && (
-            canChange(tripId, resource.data, request.resource.data.get('updatedById', ''))
-            // Anyone on the trip can comment.
-            || (isMe(tripId, request.resource.data.get('commentedBy', ''))
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'commentedBy']))
+            // Editing the expense leaves its comments alone.
+            (canChange(tripId, resource.data, request.resource.data.get('updatedById', ''))
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['comments']))
+            || (commentOk(tripId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'commentedBy', 'commentId']))
           );
         allow delete: if false;
 

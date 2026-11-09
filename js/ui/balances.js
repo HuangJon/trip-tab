@@ -4,7 +4,7 @@ import { CURRENCIES, LIMITS } from '../config/app.js';
 import { looksBackwards, rateQuestion, storedToTyped, typedToStored } from '../core/rates.js';
 import { coveredBy, exactRate, sendFor, venmoLink } from '../core/settle.js';
 import { reminderText, wrapUpText } from '../core/messages.js';
-import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
+import { canSetRate, actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
 import { myPayments, needsRate, netBalances, personLedger, spendingBreakdown, tripDebts } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
@@ -253,7 +253,7 @@ submits.settle = () => {
   }
   const id = randomId(), at = Date.now();
   const entry = { id, tripId: trip.id, kind: 'payment', desc: 'Settlement', category: 'other', date, currency: S.currency, rate, ...(foreign ? { quotedRate } : {}), total, paid: { [from]: total }, owed: { [to]: total }, note: val('sNote').trim(), method: A.settleMethod || 'other', comments: {}, createdAt: at, updatedAt: at, createdById: getMe(trip), updatedBy: actor(trip), deleted: false };
-  if (foreign && trip.rates?.[S.currency] !== quotedRate) send(A.repo.updateTrip(trip.id, { [`rates.${S.currency}`]: quotedRate }, getMe(trip)));
+  if (foreign && trip.rates?.[S.currency] !== quotedRate && canSetRate(trip, S.currency)) send(A.repo.updateTrip(trip.id, { [`rates.${S.currency}`]: quotedRate }, getMe(trip)));
   closeSheet();
   send(A.repo.saveEntry(trip, entry, { isNew: true, actor: actor(trip), actorId: getMe(trip), label: `marked that ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, S.currency)}${foreign ? ` (${money(debt, trip.currency)})` : ''}${({ venmo: ' by Venmo', zelle: ' by Zelle', cash: ' in cash' })[A.settleMethod] || ''}` }), 'A payment');
   toast(`Marked as paid. ${memberName(trip, from)} paid ${memberName(trip, to)} ${money(total, S.currency)}.`);

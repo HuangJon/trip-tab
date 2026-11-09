@@ -24,7 +24,7 @@ export function openDetail(id, { keepTyped } = {}) {
   A.detail = id;
   const typed = keepTyped ? val('cText') : '';
   const pay = e.kind === 'payment', refund = e.kind === 'refund', foreign = e.currency !== t.currency, write = canWrite(t), editable = canEdit(t, e);
-  const comments = Object.values(e.comments || {}).sort((a, b) => a.at - b.at);
+  const comments = Object.entries(e.comments || {}).map(([cid, c]) => ({ ...c, cid })).filter(c => !c.removed).sort((a, b) => a.at - b.at);
   const items = e.split?.mode === 'items' ? e.split.items || [] : [];
   openSheet(`<div class="sheet">${sheetHead(pay ? 'Payment' : refund ? 'Refund' : 'Expense', editable && !pay && !e.deleted ? `<button type="button" class="btn small" data-action="edit-entry" data-id="${id}">Edit</button>` : '', 'Close')}
   <div class="sheet-body">
@@ -38,7 +38,7 @@ export function openDetail(id, { keepTyped } = {}) {
     ${e.receipt ? '<div id="receiptSlot" class="small muted">Loading the receipt photo…</div>' : ''}
     ${pay ? '' : `<section class="panel pad stack"><h3>${refund ? 'Received by' : 'Paid by'}</h3>${rowsOf(t, e, handlersOf(e))}</section><section class="panel pad stack"><h3>${refund ? 'Shared by' : 'Split among'}</h3>${rowsOf(t, e, sharesOf(e))}</section>`}
     ${items.length ? `<section class="panel pad stack"><h3>Items</h3>${items.map(it => `<div class="row between small"><span class="grow wrap-any">${esc(it.name || 'Item')} <span class="muted">· ${(it.people || []).map(i => esc(memberName(t, i))).join(', ')}</span></span><span class="amt">${money(toMinor(it.amount, e.currency), e.currency)}</span></div>`).join('')}</section>` : ''}
-    <section class="stack"><h3>Comments</h3>${comments.map(c => `<div class="comment"><strong class="small">${esc(c.by)}</strong><br>${esc(c.text)}</div>`).join('') || '<p class="small muted">No comments yet.</p>'}
+    <section class="stack"><h3>Comments</h3>${comments.map(c => `<div class="comment"><div class="row between"><strong class="small">${esc(c.byId ? memberName(t, c.byId) : c.by)}</strong>${c.byId && c.byId === getMe(t) && !e.deleted ? `<span class="row tight"><button type="button" class="link small" data-action="comment-edit" data-id="${esc(c.cid)}">Edit</button><button type="button" class="link small" data-action="comment-remove" data-id="${esc(c.cid)}">Delete</button></span>` : ''}</div>${A.commentEdit === c.cid ? `<form class="row" data-form="comment-save" data-id="${esc(c.cid)}"><input id="cEdit" aria-label="Edit comment" required maxlength="${LIMITS.comment}" value="${esc(c.text)}"><button class="btn">Save</button></form>` : `${esc(c.text)}${c.editedAt ? ' <span class="tiny muted">(edited)</span>' : ''}`}</div>`).join('') || '<p class="small muted">No comments yet.</p>'}
       ${write && !e.deleted ? `<form class="row" data-form="comment" data-id="${id}"><input id="cText" placeholder="Add a comment" aria-label="Comment" required maxlength="${LIMITS.comment}" value="${esc(typed)}"><button class="btn">Post</button></form>` : ''}</section>
     ${pay ? '' : `<section class="stack"><h3>Edit history</h3><div id="historySlot" class="stack"><button type="button" class="link small" data-action="history-show" data-id="${id}">See earlier versions</button></div></section>`}
     ${write && !pay && !e.deleted ? `<button type="button" class="btn" data-action="duplicate-entry" data-id="${id}">Duplicate</button>` : ''}
@@ -124,6 +124,19 @@ actions.undo = () => {
   document.getElementById('toast').hidden = true;
   A.undo = null;
   u?.();
+};
+actions['comment-edit'] = el => { A.commentEdit = el.dataset.id; openDetail(A.detail, { keepTyped: true }); document.getElementById('cEdit')?.focus(); };
+submits['comment-save'] = form => {
+  const t = A.trips[A.route.tripId], e = A.entries[t.id][A.detail], text = val('cEdit').trim();
+  A.commentEdit = null;
+  if (text && requireMe(t)) send(A.repo.changeComment(t, e, form.dataset.id, { text }, getMe(t)), 'That comment');
+  openDetail(A.detail);
+};
+actions['comment-remove'] = el => {
+  const t = A.trips[A.route.tripId], e = A.entries[t.id][A.detail], cid = el.dataset.id;
+  if (!requireMe(t)) return;
+  send(A.repo.changeComment(t, e, cid, { removed: true }, getMe(t)), 'Deleting that comment');
+  toast('Comment deleted', () => send(A.repo.changeComment(t, A.entries[t.id][A.detail] || e, cid, { removed: false }, getMe(t)), 'That comment'));
 };
 submits.comment = form => {
   const t = A.trips[A.route.tripId], e = A.entries[t.id][form.dataset.id], text = val('cText').trim();

@@ -175,9 +175,15 @@ export function createRepository(backend, now = () => Date.now()) {
     addComment(trip, entry, by, text, actorId) {
       const id = randomId();
       return Promise.all([
-        backend.update(`${col(trip.id, 'entries')}/${entry.id}`, { [`comments.${id}`]: { by, text, at: now() }, ...stamp(actorId, 'commentedBy') }),
+        backend.update(`${col(trip.id, 'entries')}/${entry.id}`, { [`comments.${id}`]: { by, byId: actorId, text, at: now() }, commentId: id, ...stamp(actorId, 'commentedBy') }),
         logActivity(trip, `${by} commented on "${entry.desc}"`, entry.id, actorId),
       ]);
+    },
+    /** Rewrites one of your own comments. Removing one keeps it in place, marked removed, so nothing is ever lost. */
+    changeComment(trip, entry, commentId, change, actorId) {
+      const old = entry.comments?.[commentId];
+      if (!old) return Promise.reject(new Error('That comment is gone.'));
+      return backend.update(`${col(trip.id, 'entries')}/${entry.id}`, { [`comments.${commentId}`]: { ...old, ...change, editedAt: now() }, commentId, ...stamp(actorId, 'commentedBy') });
     },
 
     saveReceipt(tripId, dataUrl, actorId) {
@@ -229,7 +235,7 @@ export function createRepository(backend, now = () => Date.now()) {
         const current = await backend.get(path);
         const next = { ...e, tripId: trip.id, ...stamp(actorId, 'updatedById') };
         if (current) {
-          next.comments = { ...(e.comments || {}), ...(current.comments || {}) };
+          next.comments = current.comments || {}; // comments are only ever changed by whoever wrote them
           next.createdAt = current.createdAt;
           if (current.createdById) next.createdById = current.createdById;
           if (sameEntry(current, next)) continue;

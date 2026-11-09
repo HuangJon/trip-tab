@@ -1,7 +1,7 @@
 /** Adding and editing an expense. What people type lives in A.form, so nothing they typed is lost on a redraw. */
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
-import { actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
+import { canSetRate, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
 import { needsRate } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
@@ -354,7 +354,7 @@ function commit(t, entry, current) {
   const handlers = Object.keys(handlersOf(entry));
   A.device.setRecent(t.id, { category: entry.category });
   if (isNew) A.device.clearDraft(t.id);
-  if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
+  if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate && canSetRate(t, entry.currency)) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
   closeSheet();
   A.justSaved = entry.id;
   A.justSavedShown = false;
