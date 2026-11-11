@@ -88,6 +88,7 @@ dialog::backdrop { background:var(--scrim) }
 .check.ok { background:var(--owed-soft); color:var(--owed) } .check.bad { background:var(--owe-soft); color:var(--owe) }
 .item { display:grid; gap:8px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface) }
 .item-who { margin:0 }
+.squares { margin-top:4px; background:var(--sunken) }
 .item-top { display:grid; grid-template-columns:minmax(0,1fr) 92px 36px; gap:8px; align-items:center }
 .comment { padding:8px 12px; background:var(--sunken); border-radius:10px; overflow-wrap:anywhere }
 .receipt { max-width:100%; max-height:420px; border-radius:10px; border:1px solid var(--line); display:block }

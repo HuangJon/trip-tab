@@ -46,6 +46,9 @@ export function simplify(net) {
   return out;
 }
 
+/** Who pays whom to square up one expense on its own, in its own currency. */
+export const expensePayments = (paid, owed, currency) => simplify(netBalances([{ currency, paid, owed }], currency));
+
 /** Who owes whom expense by expense, with each pair netted against each other. */
 export function pairwise(entries, base) {
   const matrix = new Map();

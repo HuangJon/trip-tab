@@ -3,7 +3,7 @@ import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
 import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
-import { inBase, needsRate } from '../core/debts.js';
+import { expensePayments, inBase, needsRate } from '../core/debts.js';
 import { rateLabel } from '../core/rates.js';
 import { handlersOf, memberName, removedNames, sharesOf } from '../core/model.js';
 import { duplicateExpense, openExpenseForm } from './expense-form.js';
@@ -16,6 +16,14 @@ function credit(t, e) {
   if (e.createdById) parts.push(`Added by ${esc(memberName(t, e.createdById))}${e.createdAt ? ` on ${when(e.createdAt)}` : ''}`);
   if (e.updatedBy && e.updatedAt !== e.createdAt) parts.push(`Last changed by ${esc(e.updatedBy)} on ${when(e.updatedAt)}`);
   return parts.join(' · ');
+}
+
+/** Who pays whom for this one expense, so a split with several payers is plain to read. */
+function squares(t, e) {
+  const pays = expensePayments(handlersOf(e), sharesOf(e), e.currency);
+  if (!pays.length) return '';
+  const name = id => (id === getMe(t) ? 'You' : memberName(t, id));
+  return `<section class="panel pad stack"><h3>Who pays whom</h3>${pays.map(p => `<div class="row between">${avatar(t, p.from)}<span class="grow wrap-any">${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, e.currency)}</span></div>`).join('')}<p class="tiny muted">For this ${e.kind === 'refund' ? 'refund' : 'expense'} alone. Balances adds it up with the rest of the trip.</p></section>`;
 }
 
 export function openDetail(id, { keepTyped } = {}) {
@@ -36,7 +44,7 @@ export function openDetail(id, { keepTyped } = {}) {
     ${pay && e.method ? `<p class="small muted">Paid ${({ venmo: 'by Venmo', zelle: 'by Zelle', cash: 'in cash' })[e.method] || 'another way'}</p>` : ''}
     ${e.note ? `<p class="wrap-any">${esc(e.note)}</p>` : ''}
     ${e.receipt ? '<div id="receiptSlot" class="small muted">Loading the receipt photo…</div>' : ''}
-    ${pay ? '' : `<section class="panel pad stack"><h3>${refund ? 'Received by' : 'Paid by'}</h3>${rowsOf(t, e, handlersOf(e))}</section><section class="panel pad stack"><h3>${refund ? 'Shared by' : 'Split among'}</h3>${rowsOf(t, e, sharesOf(e))}</section>`}
+    ${pay ? '' : `<section class="panel pad stack"><h3>${refund ? 'Received by' : 'Paid by'}</h3>${rowsOf(t, e, handlersOf(e))}</section><section class="panel pad stack"><h3>${refund ? 'Shared by' : 'Split among'}</h3>${rowsOf(t, e, sharesOf(e))}</section>${squares(t, e)}`}
     ${items.length ? `<section class="panel pad stack"><h3>Items</h3>${items.map(it => `<div class="row between small"><span class="grow wrap-any">${esc(it.name || 'Item')} <span class="muted">· ${(it.people || []).map(i => esc(memberName(t, i))).join(', ')}</span></span><span class="amt">${money(toMinor(it.amount, e.currency), e.currency)}</span></div>`).join('')}</section>` : ''}
     <section class="stack"><h3>Comments</h3>${comments.map(c => `<div class="comment"><div class="row between"><strong class="small">${esc(c.byId ? memberName(t, c.byId) : c.by)}</strong>${c.byId && c.byId === getMe(t) && !e.deleted ? `<span class="row tight"><button type="button" class="link small" data-action="comment-edit" data-id="${esc(c.cid)}">Edit</button><button type="button" class="link small" data-action="comment-remove" data-id="${esc(c.cid)}">Delete</button></span>` : ''}</div>${A.commentEdit === c.cid ? `<form class="row" data-form="comment-save" data-id="${esc(c.cid)}"><input id="cEdit" aria-label="Edit comment" required maxlength="${LIMITS.comment}" value="${esc(c.text)}"><button class="btn">Save</button></form>` : `${esc(c.text)}${c.editedAt ? ' <span class="tiny muted">(edited)</span>' : ''}`}</div>`).join('') || '<p class="small muted">No comments yet.</p>'}
       ${write && !e.deleted ? `<form class="row" data-form="comment" data-id="${id}"><input id="cText" placeholder="Add a comment" aria-label="Comment" required maxlength="${LIMITS.comment}" value="${esc(typed)}"><button class="btn">Post</button></form>` : ''}</section>

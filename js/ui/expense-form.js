@@ -3,7 +3,7 @@ import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
 import { canSetRate, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
-import { needsRate } from '../core/debts.js';
+import { needsRate, expensePayments } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
@@ -61,6 +61,18 @@ const keepDraft = () => {
   if (F && !F.id) { collect(); if (F.desc || F.amount) A.device.saveDraft(F.tripId, F); else A.device.clearDraft(F.tripId); }
 };
 
+/** Once the split and the payments both add up, who pays whom for this expense on its own. */
+function squaresUp(t, total, owed) {
+  const F = A.form, c = F.currency;
+  if (!(total > 0) || !owed) return '';
+  const paid = F.multi ? Object.fromEntries(Object.entries(F.payers).map(([i, v]) => [i, toMinor(v, c)]).filter(([, v]) => v > 0)) : { [F.payer]: total };
+  if (Object.values(paid).reduce((a, b) => a + b, 0) !== total) return '';
+  const name = id => (id === getMe(t) ? 'You' : memberName(t, id));
+  const pays = expensePayments(paid, owed, c);
+  if (!pays.length) return '';
+  return `<div class="panel pad stack tight squares"><span class="flabel">For this ${F.kind === 'refund' ? 'refund' : 'expense'}</span>${pays.map(p => `<div class="row between small"><span>${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, c)}</span></div>`).join('')}<span class="tiny muted">Balances adds this up with the rest of the trip.</span></div>`;
+}
+
 function splitEditor(t) {
   const F = A.form, S = F.split, mode = S.mode, c = F.currency, total = toMinor(F.amount, c), res = computeSplit(total, c, S, ids(t)), owed = res.owed || {}, people = activeMembers(t);
   const shown = id => (total > 0 && res.owed ? `<span class="res amt muted" data-live="res-${id}">${money(owed[id] || 0, c)}</span>` : `<span class="res" data-live="res-${id}"></span>`);
@@ -80,7 +92,8 @@ function splitEditor(t) {
   const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one. Who paid is set in Paid by above.' }[mode];
   return `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
     ${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div>
-    <div data-live="error">${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}</div>`;
+    <div data-live="error">${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}</div>
+    <div data-live="squares">${squaresUp(t, total, res.owed)}</div>`;
 }
 
 const paidTotal = t => activeMembers(t).reduce((s, m) => s + toMinor(A.form.payers[m.id], A.form.currency), 0);
@@ -255,7 +268,7 @@ actions['form-details'] = () => {
   drawDetailsLink();
 };
 changes['form-payer'] = el => {
-  if (el.value !== 'several') { A.form.payer = el.value; keepDraft(); return; }
+  if (el.value !== 'several') { A.form.payer = el.value; refresh(); keepDraft(); return; }
   el.value = A.form.payer; // the choice is a way in, not a person
   actions['toggle-multi']();
 };

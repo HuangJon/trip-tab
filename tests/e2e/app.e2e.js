@@ -1024,6 +1024,21 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   await fresh.tap('[data-action=split-mode][data-id=items]');
   assert.equal(await fresh.locator('#splitArea .chip[aria-pressed=true]').count(), 1, 'items survive switching away and back');
   assert.equal(await fresh.inputValue('#it-a-0'), '250');
+  /* With several payers, the form says who pays whom for this expense */
+  await fresh.selectOption('#fPayer', 'several');
+  await fresh.fill('[id^=pay-] >> nth=0', '210');
+  await fresh.fill('[id^=pay-] >> nth=1', '450');
+  await fresh.tap('[data-action=item-add]');
+  await fresh.fill('#it-a-1', '410');
+  await fresh.tap('#splitArea .chip[data-i="1"] >> nth=1');
+  await fresh.waitForSelector('.squares');
+  assert.match(await fresh.textContent('.squares'), /You pay Mia\s*NT\$40/);
+  await fresh.fill('#fDesc', 'Shared dinner');
+  await fresh.tap('#dlg h2');
+  await fresh.waitForSelector('#fSave', { state: 'visible' });
+  await fresh.tap('#fSave');
+  await fresh.tap('[data-action=open-entry]:has-text("Shared dinner")');
+  assert.match(await fresh.textContent('#dlg'), /Who pays whom[\s\S]*You pay Mia\s*NT\$40/, 'every expense shows the flow of money');
   await phone.close();
 }
 check('the walkthrough shows after signing in and is behind the question mark');

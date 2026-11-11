@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { inBase, myPayments, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown, tripDebts } from '../../js/core/debts.js';
+import { expensePayments, inBase, myPayments, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown, tripDebts } from '../../js/core/debts.js';
 const es = [
   { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 900, paid: { a: 900 }, owed: { a: 300, b: 300, c: 300 } },
   { kind: 'expense', category: 'fun', date: '2026-01-02', currency: 'JPY', rate: 0.21, total: 3333, paid: { b: 3333 }, owed: { a: 1111, b: 1111, c: 1111 } },
@@ -115,4 +115,14 @@ test('a simplified payment says who else it covers', () => {
 test('debts follow the simplify setting', () => {
   assert.equal(tripDebts(chain, 'T', true).length, 1);
   assert.equal(tripDebts(chain, 'T', false).length, 2);
+});
+
+test('one expense with several payers shows who pays whom for it alone', () => {
+  // A paid 10, B paid 200, C paid 450 for items of 250, 250 and 160.
+  const pays = expensePayments({ a: 1000, b: 20000, c: 45000 }, { a: 25000, b: 25000, c: 16000 }, 'USD');
+  assert.deepEqual(pays.sort((x, y) => x.from.localeCompare(y.from)), [
+    { from: 'a', to: 'c', amount: 24000 },
+    { from: 'b', to: 'c', amount: 5000 },
+  ]);
+  assert.deepEqual(expensePayments({ a: 300 }, { a: 300 }, 'USD'), [], 'nothing to pay when you covered only yourself');
 });
