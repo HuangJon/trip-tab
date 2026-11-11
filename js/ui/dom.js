@@ -73,7 +73,24 @@ export function openSheet(html) {
   d.innerHTML = html;
   if (!d.open) d.showModal();
 }
+/*
+ * Sheets opened from another sheet drill down: their top-left button goes back to the one beneath,
+ * and closing goes all the way out. Each entry here reopens a sheet beneath the current one.
+ */
+const beneath = [];
+/** Call just before opening a sheet from inside another, with how to reopen the one being left. */
+export function drillFrom(reopen) { if (sheet().open) beneath.push(reopen); }
+export const canGoBack = () => beneath.length > 0;
+export function goBack() {
+  const reopen = beneath.pop();
+  A.form = null;
+  A.detail = null;
+  if (reopen) reopen(); else closeSheet();
+}
+const backButton = '<button type="button" class="btn small sheet-back" data-action="sheet-back"><span aria-hidden="true">\u2039</span> Back</button>';
+export const leftButton = (label, action = 'close-sheet') => (beneath.length ? backButton : `<button type="button" class="btn small" data-action="${action}">${label}</button>`);
 export function closeSheet() {
+  beneath.length = 0;
   const d = sheet();
   A.form = null;
   A.detail = null;
@@ -83,7 +100,7 @@ export function closeSheet() {
 }
 /** Anyone on a trip can add a rate for a new currency; only an admin can change one already set. */
 export const canSetRate = (trip, currency) => amAdmin(trip) || !(trip.rates || {})[currency];
-export const sheetHead = (title, right = '', left = 'Cancel') => `<div class="sheet-head"><button type="button" class="btn small" data-action="close-sheet">${left}</button><h2>${esc(title)}</h2><div class="sheet-right">${right}</div></div>`;
+export const sheetHead = (title, right = '', left = 'Cancel') => `<div class="sheet-head">${leftButton(left)}<h2>${esc(title)}</h2><div class="sheet-right">${right}</div></div>`;
 
 let toastTimer;
 export function toast(message, undo) {

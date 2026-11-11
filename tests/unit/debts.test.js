@@ -1,5 +1,5 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
-import { expensePayments, inBase, myPayments, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown, tripDebts } from '../../js/core/debts.js';
+import { expensePayments, inBase, receivedBy, myPayments, needsRate, netBalances, pairwise, personLedger, simplify, spendingBreakdown, tripDebts } from '../../js/core/debts.js';
 const es = [
   { kind: 'expense', category: 'food', date: '2026-01-01', currency: 'TWD', total: 900, paid: { a: 900 }, owed: { a: 300, b: 300, c: 300 } },
   { kind: 'expense', category: 'fun', date: '2026-01-02', currency: 'JPY', rate: 0.21, total: 3333, paid: { b: 3333 }, owed: { a: 1111, b: 1111, c: 1111 } },
@@ -125,4 +125,8 @@ test('one expense with several payers shows who pays whom for it alone', () => {
     { from: 'b', to: 'c', amount: 5000 },
   ]);
   assert.deepEqual(expensePayments({ a: 300 }, { a: 300 }, 'USD'), [], 'nothing to pay when you covered only yourself');
+});
+
+test('what each person receives adds up their payments', () => {
+  assert.deepEqual(receivedBy([{ from: 'a', to: 'c', amount: 24000 }, { from: 'b', to: 'c', amount: 5000 }]), { c: 29000 });
 });

@@ -154,8 +154,10 @@ assert.match(await page.textContent('#ledger'), /Rental car/);
 assert.match(await page.textContent('#ledger'), /Paid NT\$4,800 · share NT\$1,600/);
 assert.ok(shownBalance.replace(/[+−]/, '').length > 0 && (await page.locator('#ledger .big').textContent()).includes(shownBalance.replace(/[+−]/, '')), 'the total matches the balance');
 await page.click('#ledger .tap:has-text("Rental car")');
-await page.waitForSelector('#dlg [data-action=close-sheet]');
+await page.waitForSelector('#dlg [data-action=sheet-back]'); // the expense opened from the balance goes back to it
 assert.match(await page.textContent('#dlg .detail-title'), /Rental car/);
+await page.click('[data-action=sheet-back]');
+await page.waitForSelector('#ledger');
 await page.click('[data-action=close-sheet]');
 check('tapping a person explains their balance');
 
@@ -1039,6 +1041,28 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   await fresh.tap('#fSave');
   await fresh.tap('[data-action=open-entry]:has-text("Shared dinner")');
   assert.match(await fresh.textContent('#dlg'), /Who pays whom[\s\S]*You pay Mia\s*NT\$40/, 'every expense shows the flow of money');
+  assert.match(await fresh.textContent('#dlg'), /Mia receives\s*NT\$40/, 'and what each person receives');
+
+  /* Drilling down: edit goes back to the details */
+  await fresh.tap('#dlg [data-action=edit-entry]');
+  await fresh.waitForSelector('#fDesc');
+  await fresh.tap('#dlg [data-action=sheet-back]');
+  await fresh.waitForSelector('#dlg h3:has-text("Who pays whom")');
+  await fresh.tap('#dlg [data-action=edit-entry]');
+  await fresh.fill('#fDesc', 'Shared dinner out');
+  await fresh.tap('#dlg h2');
+  await fresh.waitForSelector('#fSave', { state: 'visible' });
+  await fresh.tap('#fSave');
+  await fresh.waitForFunction(() => !document.getElementById('dlg').open); // saving finishes the drill-down
+  await fresh.waitForSelector('.tap:has-text("Shared dinner out")');
+
+  /* A person's balance drills into an expense and back */
+  await fresh.tap('#tabs [data-tab=balances]');
+  await fresh.tap('[data-action=person-ledger] >> nth=0');
+  await fresh.waitForSelector('#ledger');
+  await fresh.tap('#ledger [data-action=open-entry] >> nth=0');
+  await fresh.tap('#dlg [data-action=sheet-back]');
+  await fresh.waitForSelector('#ledger');
   await phone.close();
 }
 check('the walkthrough shows after signing in and is behind the question mark');

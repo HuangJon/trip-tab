@@ -263,6 +263,7 @@ submits.settle = () => {
 /** Why someone's balance is what it is, line by line. */
 actions['person-ledger'] = el => {
   const trip = A.trips[A.route.tripId], id = el.dataset.id, c = trip.currency;
+  A.ledgerFor = id;
   const all = liveEntries(A.entries[trip.id]), rows = personLedger(all, c, id), balance = rows.reduce((s, r) => s + r.net, 0);
   const missing = all.filter(e => needsRate(e, c) && (e.paid[id] || e.owed[id])).length;
   const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v), c)}`;

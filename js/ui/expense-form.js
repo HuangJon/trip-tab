@@ -1,9 +1,9 @@
 /** Adding and editing an expense. What people type lives in A.form, so nothing they typed is lost on a redraw. */
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
-import { canSetRate, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
+import { canSetRate, leftButton, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
-import { needsRate, expensePayments } from '../core/debts.js';
+import { needsRate, expensePayments, receivedBy } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
 import { activeMembers, handlersOf, memberName, sharesOf } from '../core/model.js';
 import { randomId } from '../core/ids.js';
@@ -70,7 +70,7 @@ function squaresUp(t, total, owed) {
   const name = id => (id === getMe(t) ? 'You' : memberName(t, id));
   const pays = expensePayments(paid, owed, c);
   if (!pays.length) return '';
-  return `<div class="panel pad stack tight squares"><span class="flabel">For this ${F.kind === 'refund' ? 'refund' : 'expense'}</span>${pays.map(p => `<div class="row between small"><span>${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, c)}</span></div>`).join('')}<span class="tiny muted">Balances adds this up with the rest of the trip.</span></div>`;
+  return `<div class="panel pad stack tight squares"><span class="flabel">For this ${F.kind === 'refund' ? 'refund' : 'expense'}</span>${pays.map(p => `<div class="row between small"><span>${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, c)}</span></div>`).join('')}${Object.entries(receivedBy(pays)).map(([id, v]) => `<div class="row between small squares-got"><span>${esc(name(id))} ${id === getMe(t) ? 'receive' : 'receives'}</span><span class="amt good">${money(v, c)}</span></div>`).join('')}<span class="tiny muted">Balances adds this up with the rest of the trip.</span></div>`;
 }
 
 function splitEditor(t) {
@@ -151,7 +151,7 @@ function drawForm() {
   if (!t) return closeSheet();
   const refund = F.kind === 'refund';
   const people = activeMembers(t), scroll = document.querySelector('#dlg .sheet-body')?.scrollTop || 0;
-  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head"><button type="button" class="btn small" data-action="form-cancel">Cancel</button><h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"></div></div>
+  openSheet(`<form class="sheet" data-form="expense"><div class="sheet-head">${leftButton('Cancel', 'form-cancel')}<h2>${F.id ? (refund ? 'Edit refund' : 'Edit expense') : refund ? 'Add refund' : F.isCopy ? 'Copy expense' : 'Add expense'}</h2><div class="sheet-right"></div></div>
   <div class="sheet-body">
     ${F.isDraft ? `<div class="notice row between wrap"><span>Picked up your unsaved expense.</span><button type="button" class="btn small" data-action="draft-discard">${F.discardArmed ? 'Tap again to discard' : 'Discard'}</button></div>` : ''}
     <div class="grid-cur"><label class="f"><span>Currency</span><select id="fCur" data-change="form-currency">${[...new Set([t.currency, ...Object.keys(t.rates || {}).sort(), ...CURRENCIES])].map(c => `<option ${c === F.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
@@ -376,7 +376,7 @@ function commit(t, entry, current) {
   A.device.setRecent(t.id, { category: entry.category });
   if (isNew) A.device.clearDraft(t.id);
   if (entry.rate && entry.currency !== t.currency && t.rates?.[entry.currency] !== entry.rate && canSetRate(t, entry.currency)) send(A.repo.updateTrip(t.id, { [`rates.${entry.currency}`]: entry.rate }, getMe(t)));
-  closeSheet();
+  closeSheet(); // saving finishes the whole drill-down, and the list highlights what changed
   A.justSaved = entry.id;
   A.justSavedShown = false;
   if (A.route.tab !== 'expenses') goTrip(t.id, 'expenses');

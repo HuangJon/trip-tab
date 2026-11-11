@@ -1,9 +1,9 @@
 /** One expense or payment: its details, comments, edit and delete. */
 import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
-import { actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
+import { drillFrom, goBack, actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
-import { expensePayments, inBase, needsRate } from '../core/debts.js';
+import { expensePayments, inBase, needsRate, receivedBy } from '../core/debts.js';
 import { rateLabel } from '../core/rates.js';
 import { handlersOf, memberName, removedNames, sharesOf } from '../core/model.js';
 import { duplicateExpense, openExpenseForm } from './expense-form.js';
@@ -23,7 +23,7 @@ function squares(t, e) {
   const pays = expensePayments(handlersOf(e), sharesOf(e), e.currency);
   if (!pays.length) return '';
   const name = id => (id === getMe(t) ? 'You' : memberName(t, id));
-  return `<section class="panel pad stack"><h3>Who pays whom</h3>${pays.map(p => `<div class="row between">${avatar(t, p.from)}<span class="grow wrap-any">${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, e.currency)}</span></div>`).join('')}<p class="tiny muted">For this ${e.kind === 'refund' ? 'refund' : 'expense'} alone. Balances adds it up with the rest of the trip.</p></section>`;
+  return `<section class="panel pad stack"><h3>Who pays whom</h3>${pays.map(p => `<div class="row between">${avatar(t, p.from)}<span class="grow wrap-any">${esc(name(p.from))} ${p.from === getMe(t) ? 'pay' : 'pays'} ${esc(name(p.to))}</span><span class="amt">${money(p.amount, e.currency)}</span></div>`).join('')}${Object.entries(receivedBy(pays)).map(([id, v]) => `<div class="row between squares-got">${avatar(t, id)}<span class="grow wrap-any">${esc(name(id))} ${id === getMe(t) ? 'receive' : 'receives'}</span><span class="amt good">${money(v, e.currency)}</span></div>`).join('')}<p class="tiny muted">For this ${e.kind === 'refund' ? 'refund' : 'expense'} alone. Balances adds it up with the rest of the trip.</p></section>`;
 }
 
 export function openDetail(id, { keepTyped } = {}) {
@@ -121,9 +121,19 @@ function setDeleted(id, deleted) {
   send(A.repo.setEntryDeleted(t, id, deleted, actor(t), name, getMe(t)));
   toast(deleted ? 'Deleted' : typeof back === 'string' ? `Restored. ${back} is back on the trip.` : 'Restored', deleted ? () => setDeleted(id, false) : null);
 }
-actions['open-entry'] = el => openDetail(el.dataset.id);
-actions['edit-entry'] = el => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t, A.entries[t.id][el.dataset.id]); };
-actions['duplicate-entry'] = el => { const t = A.trips[A.route.tripId]; if (requireMe(t)) duplicateExpense(t, A.entries[t.id][el.dataset.id]); };
+actions['open-entry'] = el => {
+  if (document.getElementById('ledger') && A.ledgerFor) { const who = A.ledgerFor; drillFrom(() => actions['person-ledger']({ dataset: { id: who } })); }
+  openDetail(el.dataset.id);
+};
+actions['sheet-back'] = () => goBack();
+const drillTo = (el, open) => {
+  const t = A.trips[A.route.tripId], id = el.dataset.id;
+  if (!requireMe(t)) return;
+  if (A.detail === id) drillFrom(() => openDetail(id)); // from the details, not from the press-and-hold menu
+  open(t, A.entries[t.id][id]);
+};
+actions['edit-entry'] = el => drillTo(el, openExpenseForm);
+actions['duplicate-entry'] = el => drillTo(el, duplicateExpense);
 actions['delete-entry'] = el => { if (requireMe(A.trips[A.route.tripId])) setDeleted(el.dataset.id, true); };
 actions['restore-entry'] = el => setDeleted(el.dataset.id, false);
 actions['close-sheet'] = () => closeSheet();
