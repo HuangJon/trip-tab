@@ -46,7 +46,15 @@ export const who = (trip, id) => (id && id === getMe(trip) ? 'You' : memberName(
 export const actor = trip => { const m = getMe(trip); return m ? memberName(trip, m) : 'Someone'; };
 export const canWrite = trip => !trip.fromNewerApp;
 export const amAdmin = trip => canWrite(trip) && isAdminId(trip, getMe(trip));
-export const canEdit = (trip, e) => canWrite(trip) && canEditEntry(trip, e, getMe(trip));
+/** Expenses are frozen once the trip is ready to settle; payments still go through. */
+export const frozen = (trip, e) => Boolean(trip?.settling) && e?.kind !== 'payment';
+export const canEdit = (trip, e) => canWrite(trip) && !frozen(trip, e) && canEditEntry(trip, e, getMe(trip));
+export function settlingNote(trip) {
+  const s = trip.settling;
+  if (!s) return '';
+  const when = new Date(s.at).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+  return `<div class="notice settling-note"><strong>Ready to settle.</strong> ${esc(memberName(trip, s.by))} closed expenses on ${when}, so the balances are final. Time to pay up.</div>`;
+}
 
 export const fmtDate = d => {
   const x = new Date(`${d}T12:00:00`);

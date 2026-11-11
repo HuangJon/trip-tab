@@ -56,6 +56,27 @@ function historyHtml(trip) {
   return `${pays}<section class="panel pad stack" id="tripTotals"><div class="row between wrap"><h2>Trip totals</h2><button class="btn small" data-action="share-wrapup">Share wrap-up</button></div><p class="small muted">${money(s.total, c)} spent on this trip.</p><div class="spent-row spent-head"><span>Person</span><span>Paid</span><span>Their share</span></div>${rows}</section>`;
 }
 
+/** The admin's switch between adding expenses and settling up. */
+function settleControl(trip, admin) {
+  if (!admin) return '';
+  return trip.settling
+    ? '<section class="panel pad row between wrap settle-control"><span class="small muted grow">Need to add or fix something?</span><button class="btn small" data-action="settling-off">Reopen expenses</button></section>'
+    : '<section class="panel pad stack tight settle-control"><div class="row between wrap"><span class="grow"><strong>All expenses in?</strong><br><span class="small muted">Close expenses so the balances are final and everyone knows to pay.</span></span><button class="btn small primary" data-action="settling-on">Ready to settle</button></div></section>';
+}
+actions['settling-on'] = () => {
+  const t = A.trips[A.route.tripId];
+  if (!amAdmin(t)) return;
+  send(A.repo.setSettling(t, true, getMe(t), actor(t)), 'Closing expenses');
+  toast('Expenses closed. Let everyone know it is time to pay.', () => send(A.repo.setSettling(t, false, getMe(t), actor(t))));
+  actions['share-wrapup']();
+};
+actions['settling-off'] = () => {
+  const t = A.trips[A.route.tripId];
+  if (!amAdmin(t)) return;
+  send(A.repo.setSettling(t, false, getMe(t), actor(t)), 'Reopening expenses');
+  toast('Expenses reopened. Close them again when everything is in.');
+};
+
 export function balancesView(trip) {
   const c = trip.currency, members = activeMembers(trip), me = getMe(trip);
   const net = netBalances(liveEntries(A.entries[trip.id]), c, members.map(m => m.id));
@@ -67,7 +88,7 @@ export function balancesView(trip) {
       <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
       ${d.to !== me ? handles(trip, d.to) : ''}${kind === 'get' && write ? `<div><button class="btn small" data-action="remind" data-from="${d.from}" data-amt="${d.amount}">Send a reminder</button></div>` : ''}</div>`;
   const group = (title, rows, kind, note) => (rows.length ? `<div class="debt-group"><span class="label group-title">${title}</span>${note ? `<p class="small muted group-note">${note}</p>` : ''}<div class="list">${rows.map(d => row(d, kind)).join('')}</div></div>` : '');
-  return `${summaryCard(trip)}${unratedNotice(trip)}<section class="panel ticket">
+  return `${summaryCard(trip)}${unratedNotice(trip)}${settleControl(trip, admin && write)}<section class="panel ticket">
     ${debts.length ? `${group('You pay', mine.pays, 'pay', mine.alsoOwed.length ? `This also covers what you owe ${names(mine.alsoOwed)}.` : '')}
       ${mine.gets.length && me && !trip.members[me]?.venmo && !trip.members[me]?.zelle && write ? `<div class="notice stack tight" id="paymentAsk"><span>People owe you, but they can't see how to pay you yet.</span><div><button class="btn small" data-action="add-payment">Add Venmo or Zelle</button></div></div>` : ''}
       ${group('You receive', mine.gets, 'get', mine.alsoOwing.length ? `This also covers what ${names(mine.alsoOwing)} ${mine.alsoOwing.length > 1 ? 'owe' : 'owes'} you.` : '')}

@@ -37,6 +37,10 @@ service cloud.firestore {
     }
 
     function isTripCreator(tripId) { return isAdminAccount(tripId); }
+    // Once the admin marks the trip ready to settle, expenses are frozen; payments still go through.
+    function openFor(tripId, d) {
+      return get(tripPath(tripId)).data.get('settling', null) == null || d.kind == 'payment';
+    }
 
     function validTrip(d, tripId) {
       return d.id == tripId
@@ -182,6 +186,7 @@ service cloud.firestore {
       match /entries/{id} {
         allow read: if okTripId(tripId) && (onTrip(tripId) || isOwner());
         allow create: if okTripId(tripId) && okId(id) && validEntry(request.resource.data, id, tripId)
+          && openFor(tripId, request.resource.data)
           && (isAdmin(tripId, request.resource.data.updatedById)
             || (isMe(tripId, request.resource.data.updatedById)
               && request.resource.data.createdById == request.resource.data.updatedById));
@@ -193,6 +198,7 @@ service cloud.firestore {
           && (
             // Editing the expense leaves its comments alone.
             (canChange(tripId, resource.data, request.resource.data.get('updatedById', ''))
+              && openFor(tripId, resource.data)
               && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['comments']))
             || (commentOk(tripId)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'commentedBy', 'commentId']))

@@ -1,7 +1,7 @@
 /** One expense or payment: its details, comments, edit and delete. */
 import { A, actions, submits } from './state.js';
 import { CATEGORIES, LIMITS } from '../config/app.js';
-import { drillFrom, goBack, actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
+import { drillFrom, frozen, goBack, actor, amAdmin, avatar, canEdit, canWrite, closeSheet, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, toast, val } from './dom.js';
 import { money, toMinor } from '../core/money.js';
 import { expensePayments, inBase, needsRate, receivedBy } from '../core/debts.js';
 import { rateLabel } from '../core/rates.js';
@@ -49,8 +49,8 @@ export function openDetail(id, { keepTyped } = {}) {
     <section class="stack"><h3>Comments</h3>${comments.map(c => `<div class="comment"><div class="row between"><strong class="small">${esc(c.byId ? memberName(t, c.byId) : c.by)}</strong>${c.byId && c.byId === getMe(t) && !e.deleted ? `<span class="row tight"><button type="button" class="link small" data-action="comment-edit" data-id="${esc(c.cid)}">Edit</button><button type="button" class="link small" data-action="comment-remove" data-id="${esc(c.cid)}">Delete</button></span>` : ''}</div>${A.commentEdit === c.cid ? `<form class="row" data-form="comment-save" data-id="${esc(c.cid)}"><input id="cEdit" aria-label="Edit comment" required maxlength="${LIMITS.comment}" value="${esc(c.text)}"><button class="btn">Save</button></form>` : `${esc(c.text)}${c.editedAt ? ' <span class="tiny muted">(edited)</span>' : ''}`}</div>`).join('') || '<p class="small muted">No comments yet.</p>'}
       ${write && !e.deleted ? `<form class="row" data-form="comment" data-id="${id}"><input id="cText" placeholder="Add a comment" aria-label="Comment" required maxlength="${LIMITS.comment}" value="${esc(typed)}"><button class="btn">Post</button></form>` : ''}</section>
     ${pay ? '' : `<section class="stack"><h3>Edit history</h3><div id="historySlot" class="stack"><button type="button" class="link small" data-action="history-show" data-id="${id}">See earlier versions</button></div></section>`}
-    ${write && !pay && !e.deleted ? `<button type="button" class="btn" data-action="duplicate-entry" data-id="${id}">Duplicate</button>` : ''}
-    ${editable ? '' : '<p class="small muted">Only the person who added or paid for this, or the trip\'s admin, can change it. You can leave a comment.</p>'}
+    ${write && !pay && !e.deleted && !t.settling ? `<button type="button" class="btn" data-action="duplicate-entry" data-id="${id}">Duplicate</button>` : ''}
+    ${editable ? '' : frozen(t, e) ? '<p class="small muted">Expenses are closed while everyone settles up. You can still leave a comment.</p>' : '<p class="small muted">Only the person who added or paid for this, or the trip\'s admin, can change it. You can leave a comment.</p>'}
     ${editable ? (e.deleted ? `<button type="button" class="btn" data-action="restore-entry" data-id="${id}">Restore</button>` : `<button type="button" class="btn danger" data-action="delete-entry" data-id="${id}">Delete ${pay ? 'payment' : refund ? 'refund' : 'expense'}</button>`) : ''}
   </div></div>`);
   if (e.receipt) loadReceipt(t.id, e);

@@ -70,7 +70,7 @@ function draw() {
     tabs.innerHTML = `<div class="tabs-in">
       ${item('expenses', 'Expenses', ICON.list, tab === 'expenses')}
       ${item('balances', 'Balances', ICON.scale, tab === 'balances')}
-      ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" >${svg(ICON.plus)}<span>Add expense</span></button>` : '<span></span>'}
+      ${canWrite(trip) ? `<button class="add-tab" data-action="add-expense" ${trip.settling ? 'aria-disabled="true"' : ''}>${svg(ICON.plus)}<span>Add expense</span></button>` : '<span></span>'}
       ${item('people', 'People', ICON.people, tab === 'people')}
       <button id="moreTab" data-action="tab" data-tab="insights" ${inMore ? 'aria-current="page"' : ''}>${svg(ICON.more)}More</button>
     </div>`;

@@ -109,6 +109,15 @@ await friend.repo.setMemberPayment(trip.id, b, 'venmo', '@ben', b);
 await friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.21 }, b);
 await refused(friend.repo.updateTrip(trip.id, { 'rates.JPY': 0.3 }, b), 'only an admin changes a rate already set');
 await refused(friend.repo.updateTrip(trip.id, { rates: {} }, b), 'or removes one');
+/* Ready to settle: only an admin closes expenses; payments still go through; reopening lets changes back in. */
+await refused(friend.repo.setSettling(trip, true, b, 'Ben'), 'only an admin marks the trip ready to settle');
+await admin.repo.setSettling(trip, true, a, 'Ana');
+await refused(save(friend, { ...entryFor('entry00000000071', b) }, { isNew: true, actorId: b }), 'no new expenses while settling');
+await refused(save(friend, { ...benEntry, desc: 'Late change', updatedAt: 3 }, { isNew: false, previous: benEntry, actorId: b }), 'no edits while settling');
+await refused(save(admin, { ...benEntry, desc: 'Admin change', updatedAt: 3 }, { isNew: false, previous: benEntry, actorId: a }), 'not even by the admin');
+await save(friend, { ...entryFor('entry00000000072', b), kind: 'payment', paid: { [b]: entryFor('x', b).total }, owed: { [a]: entryFor('x', b).total } }, { isNew: true, actorId: b });
+await admin.repo.setSettling(trip, false, a, 'Ana');
+await save(friend, { ...entryFor('entry00000000073', b) }, { isNew: true, actorId: b });
 await refused(friend.repo.renameMember(trip.id, a, 'Hacked', b), "cannot rename someone else");
 await refused(friend.repo.setMemberPayment(trip.id, a, 'venmo', '@scam', b), "cannot change someone else's Venmo");
 await refused(friend.repo.setAdmin(trip.id, b, friend.backend.uid(), true, b), 'cannot promote yourself');

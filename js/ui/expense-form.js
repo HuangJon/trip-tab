@@ -1,7 +1,7 @@
 /** Adding and editing an expense. What people type lives in A.form, so nothing they typed is lost on a redraw. */
 import { A, actions, changes, inputs, submits } from './state.js';
 import { CATEGORIES, CURRENCIES, LIMITS } from '../config/app.js';
-import { canSetRate, leftButton, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
+import { canSetRate, leftButton, amAdmin, actor, avatar, catIcon, closeSheet, esc, getMe, openSheet, requireMe, send, today, toast } from './dom.js';
 import { convert, fromMinor, money, toMinor } from '../core/money.js';
 import { needsRate, expensePayments, receivedBy } from '../core/debts.js';
 import { SPLIT_MODES, computeSplit, nonZero } from '../core/split.js';
@@ -255,7 +255,11 @@ changes['form-currency'] = el => {
   drawForm();
 };
 
-actions['add-expense'] = () => { const t = A.trips[A.route.tripId]; if (requireMe(t)) openExpenseForm(t); };
+actions['add-expense'] = () => {
+  const t = A.trips[A.route.tripId];
+  if (t.settling) { toast(amAdmin(t) ? 'Expenses are closed. Reopen them on Balances to add one.' : "Expenses are closed while everyone settles up. Ask the trip's admin to reopen them."); return; }
+  if (requireMe(t)) openExpenseForm(t);
+};
 actions['cat-row'] = () => { A.form.catClosed = !A.form.catClosed; drawCats(); };
 actions['date-open'] = (el, ev) => {
   const input = el.querySelector('input');

@@ -1,7 +1,7 @@
 /** The frame around a trip's screens: title, "which one is you", and the people picker. */
 import { A, actions, submits, render } from './state.js';
 import { LIMITS } from '../config/app.js';
-import { ICON, avatar, canWrite, esc, getMe, svg, toast, val } from './dom.js';
+import { settlingNote, ICON, avatar, canWrite, esc, getMe, svg, toast, val } from './dom.js';
 import { money } from '../core/money.js';
 import { myPayments, needsRate } from '../core/debts.js';
 import { activeMembers, liveEntries, memberName } from '../core/model.js';
@@ -13,6 +13,7 @@ export function tripHeader(trip) {
   const me = getMe(trip);
   return `<div class="topbar"><button class="icon-btn" data-action="back" aria-label="Back">${svg(ICON.back)}</button><button class="icon-btn" data-action="home" aria-label="All trips">${svg(ICON.home)}</button><h1 class="grow" title="${esc(trip.name)}">${esc(trip.name)}</h1>${helpButton()}${getMe(trip) ? `<button class="ava-btn" data-action="edit-avatar" data-id="${getMe(trip)}" aria-label="Your settings" data-tip="Your settings">${avatar(trip, getMe(trip))}<span class="ava-caret" aria-hidden="true"></span></button>` : ''}</div>
     ${alerts()}
+    ${settlingNote(trip)}
     ${trip.fromNewerApp ? '<div class="notice">A friend is on a newer version of this app. Update yours to make changes. Close and reopen the app to update.</div>' : ''}
     ${me ? '' : `<section class="panel pad stack">${joinSteps(3)}<div><h3>Which one is you?</h3><p class="small muted">Your name is tied to your account, so only you can add expenses as that person. Names already taken aren't shown. If yours is missing, ask the trip's admin to free it.</p></div>
       <div class="chips">${activeMembers(trip).filter(m => !m.claimed).map(m => `<button class="chip" data-action="set-me" data-id="${m.id}">${avatar(trip, m.id)}${esc(m.name)}</button>`).join('')}</div>

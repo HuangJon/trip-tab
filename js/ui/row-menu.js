@@ -20,9 +20,9 @@ export function openRowMenu(id) {
   openSheet(`<div class="menu-sheet" id="rowMenu"><div class="menu-title"><strong class="wrap-any">${esc(pay ? 'Settlement' : e.desc)}</strong><span class="amt small">${money(e.total, e.currency)}</span></div>
     ${item('open-entry', 'View details')}
     ${editable && !pay ? item('edit-entry', `Edit ${noun}`) : ''}
-    ${!pay ? item('duplicate-entry', 'Duplicate') : ''}
+    ${!pay && !trip.settling ? item('duplicate-entry', 'Duplicate') : ''}
     ${editable ? item('delete-entry', `Delete ${noun}`, 'danger-item') : ''}
-    ${editable ? '' : '<p class="tiny muted menu-note">Only the person who added or paid for this, or the trip\'s admin, can change it.</p>'}
+    ${editable ? '' : `<p class="tiny muted menu-note">${trip.settling && !pay ? 'Expenses are closed while everyone settles up.' : "Only the person who added or paid for this, or the trip's admin, can change it."}</p>`}
     <button type="button" class="menu-item cancel-item" data-action="close-sheet">Cancel</button></div>`);
   document.getElementById('dlg').classList.add('menu');
 }

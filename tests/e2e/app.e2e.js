@@ -1065,6 +1065,25 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   await fresh.waitForSelector('#ledger');
   await phone.close();
 }
+/* Ready to settle: the admin closes expenses, everyone sees it, and reopening lets them back in */
+await page.click('[data-action=home]');
+await page.click('[data-action=open-trip] >> nth=0');
+await tab(page, 'balances');
+await page.click('[data-action=settling-on]');
+await page.waitForSelector('.settling-note');
+await page.click('#dlg [data-action=close-sheet], #dlg button:has-text("Close"), #dlg button:has-text("Done")');
+await tab(page, 'expenses');
+assert.match(await page.textContent('.settling-note'), /Ready to settle/);
+await page.click('.add-tab', { force: true }); // dimmed, but a tap explains why
+assert.equal(await page.locator('#fDesc').count(), 0, 'no new expenses while settling');
+await page.click('[data-action=open-entry] >> nth=0');
+assert.equal(await page.locator('#dlg [data-action=edit-entry]').count(), 0, 'and none can be edited');
+await page.click('#dlg [data-action=close-sheet]');
+await tab(page, 'balances');
+await page.click('[data-action=settling-off]');
+await page.waitForFunction(() => !document.querySelector('.settling-note'));
+check('the admin can close expenses for settling up and reopen them');
+
 check('the walkthrough shows after signing in and is behind the question mark');
 
 /* Press and hold a trip on the home page */

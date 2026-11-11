@@ -66,6 +66,13 @@ export function createRepository(backend, now = () => Date.now()) {
       return { trip, written, claim };
     },
     updateTrip: (id, fields, actorId) => backend.update(tripPath(id), { ...fields, ...stamp(actorId, 'changedBy') }),
+    /** Marks the trip ready to settle, freezing expenses, or reopens it. Only an admin can. */
+    setSettling(trip, on, actorId, actorName) {
+      return Promise.all([
+        backend.update(tripPath(trip.id), { settling: on ? { by: actorId, at: now() } : null, ...stamp(actorId, 'changedBy') }),
+        logActivity(trip, on ? `${actorName} marked the trip ready to settle` : `${actorName} reopened expenses`, '', actorId),
+      ]);
+    },
 
     /** Your own account's list of trips, which follows you to any device. */
     watchMyTrips: (cb, err) => backend.watchCollection(`users/${backend.uid?.() || 'none'}/trips`, list => cb(list.map(t => t.tripId)), err),

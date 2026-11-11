@@ -92,6 +92,8 @@ dialog::backdrop { background:var(--scrim) }
 .squares-got { padding-top:6px; border-top:1px solid var(--line); font-weight:600 }
 .squares-got ~ .squares-got { border-top:0; padding-top:0 }
 .amt.good { color:var(--owed) }
+.settling-note { border-left:4px solid var(--owed) }
+.add-tab[aria-disabled="true"] { opacity:.45 }
 .sheet-back span { font-size:1.2em; line-height:1 }
 .item-top { display:grid; grid-template-columns:minmax(0,1fr) 92px 36px; gap:8px; align-items:center }
 .comment { padding:8px 12px; background:var(--sunken); border-radius:10px; overflow-wrap:anywhere }
