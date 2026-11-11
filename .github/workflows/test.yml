@@ -16,7 +16,9 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # Ubuntu's package mirror sometimes drops out; retry, then fall back to the browser alone,
+      # since GitHub's runners already have most of what it needs.
+      - run: npx playwright install --with-deps chromium || (sleep 30 && npx playwright install --with-deps chromium) || npx playwright install chromium
       - run: npm run test:smoke
       - run: npm run test:e2e
       - run: npx --yes firebase-tools@15 emulators:exec --only firestore,auth --project demo-trip-tab "node tests/emulator/firestore.emulator.js && node tests/emulator/browser.emulator.js"
@@ -76,7 +78,9 @@ jobs:
           cp -r index.html manifest.webmanifest sw.js css js icons _site/
       - name: Publish to staging
         run: npx --yes firebase-tools@15 deploy --only firestore:rules,hosting --project trip-tab-staging --non-interactive
-      - run: npx playwright install --with-deps chromium
+      # Ubuntu's package mirror sometimes drops out; retry, then fall back to the browser alone,
+      # since GitHub's runners already have most of what it needs.
+      - run: npx playwright install --with-deps chromium || (sleep 30 && npx playwright install --with-deps chromium) || npx playwright install chromium
       - name: Try the published site
         run: node tests/staging/staging.e2e.js
       - name: Keep a screenshot of any failure
