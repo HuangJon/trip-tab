@@ -19,3 +19,9 @@ test('a wrap-up adds up the trip', () => {
   const t = wrapUpText('Okinawa', [e], 'USD', [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bo' }]);
   assert.match(t, /Okinawa wrap-up/); assert.match(t, /\$30\.00 over 1 day, \$15\.00 per person/); assert.match(t, /Food \$30\.00/); assert.match(t, /Ana: paid \$30\.00, share \$15\.00/);
 });
+
+test('a wrap-up ends with a link to review and pay', () => {
+  const t = wrapUpText('Okinawa', [], 'USD', [{ id: 'a', name: 'Ana' }], { link: 'https://x.test/#join-abc', final: true });
+  assert.match(t, /Expenses are closed, so these numbers are final\.\nReview and pay: https:\/\/x\.test\/#join-abc$/);
+  assert.doesNotMatch(wrapUpText('Okinawa', [], 'USD', [], { link: 'https://x.test/' }), /final/);
+});

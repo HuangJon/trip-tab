@@ -1086,6 +1086,11 @@ await tab(page, 'balances');
 await page.click('[data-action=settling-off]');
 await page.waitForFunction(() => !/Ready to settle\./.test(document.querySelector('.settling-note')?.textContent || ''));
 await page.waitForSelector('[data-action=done-adding]:has-text("added all mine")'); // reopening starts the round again
+{
+  const id = await page.evaluate(() => location.hash.match(/#t-([a-z0-9]+)/)[1]);
+  await page.evaluate(i => { location.hash = `#join-${i}-balances`; }, id);
+  await page.waitForFunction(() => /-balances$/.test(location.hash), null, { timeout: 3000 }); // the wrap-up's link opens Balances
+}
 check('the admin can close expenses for settling up and reopen them');
 
 check('the walkthrough shows after signing in and is behind the question mark');

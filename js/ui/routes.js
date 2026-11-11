@@ -1,4 +1,4 @@
-/** Hash addresses: #t-<id>-<tab> for a screen, #join-<id> for an invite link. */
+/** Hash addresses: #t-<id>-<tab> for a screen, #join-<id>[-<tab>] for an invite link. */
 import { A, render, actions } from './state.js';
 import { TRIP_ID_PATTERN } from '../core/ids.js';
 import { EMPTY_FILTERS } from '../core/filters.js';
@@ -37,10 +37,11 @@ export function goTrip(id, tab = 'expenses') {
 /** Reads the address on load. An invite link adds the trip to this phone's list. */
 export function readHash() {
   const h = location.hash || '';
-  const join = /^#join-([a-z0-9]+)$/.exec(h);
+  // An invite link, optionally straight to one screen, like the wrap-up's link to Balances.
+  const join = /^#join-([a-z0-9]+)(?:-([a-z]+))?$/.exec(h);
   if (join && TRIP_ID_PATTERN.test(join[1])) {
     A.enterTrip?.(join[1]);
-    goTrip(join[1]);
+    goTrip(join[1], TABS.includes(join[2]) ? join[2] : undefined);
     return;
   }
   if (h === '#owner') { A.route = { name: 'owner' }; return; }

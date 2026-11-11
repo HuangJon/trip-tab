@@ -130,11 +130,13 @@ async function shareText(title, text, note) {
 }
 actions.remind = el => {
   const t = A.trips[A.route.tripId], m = t.members[getMe(t)] || {};
-  shareText('Send a reminder', reminderText({ tripName: t.name, toName: memberName(t, el.dataset.from), amount: money(+el.dataset.amt, t.currency), venmo: m.venmo, zelle: m.zelle, link: `${location.origin}${location.pathname}#join-${t.id}` }), 'Copy this and send it to them.');
+  shareText('Send a reminder', reminderText({ tripName: t.name, toName: memberName(t, el.dataset.from), amount: money(+el.dataset.amt, t.currency), venmo: m.venmo, zelle: m.zelle, link: tripLink(t, 'balances') }), 'Copy this and send it to them.');
 };
+/** Opens the trip for anyone on it, and lets anyone else join. */
+const tripLink = (t, tab = '') => `${location.origin}${location.pathname}#join-${t.id}${tab ? `-${tab}` : ''}`;
 actions['share-wrapup'] = () => {
   const t = A.trips[A.route.tripId];
-  shareText('Trip wrap-up', wrapUpText(t.name, liveEntries(A.entries[t.id]), t.currency, activeMembers(t)), 'Copy this and paste it into your group chat.');
+  shareText('Trip wrap-up', wrapUpText(t.name, liveEntries(A.entries[t.id]), t.currency, activeMembers(t), { link: tripLink(t, 'balances'), final: Boolean(t.settling) }), 'Copy this and paste it into your group chat.');
 };
 actions.simplify = el => { const t = A.trips[A.route.tripId]; send(A.repo.updateTrip(t.id, { simplify: el.checked }, getMe(t))); };
 actions['share-summary'] = () => {
