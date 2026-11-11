@@ -63,24 +63,24 @@ const keepDraft = () => {
 
 function splitEditor(t) {
   const F = A.form, S = F.split, mode = S.mode, c = F.currency, total = toMinor(F.amount, c), res = computeSplit(total, c, S, ids(t)), owed = res.owed || {}, people = activeMembers(t);
-  const shown = id => (total > 0 && res.owed ? `<span class="res amt muted">${money(owed[id] || 0, c)}</span>` : '<span class="res"></span>');
+  const shown = id => (total > 0 && res.owed ? `<span class="res amt muted" data-live="res-${id}">${money(owed[id] || 0, c)}</span>` : `<span class="res" data-live="res-${id}"></span>`);
   let body = '';
   if (mode === 'equal' || mode === 'adjust') {
     body = people.map(p => `<div class="split-row"><input id="sel-${p.id}" type="checkbox" data-action="toggle-person" data-id="${p.id}" ${S.selected.includes(p.id) ? 'checked' : ''} aria-label="Include ${esc(p.name)}">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span>
       ${mode === 'adjust' ? `<input id="inp-${p.id}" inputmode="text" placeholder="+0" aria-label="Extra for ${esc(p.name)}" value="${esc(S.inputs[p.id] || '')}" data-input="split" data-id="${p.id}">` : ''}${shown(p.id)}</div>`).join('');
   } else if (mode === 'items') {
     body = `<div class="stack">${S.items.map((it, x) => `<div class="item"><div class="item-top"><input id="it-n-${x}" placeholder="Item" aria-label="Item name" value="${esc(it.name || '')}" data-input="item-name" data-i="${x}"><input id="it-a-${x}" inputmode="decimal" placeholder="Price" class="mono" aria-label="Item price" value="${esc(it.amount || '')}" data-input="item-price" data-i="${x}"><button type="button" class="x" data-action="item-remove" data-i="${x}" aria-label="Remove item">×</button></div>
-      <div class="chips">${people.map(p => `<button type="button" class="chip" data-action="item-person" data-i="${x}" data-id="${p.id}" aria-pressed="${(it.people || []).includes(p.id)}">${esc(p.name)}</button>`).join('')}</div></div>`).join('')}
+      <p class="tiny muted item-who">Who had it?</p><div class="chips">${people.map(p => `<button type="button" class="chip" data-action="item-person" data-i="${x}" data-id="${p.id}" aria-pressed="${(it.people || []).includes(p.id)}">${esc(p.name)}</button>`).join('')}</div></div>`).join('')}
       <button type="button" class="btn" data-action="item-add">Add item</button>
-      ${res.owed ? `<div class="stack tight small">${people.filter(p => owed[p.id]).map(p => `<div class="row between"><span>${esc(p.name)}</span><span class="amt">${money(owed[p.id], c)}</span></div>`).join('')}</div>
-      ${res.subtotal !== total ? `<p class="tiny muted">Items total ${money(res.subtotal, c)}. The ${res.subtotal < total ? 'extra' : 'discount'} of ${money(Math.abs(total - res.subtotal), c)} (tax, tip or discount) is shared in proportion to what each person ordered.</p>` : ''}` : ''}</div>`;
+      <div class="stack tight" data-live="items-sum">${res.owed ? `<div class="stack tight small">${people.filter(p => owed[p.id]).map(p => `<div class="row between"><span>${esc(p.name)}</span><span class="amt">${money(owed[p.id], c)}</span></div>`).join('')}</div>
+      ${res.subtotal !== total ? `<p class="tiny muted">Items total ${money(res.subtotal, c)}. The ${res.subtotal < total ? 'extra' : 'discount'} of ${money(Math.abs(total - res.subtotal), c)} (tax, tip or discount) is shared in proportion to what each person ordered.</p>` : ''}` : ''}</div></div>`;
   } else {
     body = people.map(p => `<div class="split-row">${avatar(t, p.id)}<span class="grow wrap-any">${esc(p.name)}</span><input id="inp-${p.id}" inputmode="decimal" placeholder="${mode === 'percent' ? '%' : '0'}" aria-label="${esc(p.name)}" value="${esc(S.inputs[p.id] || '')}" data-input="split" data-id="${p.id}">${shown(p.id)}</div>`).join('');
   }
-  const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one.' }[mode];
+  const help = { exact: 'Enter how much each person owes.', percent: 'Percentages must reach 100.', shares: 'For example, a couple can count as 2 shares.', adjust: 'Add an amount for anyone who had something extra. Use a minus for less. The rest splits evenly.', items: 'List what was on the bill and tap who had each one. Who paid is set in Paid by above.' }[mode];
   return `<div class="seg" role="group" aria-label="How to split">${SPLIT_MODES.map(([k, l]) => `<button type="button" data-action="split-mode" data-id="${k}" aria-pressed="${mode === k}">${l}</button>`).join('')}</div>
     ${help ? `<p class="small muted">${help}</p>` : ''}<div>${body}</div>
-    ${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}`;
+    <div data-live="error">${total > 0 && res.error ? `<div class="check bad">${esc(res.error)}</div>` : ''}</div>`;
 }
 
 const paidTotal = t => activeMembers(t).reduce((s, m) => s + toMinor(A.form.payers[m.id], A.form.currency), 0);
@@ -175,7 +175,15 @@ function refresh() {
   const t = tripOf(), area = document.getElementById('splitArea');
   if (!area) return;
   const active = document.activeElement, id = active?.id, at = active?.selectionStart;
-  area.innerHTML = splitEditor(t);
+  const next = document.createElement('div');
+  next.innerHTML = splitEditor(t);
+  const live = [...next.querySelectorAll('[data-live]')];
+  // While typing in the split, only the figures around the box change. Rebuilding the box under the
+  // keyboard made phones drop or jump the typing.
+  const typing = area.contains(active) && active.matches('input:not([type=checkbox])');
+  if (typing && live.every(n => area.querySelector(`[data-live="${n.dataset.live}"]`))) {
+    for (const n of live) area.querySelector(`[data-live="${n.dataset.live}"]`).replaceWith(n);
+  } else area.replaceChildren(...next.childNodes);
   if (id) {
     const n = document.getElementById(id);
     if (n && n !== active) { n.focus(); try { n.setSelectionRange(at, at); } catch { /* not a text box */ } }

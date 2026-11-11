@@ -1008,7 +1008,22 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
   assert.equal(await fresh.isVisible('#fSave'), false);
   await fresh.tap('#dlg h2');
   await fresh.waitForFunction(() => document.activeElement.id !== 'fDesc');
-  assert.equal(await fresh.isVisible('#fSave'), true);
+  await fresh.waitForSelector('#fSave', { state: 'visible', timeout: 2000 }); // a moment after the tap, so the tap lands first
+
+  /* Splitting by item on a phone: typing a price keeps the box, and tapping who had it works while typing */
+  await fresh.fill('#fAmt', '660');
+  await fresh.tap('[data-action=split-mode][data-id=items]');
+  await fresh.tap('[data-action=item-add]');
+  await fresh.tap('#it-a-0');
+  await fresh.evaluate(() => { window.priceBox = document.getElementById('it-a-0'); });
+  await fresh.keyboard.type('250');
+  assert.equal(await fresh.evaluate(() => document.getElementById('it-a-0') === window.priceBox && document.activeElement === window.priceBox), true, 'the box being typed in stays put');
+  await fresh.tap('#splitArea .chip[data-i="0"] >> nth=0');
+  assert.equal(await fresh.locator('#splitArea .chip[data-i="0"][aria-pressed=true]').count(), 1, 'the tap counts even with the keyboard up');
+  await fresh.tap('[data-action=split-mode][data-id=exact]');
+  await fresh.tap('[data-action=split-mode][data-id=items]');
+  assert.equal(await fresh.locator('#splitArea .chip[aria-pressed=true]').count(), 1, 'items survive switching away and back');
+  assert.equal(await fresh.inputValue('#it-a-0'), '250');
   await phone.close();
 }
 check('the walkthrough shows after signing in and is behind the question mark');

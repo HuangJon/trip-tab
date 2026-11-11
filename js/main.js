@@ -305,11 +305,26 @@ actions['apply-update'] = () => location.reload();
 
 boot();
 
-/** On a phone, tapping away from a box closes the keyboard, which brings the save button back. */
+/**
+ * On a phone, the save button steps aside while typing, and tapping away from a box closes the keyboard.
+ * Both wait until the tap has landed: moving things under a finger mid-tap made taps miss what they aimed at.
+ */
 function setUpTypingBlur() {
-  document.addEventListener('pointerdown', ev => {
+  const typingBox = el => el?.matches?.('input:not([type=checkbox],[type=file],[type=date]),textarea') && el.closest('dialog');
+  let settle = 0;
+  document.addEventListener('focusin', ev => {
+    if (!typingBox(ev.target)) return;
+    clearTimeout(settle);
+    ev.target.closest('.sheet')?.classList.add('typing');
+  });
+  document.addEventListener('focusout', ev => {
+    const sheet = ev.target.closest?.('.sheet');
+    clearTimeout(settle);
+    settle = setTimeout(() => { if (!typingBox(document.activeElement)) sheet?.classList.remove('typing'); }, 350);
+  });
+  document.addEventListener('click', ev => {
     const typing = document.activeElement;
-    if (!matchMedia('(pointer:coarse)').matches || !typing?.closest?.('dialog') || !typing.matches('input,textarea')) return;
+    if (!matchMedia('(pointer:coarse)').matches || !typingBox(typing)) return;
     if (!ev.target.closest?.('input,textarea,select,label')) typing.blur();
   });
 }
