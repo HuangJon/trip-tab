@@ -251,3 +251,7 @@ select option,select optgroup { background:var(--surface); color:var(--ink) }
 :root[data-look="dark"] select option { background:#26262A; color:#F2EFE8 }
 :root:is([data-look="dark"],[data-look="light"]) .form-row select { background:transparent; border:0; box-shadow:none }
 @media (pointer:fine) { :root:is([data-look="dark"],[data-look="light"]) .form-row-date input { background:transparent; border:0; box-shadow:none } }
+
+/* A chosen chip is filled and ticked in every theme, so choices read at a glance */
+:root[data-look] .chip[aria-pressed="true"],:root .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600 }
+.chip[aria-pressed="true"]::before { content:'\2713'; font-weight:700 }
