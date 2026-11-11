@@ -47,6 +47,12 @@ export const sharesOf = e => (e.kind === 'refund' ? e.paid : e.owed);
 
 /** Trip admins can fix anything. Everyone else can change what they added or handled. The rules enforce the same. */
 export const isAdminId = (trip, id) => Boolean(id && trip.admins?.[id]);
+/** Who has said they've added all their expenses. Only names someone has signed in as can say so. */
+export function doneAdding(trip) {
+  const people = Object.entries(trip.members || {}).filter(([, m]) => !m.removed && m.claimed).map(([id, m]) => ({ id, ...m }));
+  const done = people.filter(m => m.done);
+  return { people, done, all: people.length > 0 && done.length === people.length };
+}
 export function canEditEntry(trip, e, id) {
   if (!id) return false;
   return isAdminId(trip, id) || e.createdById === id || Boolean(handlersOf(e)[id]);

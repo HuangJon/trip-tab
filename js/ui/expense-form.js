@@ -387,8 +387,12 @@ function commit(t, entry, current) {
   const refund = entry.kind === 'refund';
   const among = Object.keys(sharesOf(entry)).map(i => memberName(t, i)).join(', ');
   const noun = refund ? 'refund ' : '';
+  // Changing an expense after saying you're done adding means you weren't quite, so the mark comes off.
+  const unmarked = Boolean(t.members[getMe(t)]?.done);
+  if (unmarked) send(A.repo.setDone(t.id, getMe(t), false));
   send(A.repo.saveEntry(t, entry, { isNew, previous: current, actor: entry.updatedBy, actorId: getMe(t), label: `${isNew ? 'added' : 'edited'} ${noun}"${entry.desc}" (${money(entry.total, entry.currency)}), split among ${among}`.slice(0, 340) }), `"${entry.desc}"`);
-  if (needsRate(entry, t.currency)) toast('Saved. Add its exchange rate to count it in balances.');
+  if (unmarked) toast("Saved. You're no longer marked as done adding.");
+  else if (needsRate(entry, t.currency)) toast('Saved. Add its exchange rate to count it in balances.');
   else toast(refund ? (isNew ? 'Refund added' : 'Refund saved') : isNew ? 'Expense added' : 'Expense saved');
 }
 

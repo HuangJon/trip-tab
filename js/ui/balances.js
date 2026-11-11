@@ -7,7 +7,7 @@ import { reminderText, wrapUpText } from '../core/messages.js';
 import { canSetRate, actor, amAdmin, avatar, canEdit, canWrite, closeSheet, copyText, esc, fmtDate, getMe, openSheet, requireMe, send, sheetHead, textSheet, today, toast, val, who } from './dom.js';
 import { fromMinor, money, toMinor } from '../core/money.js';
 import { myPayments, needsRate, netBalances, personLedger, spendingBreakdown, tripDebts } from '../core/debts.js';
-import { activeMembers, liveEntries, memberName } from '../core/model.js';
+import { activeMembers, doneAdding, liveEntries, memberName } from '../core/model.js';
 import { randomId } from '../core/ids.js';
 import { summaryCard } from './trip.js';
 
@@ -56,13 +56,27 @@ function historyHtml(trip) {
   return `${pays}<section class="panel pad stack" id="tripTotals"><div class="row between wrap"><h2>Trip totals</h2><button class="btn small" data-action="share-wrapup">Share wrap-up</button></div><p class="small muted">${money(s.total, c)} spent on this trip.</p><div class="spent-row spent-head"><span>Person</span><span>Paid</span><span>Their share</span></div>${rows}</section>`;
 }
 
-/** The admin's switch between adding expenses and settling up. */
-function settleControl(trip, admin) {
-  if (!admin) return '';
-  return trip.settling
-    ? '<section class="panel pad row between wrap settle-control"><span class="small muted grow">Need to add or fix something?</span><button class="btn small" data-action="settling-off">Reopen expenses</button></section>'
-    : '<section class="panel pad stack tight settle-control"><div class="row between wrap"><span class="grow"><strong>All expenses in?</strong><br><span class="small muted">Close expenses so the balances are final and everyone knows to pay.</span></span><button class="btn small primary" data-action="settling-on">Ready to settle</button></div></section>';
+/** Everyone says when they've added all their expenses; then the admin closes expenses so the balances are final. */
+function settleControl(trip, write) {
+  if (!write) return '';
+  const admin = amAdmin(trip), me = getMe(trip);
+  if (trip.settling) return admin ? '<section class="panel pad row between wrap settle-control"><span class="small muted grow">Need to add or fix something?</span><button class="btn small" data-action="settling-off">Reopen expenses</button></section>' : '';
+  const { people, done, all } = doneAdding(trip), mine = Boolean(me && trip.members[me]?.done);
+  const marks = people.map(m => `<span class="chip done-mark" aria-pressed="${Boolean(m.done)}">${esc(m.id === me ? 'You' : m.name)}</span>`).join('');
+  return `<section class="panel pad stack tight settle-control">
+    <div><strong>${all ? "Everyone's added their expenses" : 'All expenses in?'}</strong><br><span class="small muted">${all ? (admin ? 'Close expenses so the balances are final and everyone knows to pay.' : "The trip's admin can now close expenses so everyone can pay.") : `${done.length} of ${people.length} done. Say when you've added all yours.`}</span></div>
+    <div class="chips">${marks}</div>
+    <div class="row wrap">${me ? `<button class="btn small ${mine ? '' : 'primary'}" data-action="done-adding">${mine ? "I'm not done yet" : "I've added all mine"}</button>` : ''}
+    ${admin ? `<button class="btn small ${all ? 'primary' : ''}" data-action="settling-on">Ready to settle${all ? '' : ' now'}</button>` : ''}</div>
+  </section>`;
 }
+actions['done-adding'] = () => {
+  const t = A.trips[A.route.tripId], me = getMe(t);
+  if (!requireMe(t)) return;
+  const on = !t.members[me]?.done;
+  send(A.repo.setDone(t.id, me, on), on ? 'Marking you done' : 'Taking that back');
+  toast(on ? "Thanks. You're marked as done adding." : "OK, you're not done yet.");
+};
 actions['settling-on'] = () => {
   const t = A.trips[A.route.tripId];
   if (!amAdmin(t)) return;
@@ -88,7 +102,7 @@ export function balancesView(trip) {
       <div class="debt-end"><span class="amt ${kind === 'pay' ? 'owe' : kind === 'get' ? 'owed' : ''}">${money(d.amount, c)}</span>${write ? `<button class="btn small" data-action="settle" data-from="${d.from}" data-to="${d.to}" data-amt="${d.amount}">${kind === 'pay' ? 'Pay' : kind === 'get' ? 'Mark received' : 'Settle'}</button>` : ''}</div>
       ${d.to !== me ? handles(trip, d.to) : ''}${kind === 'get' && write ? `<div><button class="btn small" data-action="remind" data-from="${d.from}" data-amt="${d.amount}">Send a reminder</button></div>` : ''}</div>`;
   const group = (title, rows, kind, note) => (rows.length ? `<div class="debt-group"><span class="label group-title">${title}</span>${note ? `<p class="small muted group-note">${note}</p>` : ''}<div class="list">${rows.map(d => row(d, kind)).join('')}</div></div>` : '');
-  return `${summaryCard(trip)}${unratedNotice(trip)}${settleControl(trip, admin && write)}<section class="panel ticket">
+  return `${summaryCard(trip)}${unratedNotice(trip)}${settleControl(trip, write)}<section class="panel ticket">
     ${debts.length ? `${group('You pay', mine.pays, 'pay', mine.alsoOwed.length ? `This also covers what you owe ${names(mine.alsoOwed)}.` : '')}
       ${mine.gets.length && me && !trip.members[me]?.venmo && !trip.members[me]?.zelle && write ? `<div class="notice stack tight" id="paymentAsk"><span>People owe you, but they can't see how to pay you yet.</span><div><button class="btn small" data-action="add-payment">Add Venmo or Zelle</button></div></div>` : ''}
       ${group('You receive', mine.gets, 'get', mine.alsoOwing.length ? `This also covers what ${names(mine.alsoOwing)} ${mine.alsoOwing.length > 1 ? 'owe' : 'owes'} you.` : '')}

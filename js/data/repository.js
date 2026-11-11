@@ -66,10 +66,14 @@ export function createRepository(backend, now = () => Date.now()) {
       return { trip, written, claim };
     },
     updateTrip: (id, fields, actorId) => backend.update(tripPath(id), { ...fields, ...stamp(actorId, 'changedBy') }),
+    /** Says you've added all your expenses, or takes it back. */
+    setDone: (tripId, memberId, done) => backend.update(tripPath(tripId), { [`members.${memberId}.done`]: done, ...stamp(memberId, 'changedBy') }),
     /** Marks the trip ready to settle, freezing expenses, or reopens it. Only an admin can. */
     setSettling(trip, on, actorId, actorName) {
+      // Reopening starts the round again: everyone says once more when they're done adding.
+      const marks = on ? {} : Object.fromEntries(Object.keys(trip.members || {}).filter(id => trip.members[id].done).map(id => [`members.${id}.done`, false]));
       return Promise.all([
-        backend.update(tripPath(trip.id), { settling: on ? { by: actorId, at: now() } : null, ...stamp(actorId, 'changedBy') }),
+        backend.update(tripPath(trip.id), { settling: on ? { by: actorId, at: now() } : null, ...marks, ...stamp(actorId, 'changedBy') }),
         logActivity(trip, on ? `${actorName} marked the trip ready to settle` : `${actorName} reopened expenses`, '', actorId),
       ]);
     },

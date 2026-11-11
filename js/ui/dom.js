@@ -1,6 +1,6 @@
 /** Small shared helpers for building and updating the page. */
 import { A, render } from './state.js';
-import { canEditEntry, displayColors, isAdminId, memberName } from '../core/model.js';
+import { canEditEntry, displayColors, doneAdding, isAdminId, memberName } from '../core/model.js';
 import { AVATAR_COLORS } from '../config/app.js';
 import { avatarArt } from './avatars.js';
 
@@ -51,7 +51,11 @@ export const frozen = (trip, e) => Boolean(trip?.settling) && e?.kind !== 'payme
 export const canEdit = (trip, e) => canWrite(trip) && !frozen(trip, e) && canEditEntry(trip, e, getMe(trip));
 export function settlingNote(trip) {
   const s = trip.settling;
-  if (!s) return '';
+  if (!s) {
+    const { all, people } = doneAdding(trip);
+    if (!all || people.length < 2) return '';
+    return `<div class="notice settling-note"><strong>Everyone's added their expenses.</strong> ${amAdmin(trip) ? 'Mark the trip ready to settle on Balances when you are happy with it.' : "The trip's admin can now mark it ready to settle."}</div>`;
+  }
   const when = new Date(s.at).toLocaleDateString('en', { month: 'short', day: 'numeric' });
   return `<div class="notice settling-note"><strong>Ready to settle.</strong> ${esc(memberName(trip, s.by))} closed expenses on ${when}, so the balances are final. Time to pay up.</div>`;
 }

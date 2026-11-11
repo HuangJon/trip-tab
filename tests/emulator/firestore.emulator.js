@@ -117,6 +117,8 @@ await refused(save(friend, { ...benEntry, desc: 'Late change', updatedAt: 3 }, {
 await refused(save(admin, { ...benEntry, desc: 'Admin change', updatedAt: 3 }, { isNew: false, previous: benEntry, actorId: a }), 'not even by the admin');
 await save(friend, { ...entryFor('entry00000000072', b), kind: 'payment', paid: { [b]: entryFor('x', b).total }, owed: { [a]: entryFor('x', b).total } }, { isNew: true, actorId: b });
 await admin.repo.setSettling(trip, false, a, 'Ana');
+await friend.repo.setDone(trip.id, b, true);
+await refused(friend.repo.setDone(trip.id, a, true), "cannot say someone else is done");
 await save(friend, { ...entryFor('entry00000000073', b) }, { isNew: true, actorId: b });
 await refused(friend.repo.renameMember(trip.id, a, 'Hacked', b), "cannot rename someone else");
 await refused(friend.repo.setMemberPayment(trip.id, a, 'venmo', '@scam', b), "cannot change someone else's Venmo");

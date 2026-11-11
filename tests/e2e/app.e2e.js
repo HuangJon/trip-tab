@@ -1069,6 +1069,9 @@ await page.evaluate(() => sessionStorage.removeItem('tour-test'));
 await page.click('[data-action=home]');
 await page.click('[data-action=open-trip] >> nth=0');
 await tab(page, 'balances');
+await page.click('[data-action=done-adding]');
+await page.waitForSelector('[data-action=done-adding]:has-text("not done yet")');
+assert.match(await page.textContent('.settle-control'), /1 of \d+ done|Everyone's added/);
 await page.click('[data-action=settling-on]');
 await page.waitForSelector('.settling-note');
 await page.click('#dlg [data-action=close-sheet], #dlg button:has-text("Close"), #dlg button:has-text("Done")');
@@ -1081,7 +1084,8 @@ assert.equal(await page.locator('#dlg [data-action=edit-entry]').count(), 0, 'an
 await page.click('#dlg [data-action=close-sheet]');
 await tab(page, 'balances');
 await page.click('[data-action=settling-off]');
-await page.waitForFunction(() => !document.querySelector('.settling-note'));
+await page.waitForFunction(() => !/Ready to settle\./.test(document.querySelector('.settling-note')?.textContent || ''));
+await page.waitForSelector('[data-action=done-adding]:has-text("added all mine")'); // reopening starts the round again
 check('the admin can close expenses for settling up and reopen them');
 
 check('the walkthrough shows after signing in and is behind the question mark');
